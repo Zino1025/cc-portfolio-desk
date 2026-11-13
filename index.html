@@ -414,6 +414,7 @@ function makeSupabaseApi() {
     async updateProfile(id, patch) { return ok(await sb.from("profiles").update(patch).eq("id", id).select().single()); },
     async messages(memberId) { return fetchAll(() => sb.from("messages").select("*").eq("member_id", memberId).order("created_at")); },
     async addMessage(m) { return ok(await sb.from("messages").insert(m).select().single()); },
+    async addMessages(rows) { return ok(await sb.from("messages").insert(rows).select("id,member_id,author_id,created_at,kind")); },
     async deleteMessage(id) { ok(await sb.from("messages").delete().eq("id", id)); },
     async allProfiles() { return fetchAll(() => sb.from("profiles").select("*").order("created_at")); },
     async allTransactions() { return fetchAll(() => sb.from("transactions").select("id,user_id,coin_id,symbol,name,side,quantity,price_usd,fee_usd,executed_at").order("executed_at")); },
@@ -497,6 +498,7 @@ function makeDemoApi() {
     async updateProfile(id, patch) { const p = store.profiles.find(x => x.id === id); Object.assign(p, patch); return clone(p); },
     async messages(memberId) { return clone(store.messages.filter(m => m.member_id === memberId).sort((a, b) => a.created_at.localeCompare(b.created_at))); },
     async addMessage(m) { const row = { id: uid(), author_id: currentId, created_at: new Date().toISOString(), coin_id: null, ...m }; store.messages.push(row); return clone(row); },
+    async addMessages(rows) { return rows.map(m => { const row = { id: uid(), author_id: currentId, created_at: new Date().toISOString(), coin_id: null, ...m }; store.messages.push(row); return clone(row); }); },
     async deleteMessage(id) { store.messages = store.messages.filter(m => m.id !== id); },
     async allProfiles() { await pause(); return clone(store.profiles); },
     async allTransactions() { return clone(store.transactions); },
@@ -1455,6 +1457,85 @@ function alertBanner() {
   return `<a href="#updates" class="alert-bar">⚡ ${parts.join(" · ")} <span style="margin-left:auto">See Market updates →</span></a>`;
 }
 
+/* ===================== ADMIN: BROADCAST ===================== */
+// One message, delivered privately into each chosen member's own Feedback thread (and pinged on Telegram).
+function openBroadcast() {
+  const rows = memberRows();
+  const m = getModel();
+  const offTarget = (r) => r.pf.holdings.length && planFor(r.p, r.pf, { mode: "full" }).rows.some(x => Math.abs(x.nowPct - x.target) >= (m.drift ?? 2));
+  const coins = {};
+  for (const r of rows) for (const h of r.pf.holdings) (coins[h.coin_id] ||= { id: h.coin_id, symbol: (h.symbol || "").toUpperCase(), n: 0 }).n++;
+  const coinList = Object.values(coins).sort((a, b) => b.n - a.n);
+  const AUD = [
+    ["all", "All members", () => true],
+    ["holders", "Members holding a coin…", (r, c) => r.pf.holdings.some(h => h.coin_id === c)],
+    ["off", "Off the model by more than " + (m.drift ?? 2) + "%", offTarget],
+    ["requested", "Open review requests", (r) => r.p.review_requested],
+    ["empty", "No trades logged yet", (r) => !r.txs.length],
+    ["pick", "Pick members…", (r, c, picked) => picked.has(r.p.id)],
+  ];
+  const picked = new Set();
+  const ov = document.createElement("div"); ov.className = "overlay";
+  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="max-width:560px"><h2>📣 Broadcast <button class="x" aria-label="Close">×</button></h2>
+    <p class="secondary" style="margin-top:0">One message, sent privately to each member. It lands in their own Feedback thread (they can reply 1-on-1) and pings them on Telegram if linked.</p>
+    <label class="field"><span>Send to</span><select id="bc-aud">${AUD.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join("")}</select></label>
+    <label class="field hidden" id="bc-coin-wrap"><span>Coin</span><select id="bc-coin">${coinList.map(c => `<option value="${esc(c.id)}">${esc(c.symbol)} · ${c.n} holder${c.n === 1 ? "" : "s"}</option>`).join("")}</select></label>
+    <div class="hidden" id="bc-pick" style="margin-bottom:12px"><input type="search" id="bc-q" placeholder="Search members" style="margin-bottom:6px">
+      <div id="bc-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:4px 8px"></div></div>
+    <label class="field"><span>Type</span><select id="bc-kind"><option value="note">Note</option><option value="suggestion">Suggestion</option></select></label>
+    <label class="field"><span>Message</span><textarea id="bc-body" rows="6" maxlength="4000" placeholder="Hey {name}, quick heads-up…"></textarea></label>
+    <div class="hint" style="margin-top:-6px">Type <b>{name}</b> and each member sees their own name.</div>
+    <div class="callout" id="bc-count" style="margin:12px 0"></div>
+    <div class="err" id="bc-err"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" id="bc-cancel" style="flex:none">Cancel</button><button class="btn primary" id="bc-send" style="flex:none">Send</button></div></div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  ov.querySelector(".x").onclick = close; $("#bc-cancel", ov).onclick = close;
+  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  const targets = () => {
+    const a = $("#bc-aud", ov).value, fn = AUD.find(x => x[0] === a)[2], c = $("#bc-coin", ov).value;
+    return rows.filter(r => fn(r, c, picked));
+  };
+  const paintList = () => {
+    const q = $("#bc-q", ov).value.toLowerCase();
+    $("#bc-list", ov).innerHTML = rows.filter(r => !q || memberName(r.p).toLowerCase().includes(q) || (r.p.telegram_handle || "").toLowerCase().includes(q))
+      .map(r => `<label style="display:flex;gap:8px;align-items:center;padding:5px 0;cursor:pointer"><input type="checkbox" data-id="${esc(r.p.id)}" ${picked.has(r.p.id) ? "checked" : ""} style="width:auto"> ${esc(memberName(r.p))} <span class="muted" style="font-size:12px">${r.p.telegram_handle ? "@" + esc(r.p.telegram_handle.replace(/^@/, "")) : ""}</span></label>`).join("") || `<div class="muted" style="padding:6px 0">No members match.</div>`;
+    $("#bc-list", ov).querySelectorAll("[data-id]").forEach(cb => cb.onchange = () => { cb.checked ? picked.add(cb.dataset.id) : picked.delete(cb.dataset.id); paintCount(); });
+  };
+  const paintCount = () => {
+    const t = targets(), tg = t.filter(r => r.p.telegram_chat_id).length;
+    $("#bc-count", ov).innerHTML = t.length ? `<b>${t.length}</b> member${t.length === 1 ? "" : "s"} will get this privately${api.demo ? "" : ` · <b>${tg}</b> on Telegram`}.${t.length <= 6 ? `\n${t.map(r => esc(memberName(r.p))).join(", ")}` : ""}` : "Nobody matches yet.";
+    $("#bc-send", ov).textContent = t.length ? `Send to ${t.length}` : "Send";
+    $("#bc-send", ov).disabled = !t.length;
+  };
+  $("#bc-aud", ov).onchange = () => {
+    const a = $("#bc-aud", ov).value;
+    $("#bc-coin-wrap", ov).classList.toggle("hidden", a !== "holders");
+    $("#bc-pick", ov).classList.toggle("hidden", a !== "pick");
+    if (a === "pick") paintList();
+    paintCount();
+  };
+  $("#bc-coin", ov).onchange = paintCount;
+  $("#bc-q", ov).oninput = debounce(paintList, 120);
+  $("#bc-send", ov).onclick = async () => {
+    const body = $("#bc-body", ov).value.trim(), t = targets();
+    if (!body) return $("#bc-body", ov).focus();
+    if (!t.length) return;
+    const btn = $("#bc-send", ov); btn.disabled = true; btn.textContent = "Sending…";
+    try {
+      const kind = $("#bc-kind", ov).value;
+      const out = t.map(r => ({ member_id: r.p.id, kind, body: body.replace(/\{name\}/gi, r.p.display_name || (r.p.telegram_handle ? "@" + r.p.telegram_handle.replace(/^@/, "") : "there")) }));
+      for (let i = 0; i < out.length; i += 100) {
+        const saved = await api.addMessages(out.slice(i, i + 100));
+        for (const s of saved) S.admin.meta.push({ member_id: s.member_id, author_id: s.author_id, created_at: s.created_at, kind: s.kind });
+      }
+      close(); toast(`Sent to ${t.length} member${t.length === 1 ? "" : "s"}`); render();
+    } catch (e) { $("#bc-err", ov).textContent = e.message || String(e); btn.disabled = false; paintCount(); }
+  };
+  paintCount();
+  $("#bc-body", ov).focus();
+}
+
 /* ===================== ADMIN DATA ===================== */
 async function loadAdmin(force = false) {
   if (!force && Date.now() - S.admin.loadedAt < 30000) return;
@@ -1485,7 +1566,7 @@ async function viewMembers(v) {
   const total = all.reduce((s, r) => s + r.pf.totals.value, 0);
   const stale = all.filter(r => !r.p.last_reviewed_at || Date.now() - new Date(r.p.last_reviewed_at) > 30 * 86400000).length;
   v.innerHTML = `
-    <div class="page-head"><div><h1>Review queue</h1><div class="secondary">Every member's portfolio in one place. Open requests are listed first.</div></div><button class="btn" id="reload">Reload</button></div>
+    <div class="page-head"><div><h1>Review queue</h1><div class="secondary">Every member's portfolio in one place. Open requests are listed first.</div></div><div class="row" style="flex:none"><button class="btn" id="reload">Reload</button><button class="btn primary" id="bcast">📣 Broadcast</button></div></div>
     <div class="kpis">
       <div class="card kpi"><div class="label">Members</div><div class="value num">${all.length}</div><div class="sub muted">${all.filter(r => r.txs.length).length} with trades logged</div></div>
       <div class="card kpi"><div class="label">Open review requests</div><div class="value num">${all.filter(r => r.p.review_requested).length}</div><div class="sub muted">${all.filter(r => r.newFromMember).length} threads with unanswered messages</div></div>
@@ -1532,6 +1613,7 @@ async function viewMembers(v) {
   $("#mf").querySelectorAll(".chip").forEach(c => c.onclick = () => { S.memberFilter = c.dataset.f; $("#mf").querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === c)); paint(); });
   $("#ms").onchange = e => { S.memberSort = e.target.value; paint(); };
   $("#reload").onclick = async () => { await loadAdmin(true); render(); };
+  $("#bcast").onclick = () => openBroadcast();
 }
 
 /* ===================== ADMIN: MEMBER DETAIL ===================== */
