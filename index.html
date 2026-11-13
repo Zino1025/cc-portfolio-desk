@@ -975,6 +975,7 @@ async function viewProfile(v) {
     <div class="card" style="max-width:560px">
       <label class="field"><span>Display name</span><input type="text" id="p-name" maxlength="60" value="${esc(p.display_name || "")}"></label>
       <label class="field"><span>Telegram handle</span><input type="text" id="p-tg" maxlength="40" value="${esc(p.telegram_handle || "")}" placeholder="@yourhandle"></label>
+      ${api.demo ? "" : `<div class="secondary" style="font-size:13px;margin:-4px 0 12px">${p.telegram_chat_id ? "🔔 Telegram notifications are on: the CC bot will message you about reviews and feedback." : "🔕 Telegram notifications are off. Open this app once from the CC bot in Telegram to turn them on."}</div>`}
       <label class="field"><span>Risk appetite</span><select id="p-risk">${["", "low", "medium", "high", "degen"].map(r => `<option value="${r}" ${p.risk_level === r || (!p.risk_level && !r) ? "selected" : ""}>${r ? r[0].toUpperCase() + r.slice(1) : "Choose…"}</option>`).join("")}</select></label>
       <label class="field"><span>Goal &amp; time horizon</span><textarea id="p-goal" maxlength="500" placeholder="e.g. Long-term hold, 2 years, want to 3x">${esc(p.goal || "")}</textarea></label>
       <div class="err" id="p-err"></div>
@@ -1242,6 +1243,7 @@ async function boot() {
     if (recovering) return;
     if (!s) return renderAuth();
     await loadMe();
+    await tgLink();
     render();
   } catch (e) {
     $("#app").innerHTML = `<div class="auth-wrap"><div class="card" style="max-width:440px"><h2>Couldn't load</h2><p class="secondary">${esc(e.message || e)}</p><button class="btn" onclick="location.reload()">Retry</button></div></div>`;
@@ -1252,6 +1254,15 @@ setInterval(() => { if (S.me && !document.hidden && ["overview"].includes(curren
 const TG = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) ? window.Telegram.WebApp : null;
 function tgTheme() { try { if (!localStorage.getItem("cc-theme")) document.documentElement.dataset.theme = TG.colorScheme === "dark" ? "dark" : "light"; } catch (e) {} }
 if (TG) { try { TG.ready(); TG.expand(); tgTheme(); TG.onEvent("themeChanged", tgTheme); document.documentElement.classList.add("in-telegram"); } catch (e) {} }
+async function tgLink() {
+  try {
+    const u = TG && TG.initDataUnsafe && TG.initDataUnsafe.user;
+    if (!u || api.demo || !sb || !S.me || String(S.me.telegram_chat_id || "") === String(u.id)) return;
+    const { data, error } = await sb.functions.invoke("tg-link", { body: { initData: TG.initData } });
+    if (!error && data && data.ok) S.me.telegram_chat_id = u.id;
+  } catch (e) {}
+}
+try { const go = new URLSearchParams(location.search).get("go"); if (go && /^[\w-]+$/.test(go)) history.replaceState(null, "", location.pathname + "#" + go); } catch (e) {}
 boot();
 </script>
 </body>
