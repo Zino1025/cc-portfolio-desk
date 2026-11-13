@@ -6,6 +6,7 @@
 <title>CC Portfolio Desk</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
 /* ================= THEME ================= */
 :root {
@@ -1247,6 +1248,10 @@ async function boot() {
   }
 }
 setInterval(() => { if (S.me && !document.hidden && ["overview"].includes(currentRoute())) { CG.ensure(S.txs.map(t => t.coin_id)).then(() => { if (currentRoute() === "overview" && !document.querySelector(".overlay")) render(); }); } }, 60000);
+/* ===================== TELEGRAM MINI APP ===================== */
+const TG = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) ? window.Telegram.WebApp : null;
+function tgTheme() { try { if (!localStorage.getItem("cc-theme")) document.documentElement.dataset.theme = TG.colorScheme === "dark" ? "dark" : "light"; } catch (e) {} }
+if (TG) { try { TG.ready(); TG.expand(); tgTheme(); TG.onEvent("themeChanged", tgTheme); document.documentElement.classList.add("in-telegram"); } catch (e) {} }
 boot();
 </script>
 </body>
