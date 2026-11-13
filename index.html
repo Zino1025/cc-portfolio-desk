@@ -164,6 +164,19 @@ tr.click:hover td { background:var(--surface-2); }
 .dropdown .opt:hover, .dropdown .opt.hl { background:var(--surface-2); }
 .picked { display:flex; align-items:center; justify-content:space-between; padding:9px 11px; border:1px solid var(--accent); border-radius:9px; background:var(--surface-2); }
 .showpw { display:flex; align-items:center; gap:7px; font-size:13px; color:var(--text-secondary); margin:-4px 0 12px; cursor:pointer; user-select:none; }
+.range { width:100%; accent-color:var(--accent); padding:0; border:none; background:none; height:24px; }
+.bucket { padding:10px 0; border-bottom:1px solid var(--grid); }
+.bucket:last-child { border-bottom:none; }
+.bucket-head { display:flex; justify-content:space-between; gap:8px; font-size:14px; }
+.split { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text-secondary); }
+.split .range { flex:1; }
+.section-h { font-size:16px; margin:20px 0 10px; }
+.card.urgent { border-left:4px solid var(--accent); }
+.card.drop { border-left:4px solid var(--bad); }
+.alert-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; background:var(--warn-bg); color:var(--warn-ink); border-radius:10px; padding:10px 14px; margin-bottom:14px; text-decoration:none; font-size:14px; }
+details.past { padding:8px 0; border-bottom:1px solid var(--grid); }
+details.past summary { cursor:pointer; }
+@media (max-width:640px) { table.plan .coin > div > div:first-child { display:none; } table.plan .coin .sym { font-size:13px; color:var(--text-primary); font-weight:600; } table.plan th, table.plan td { padding-left:5px; padding-right:5px; } table.plan .coin img, table.plan .coin .ph { display:none; } }
 .showpw input { width:16px; height:16px; margin:0; accent-color:var(--accent); cursor:pointer; }
 .hint { font-size:12px; color:var(--text-muted); margin-top:4px; }
 .err { color:var(--bad); font-size:13px; margin:8px 0; min-height:1em; }
@@ -288,8 +301,8 @@ const CG = {
     for (let i = 0; i < need.length; i += 200) {
       const batch = need.slice(i, i + 200);
       try {
-        const rows = await this.get(`/coins/markets?vs_currency=usd&ids=${encodeURIComponent(batch.join(","))}&per_page=250&price_change_percentage=24h`);
-        for (const r of rows) this.cache[r.id] = { price: r.current_price, change24: r.price_change_percentage_24h, mcap: r.market_cap, image: r.image, symbol: r.symbol, name: r.name, at: now };
+        const rows = await this.get(`/coins/markets?vs_currency=usd&ids=${encodeURIComponent(batch.join(","))}&per_page=250&price_change_percentage=24h,7d`);
+        for (const r of rows) this.cache[r.id] = { price: r.current_price, change24: r.price_change_percentage_24h, change7: r.price_change_percentage_7d_in_currency ?? null, mcap: r.market_cap, image: r.image, symbol: r.symbol, name: r.name, at: now };
         this.offline = false;
       } catch (e) {
         this.offline = true;
@@ -328,8 +341,10 @@ const SAMPLE_PRICES = {
   "paal-ai":         { name: "PAAL AI", symbol: "paal", price: 0.08, change24: -3.1, rank: 700 },
   "velo":            { name: "Velo", symbol: "velo", price: 0.012, change24: 4.6, rank: 600 },
   "octokn":          { name: "Octo Gaming", symbol: "otk", price: 0.004, change24: -1.9, rank: 1500 },
-  "tectum":          { name: "Tectum", symbol: "tet", price: 1.2, change24: 0.5, rank: 1800 },
-  "solidus-ai-tech": { name: "AITECH Cloud Network", symbol: "acn", price: 0.03, change24: 6.2, rank: 650 },
+  "tectum":          { name: "Tectum", symbol: "tet", price: 1.2, change24: -17.5, change7: -21.0, rank: 1800 },
+  "solidus-ai-tech": { name: "AITECH Cloud Network", symbol: "acn", price: 0.03, change24: 6.2, change7: 11.4, rank: 650 },
+  "tether":          { name: "Tether", symbol: "usdt", price: 1, change24: 0, change7: 0, rank: 3 },
+  "usd-coin":        { name: "USDC", symbol: "usdc", price: 1, change24: 0, change7: 0, rank: 7 },
 };
 
 /* ===================== PORTFOLIO MATH (average cost) ===================== */
@@ -403,6 +418,12 @@ function makeSupabaseApi() {
     async allProfiles() { return fetchAll(() => sb.from("profiles").select("*").order("created_at")); },
     async allTransactions() { return fetchAll(() => sb.from("transactions").select("id,user_id,coin_id,symbol,name,side,quantity,price_usd,fee_usd,executed_at").order("executed_at")); },
     async allMessageMeta() { return fetchAll(() => sb.from("messages").select("member_id,author_id,created_at,kind").order("created_at")); },
+    async getSetting(key) { return ok(await sb.from("app_settings").select("value,updated_at").eq("key", key).maybeSingle()); },
+    async setSetting(key, value) { return ok(await sb.from("app_settings").upsert({ key, value, updated_at: new Date().toISOString() }).select().single()); },
+    async updates() { return ok(await sb.from("updates").select("*").order("created_at", { ascending: false }).limit(60)); },
+    async addUpdate(u) { return ok(await sb.from("updates").insert(u).select().single()); },
+    async deleteUpdate(id) { ok(await sb.from("updates").delete().eq("id", id)); },
+    async groupHoldings() { return ok(await sb.rpc("group_holdings")) || []; },
     onAuthChange(cb) { sb.auth.onAuthStateChange((ev, s) => cb(ev, s)); },
   };
 }
@@ -420,6 +441,11 @@ function makeDemoApi() {
     ],
     transactions: [],
     messages: [],
+    settings: {},
+    updates: [
+      { id: "w1", kind: "weekly", author_id: "dkay", title: "Weekly update", body: "Quiet week overall. TET is getting hit hard, so watch the bid zone. ACN holding up well after the migration.\n\nPlan: stick to the model, keep some dry powder, don't chase green candles.", created_at: d(2, 18) },
+      { id: "x1", kind: "urgent", author_id: "dkay", coin_id: "tectum", title: "TET flushed into support, start bidding", body: "Scale in, don't go all in at once.", buy_low: 1.05, buy_high: 1.25, created_at: d(0, 9), expires_at: new Date(now + 2 * 86400000).toISOString() },
+    ],
   };
   const tx = (user_id, coin_id, side, quantity, price_usd, executed_at, fee_usd = 0, exchange = "MEXC") => {
     const c = SAMPLE_PRICES[coin_id];
@@ -442,6 +468,8 @@ function makeDemoApi() {
   tx("u3", "ethereum", "sell", 0.2, 3500, d(5, 10), 1, "Kraken");
   tx("u4", "bitcoin", "buy", 0.003, 93000, d(4, 18), 1, "Coinbase");
   tx("u4", "paal-ai", "buy", 2000, 0.085, d(2, 20));
+  tx("u3", "tether", "buy", 1500, 1, d(10, 12), 0, "Kraken");
+  tx("u1", "tectum", "buy", 400, 1.4, d(20, 12));
   tx("dkay", "bitcoin", "buy", 0.4, 60000, d(85, 8), 10, "Binance");
   tx("dkay", "velo", "buy", 300000, 0.006, d(40, 23));
   tx("dkay", "solidus-ai-tech", "buy", 150000, 0.02, d(33, 12));
@@ -473,6 +501,18 @@ function makeDemoApi() {
     async allProfiles() { await pause(); return clone(store.profiles); },
     async allTransactions() { return clone(store.transactions); },
     async allMessageMeta() { return clone(store.messages.map(({ member_id, author_id, created_at, kind }) => ({ member_id, author_id, created_at, kind }))); },
+    async getSetting(key) { return store.settings[key] ? clone(store.settings[key]) : null; },
+    async setSetting(key, value) { store.settings[key] = { value: clone(value), updated_at: new Date().toISOString() }; return clone(store.settings[key]); },
+    async updates() { return clone([...store.updates].sort((a, b) => b.created_at.localeCompare(a.created_at))); },
+    async addUpdate(u) { const row = { id: uid(), author_id: currentId, created_at: new Date().toISOString(), coin_id: null, body: null, buy_low: null, buy_high: null, expires_at: null, ...u }; store.updates.push(row); return clone(row); },
+    async deleteUpdate(id) { store.updates = store.updates.filter(u => u.id !== id); },
+    async groupHoldings() {
+      const admins = new Set(store.profiles.filter(p => p.role === "admin").map(p => p.id)), q = {};
+      for (const t of store.transactions) { if (admins.has(t.user_id)) continue; const k = t.user_id + "|" + t.coin_id; q[k] = (q[k] || 0) + (t.side === "buy" ? 1 : -1) * num(t.quantity); }
+      const by = {}, users = new Set();
+      for (const [k, v] of Object.entries(q)) if (v > 0) { const [u, c] = k.split("|"); users.add(u); (by[c] ||= { coin_id: c, qty: 0, holders: 0 }); by[c].qty += v; by[c].holders++; }
+      return Object.values(by).map(r => ({ ...r, members: users.size }));
+    },
     onAuthChange() {},
   };
 }
@@ -484,6 +524,7 @@ const S = {
   admin: { profiles: [], txs: [], meta: [], loadedAt: 0 },
   tradeFilter: null,
   proj: null,
+  model: null, modelUpdatedAt: null, updates: [], reb: null,
   memberFilter: "all", memberSort: "review", memberQuery: "",
   charts: {},
 };
@@ -518,8 +559,8 @@ function donutCard(id, title) {
 
 /* ===================== SHELL ===================== */
 function routes() {
-  const r = [["overview", "Portfolio"], ["trades", "Trades"], ["projections", "Projections"], ["feedback", "Feedback from " + CONFIG.REVIEWER_NAME], ["profile", "Profile"]];
-  if (isAdmin()) r.push(["sep"], ["members", "Review queue"], ["insights", "Group insights"]);
+  const r = [["overview", "Portfolio"], ["trades", "Trades"], ["rebalance", "Rebalance"], ["projections", "Projections"], ["updates", "Market updates"], ["feedback", "Feedback from " + CONFIG.REVIEWER_NAME], ["profile", "Profile"]];
+  if (isAdmin()) r.push(["sep"], ["members", "Review queue"], ["insights", "Group insights"], ["model", "Model portfolio"]);
   return r;
 }
 function currentRoute() {
@@ -544,7 +585,7 @@ function renderShell() {
     <header class="top"><div class="top-inner">
       <div class="brand"><span class="logo">${esc(CONFIG.GROUP_NAME)}</span><span class="hide-sm">Portfolio Desk</span></div>
       <nav class="tabs">${routes().map(([k, l]) => k === "sep" ? `<span class="sep"></span>` :
-        `<a href="#${k}" class="${route === k || (k === "members" && route.startsWith("member-")) ? "active" : ""}">${esc(l)}${k === "feedback" && unread ? `<span class="badge">${unread}</span>` : ""}${k === "members" && openReviewCount() ? `<span class="badge">${openReviewCount()}</span>` : ""}</a>`).join("")}</nav>
+        `<a href="#${k}" class="${route === k || (k === "members" && route.startsWith("member-")) ? "active" : ""}">${esc(l)}${k === "feedback" && unread ? `<span class="badge">${unread}</span>` : ""}${k === "members" && openReviewCount() ? `<span class="badge">${openReviewCount()}</span>` : ""}${k === "updates" && alertCount() ? `<span class="badge">${alertCount()}</span>` : ""}</a>`).join("")}</nav>
       <div class="user-chip"><span class="hide-sm secondary">${esc(memberName(S.me))}</span>
         <button class="btn small" id="theme-btn" title="Toggle light/dark" aria-label="Toggle theme">☾ Theme</button>
         ${api.demo ? "" : `<button class="btn small" id="signout">Sign out</button>`}</div>
@@ -574,6 +615,9 @@ async function renderView(route) {
   if (route === "overview") return viewOverview(v);
   if (route === "trades") return viewTrades(v);
   if (route === "projections") return viewProjections(v);
+  if (route === "rebalance") return viewRebalance(v);
+  if (route === "updates") return viewUpdates(v);
+  if (route === "model") return isAdmin() ? viewModel(v) : viewOverview(v);
   if (route === "feedback") return viewFeedback(v);
   if (route === "profile") return viewProfile(v);
   if (route === "members") return viewMembers(v);
@@ -611,18 +655,21 @@ function holdingsTable(pf, editable = false) {
 }
 async function viewOverview(v) {
   v.innerHTML = `<div class="spinner"></div>`;
-  await CG.ensure(S.txs.map(t => t.coin_id));
+  await CG.ensure([...S.txs.map(t => t.coin_id), ...modelCoinIds()]);
   const pf = computePortfolio(S.txs);
   v.innerHTML = `
+    ${alertBanner()}
     <div class="page-head"><div><h1>My portfolio</h1><div class="secondary">Prices from CoinGecko${CG.offline ? " (sample, offline)" : ", refreshed every minute"}.</div></div>
       <div class="row" style="flex:none"><button class="btn" id="refresh">Refresh prices</button><button class="btn primary" id="add">+ Add trade</button></div></div>
     ${kpiRow(pf)}
+    <div class="kpis" id="grp-row"></div>
     <div class="two-col">
       ${pf.holdings.length ? donutCard("pie-me", "Allocation") : `<div class="card empty"><div class="big">Your pie chart shows up here</div>once you log a buy.</div>`}
       <div class="card"><h2>Holdings</h2>${holdingsTable(pf, true)}</div>
     </div>
     ${reviewNudge()}`;
   if (pf.holdings.length) renderDonut("pie-me", pf.holdings, "Total", pf.totals.value);
+  groupTotals().then(g => { const el = $("#grp-row"); if (el && g.members) el.innerHTML = groupKpi(g) + `<a class="card kpi" href="#rebalance" style="text-decoration:none;color:inherit"><div class="label">vs ${esc(CONFIG.REVIEWER_NAME)}'s model</div><div class="value" style="font-size:18px">Rebalance →</div><div class="sub muted">see what to buy or trim</div></a>`; }).catch(() => {});
   $("#add").onclick = () => openTradeModal();
   v.querySelectorAll("tr[data-coin]").forEach(tr => tr.onclick = () => { S.tradeFilter = tr.dataset.coin; location.hash = "trades"; });
   $("#refresh").onclick = async () => { await CG.ensure(pf.coinIds, 0); render(); };
@@ -998,6 +1045,416 @@ async function viewProfile(v) {
   });
 }
 
+/* ===================== MODEL PORTFOLIO (Dkay's target mix) ===================== */
+// TET and ACN are fixed. The rest (30%) is a flexible pool the member splits between PAAL, VELO and OTK.
+const DEFAULT_MODEL = {
+  version: 2,
+  fixed: [
+    { coin: "tectum", label: "Tectum (TET)", pct: 40 },
+    { coin: "solidus-ai-tech", label: "AITECH (ACN)", pct: 30 },
+  ],
+  flex: [
+    { coin: "paal-ai", max: 30 },
+    { coin: "velo", max: 30 },
+    { coin: "octokn", max: 10 },
+  ],
+  presets: [
+    { name: "Even split", mix: { "paal-ai": 10, "velo": 10, "octokn": 10 } },
+    { name: "PAAL-heavy", mix: { "paal-ai": 20, "velo": 10, "octokn": 0 } },
+    { name: "All PAAL", mix: { "paal-ai": 30, "velo": 0, "octokn": 0 } },
+  ],
+  drift: 2,     // % points before we suggest a trade
+  drop24: 15,   // urgent-bid alert: 24h drop of this % or more
+  drop7: 25,    // ...or 7-day drop of this % or more
+};
+const STABLE_IDS = ["tether", "usd-coin", "dai", "first-digital-usd", "ethena-usde"];
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const r1 = (v) => Math.round(v * 10) / 10;
+function getModel() { return S.model || DEFAULT_MODEL; }
+function poolSize(m = getModel()) { return Math.max(0, 100 - m.fixed.reduce((s, f) => s + num(f.pct), 0)); }
+function modelCoinIds(m = getModel()) { return [...new Set([...m.fixed.map(f => f.coin), ...m.flex.map(f => f.coin)])]; }
+function symOf(id) { const i = CG.info(id); return ((i && i.symbol) || SAMPLE_PRICES[id]?.symbol || id).toUpperCase(); }
+/** Make a flex mix add up to the pool, respecting each coin's max. `keep` is the coin the member just moved. */
+function normalizeMix(m, mix, keep) {
+  const pool = poolSize(m), cap = (f) => Math.min(num(f.max) || pool, pool), out = {};
+  for (const f of m.flex) out[f.coin] = clamp(num(mix[f.coin]), 0, cap(f));
+  const fixed = new Set(keep ? [keep] : []);
+  for (let pass = 0; pass < 12; pass++) {
+    const gap = pool - m.flex.reduce((s, f) => s + out[f.coin], 0);
+    if (Math.abs(gap) < 1e-6) break;
+    const adj = m.flex.filter(f => !fixed.has(f.coin) && (gap > 0 ? out[f.coin] < cap(f) - 1e-9 : out[f.coin] > 1e-9));
+    if (!adj.length) { if (fixed.size) { fixed.clear(); continue; } break; }
+    const w = adj.map(f => gap > 0 ? cap(f) - out[f.coin] : out[f.coin]), W = w.reduce((s, x) => s + x, 0) || 1;
+    adj.forEach((f, i) => { out[f.coin] = clamp(out[f.coin] + gap * w[i] / W, 0, cap(f)); });
+  }
+  for (const k in out) out[k] = r1(out[k]);
+  const drift = r1(pool - Object.values(out).reduce((s, x) => s + x, 0));
+  if (drift && m.flex.length) { const big = m.flex.filter(f => f.coin !== keep).sort((a, b) => out[b.coin] - out[a.coin])[0] || m.flex[0]; out[big.coin] = r1(out[big.coin] + drift); }
+  return out;
+}
+function presetIndex(prefs) { return prefs && Number.isInteger(prefs.preset) ? prefs.preset : null; }
+/** The member's flex mix: their custom mix, else their chosen preset, else the first preset. */
+function memberMix(m, prefs = {}) {
+  if (prefs.mix && !Number.isInteger(prefs.preset)) return normalizeMix(m, prefs.mix);
+  const p = m.presets[presetIndex(prefs) ?? 0] || m.presets[0];
+  return normalizeMix(m, p ? p.mix : {});
+}
+function mixLabel(m, prefs = {}) {
+  if (prefs.mix && !Number.isInteger(prefs.preset)) return "Custom split";
+  return (m.presets[presetIndex(prefs) ?? 0] || {}).name || "Default";
+}
+/** Per-coin target % for a member. */
+function modelTargets(m, prefs = {}) {
+  const coins = {};
+  for (const f of m.fixed) coins[f.coin] = (coins[f.coin] || 0) + num(f.pct);
+  const mix = memberMix(m, prefs);
+  for (const f of m.flex) coins[f.coin] = (coins[f.coin] || 0) + num(mix[f.coin]);
+  return { coins, mix };
+}
+/**
+ * Build a rebalance plan.
+ * mode "full": buy underweights and trim overweights. mode "add": only spend new money, never sell.
+ * Coins outside the model (incl. stablecoins) are left out unless includeOther is on.
+ */
+function modelPlan(pf, m, prefs, { newMoney = 0, mode = "full", includeOther = false } = {}) {
+  const T = modelTargets(m, prefs);
+  const val = {}; for (const h of pf.holdings) val[h.coin_id] = h.value;
+  const cashNow = STABLE_IDS.reduce((s, id) => s + (val[id] || 0), 0);
+  const ids = Object.keys(T.coins);
+  const others = pf.holdings.filter(h => !(h.coin_id in T.coins));
+  const otherVal = others.reduce((s, h) => s + h.value, 0);
+  const baseNow = ids.reduce((s, id) => s + (val[id] || 0), 0) + (includeOther ? otherVal : 0);
+  const base = baseNow + Math.max(0, newMoney);
+  const rows = ids.map(id => {
+    const h = pf.holdings.find(x => x.coin_id === id);
+    const info = CG.info(id);
+    return { id, symbol: symOf(id), name: info?.name || h?.name || id, image: info?.image, price: info?.price ?? h?.price ?? 0,
+      target: T.coins[id], now: val[id] || 0, targetVal: base * T.coins[id] / 100, change24: info?.change24, change7: info?.change7 };
+  });
+  if (includeOther) for (const h of others) rows.push({ id: h.coin_id, other: true, stable: STABLE_IDS.includes(h.coin_id), symbol: (h.symbol || "").toUpperCase(), name: h.name, image: h.image, price: h.price, target: 0, now: h.value, targetVal: 0 });
+  for (const r of rows) { r.nowPct = baseNow > 0 ? r.now / baseNow * 100 : 0; r.diff = r.targetVal - r.now; r.action = 0; }
+  if (mode === "add") {
+    let money = Math.max(0, newMoney);
+    const gaps = rows.filter(r => !r.other && r.diff > 0);
+    const gapSum = gaps.reduce((s, r) => s + r.diff, 0);
+    if (gapSum > 0) { const k = Math.min(1, money / gapSum); for (const r of gaps) r.action = r.diff * k; money -= gapSum * k; }
+    if (money > 0.005) for (const r of rows) if (!r.other && r.target > 0) r.action += money * r.target / 100;
+  } else {
+    for (const r of rows) {
+      const driftPts = base > 0 ? Math.abs(r.diff) / base * 100 : 0;
+      r.action = driftPts >= (m.drift ?? 2) || (r.other && r.now > 0) || (newMoney > 0 && r.diff > 0) ? r.diff : 0;
+    }
+  }
+  for (const r of rows) { r.qty = r.price > 0 ? Math.abs(r.action) / r.price : 0; }
+  return { T, rows, base, baseNow, others: includeOther ? [] : others, otherVal, cashNow };
+}
+function myPrefs() { return S.me?.model_prefs || {}; }
+function planFor(p, pf, opts) { return modelPlan(pf, getModel(), p?.model_prefs || {}, opts); }
+
+/* ===================== MARKET ALERTS ===================== */
+function priceDrops(m = getModel()) {
+  const out = [];
+  for (const id of modelCoinIds(m)) {
+    const i = CG.info(id); if (!i) continue;
+    const d24 = num(i.change24), d7 = num(i.change7);
+    if (d24 <= -m.drop24 || (i.change7 != null && d7 <= -m.drop7)) out.push({ id, symbol: symOf(id), name: i.name, image: i.image, price: i.price, change24: d24, change7: i.change7 });
+  }
+  return out;
+}
+function activeUrgent() {
+  const now = Date.now();
+  return (S.updates || []).filter(u => u.kind === "urgent" && (!u.expires_at || new Date(u.expires_at) > now));
+}
+function alertCount() { return activeUrgent().length + priceDrops().length; }
+/** Suggested $ for an urgent bid: fill the member's gap on that coin, paid from dry powder if they have it. */
+function bidSuggestion(coinId) {
+  const pf = computePortfolio(S.txs);
+  const plan = planFor(S.me, pf, { mode: "full" });
+  const r = plan.rows.find(x => x.id === coinId);
+  if (!r) return { text: "Not part of the model mix.", amount: 0 };
+  const gap = Math.max(0, r.targetVal - r.now);
+  if (!plan.baseNow) return { text: `No holdings logged yet. ${symOf(coinId)} is ${r.target.toFixed(1)}% of the model mix.`, amount: 0 };
+  if (gap < 1) return { text: `You're already at or above your ${r.target.toFixed(1)}% target for ${symOf(coinId)}.`, amount: 0 };
+  const fromCash = Math.min(gap, plan.cashNow);
+  return { amount: gap, text: `You're ${fmtUsd(gap)} under your ${r.target.toFixed(1)}% target (${r.nowPct.toFixed(1)}% now).` +
+    (fromCash > 0 ? ` You have ${fmtUsd(plan.cashNow)} in stables to bid with.` : " You have no stables logged, so this would be new money.") };
+}
+
+/* ===================== GROUP TOTAL ===================== */
+async function groupTotals() {
+  const rows = await api.groupHoldings();
+  await CG.ensure(rows.map(r => r.coin_id));
+  let value = 0, chg = 0;
+  for (const r of rows) { const i = CG.info(r.coin_id); if (!i) continue; const v = num(r.qty) * num(i.price); value += v; chg += v - v / (1 + num(i.change24) / 100); }
+  return { value, change24: chg, change24Pct: value - chg > 0 ? chg / (value - chg) * 100 : 0, members: rows[0]?.members || 0 };
+}
+function groupKpi(g) {
+  return `<div class="card kpi"><div class="label">${esc(CONFIG.GROUP_NAME)} group total</div><div class="value num">${fmtUsd(g.value, { compact: g.value >= 1e6 })}</div><div class="sub num ${signCls(g.change24)}">${fmtPct(g.change24Pct)} 24h · ${g.members} member${g.members === 1 ? "" : "s"}</div></div>`;
+}
+
+/* ===================== MEMBER: REBALANCE ===================== */
+function planTable(plan, m) {
+  const fmtAct = (r) => {
+    if (Math.abs(r.action) < 0.5) return r.nowPct - r.target >= (m.drift ?? 2) ? `<span class="muted">Over · hold</span>` : r.target - r.nowPct >= (m.drift ?? 2) ? `<span class="muted">Under target</span>` : `<span class="muted">On target</span>`;
+    const q = r.qty ? `<div class="muted num" style="font-size:12px">≈ ${fmtQty(r.qty)} ${esc(r.symbol)}</div>` : "";
+    return r.action > 0 ? `<span class="tag buy">Buy</span> <b class="num">${fmtUsd(r.action)}</b>${q}`
+      : `<span class="tag sell">${r.other ? (r.stable ? "Deploy" : "Rotate out") : "Trim"}</span> <b class="num">${fmtUsd(-r.action)}</b>${r.stable ? "" : q}`;
+  };
+  return `<div class="table-wrap"><table class="plan"><thead><tr><th>Coin</th><th class="r">Now → target</th><th class="r hide-sm">Value now</th><th class="r hide-sm">Target value</th><th>Suggestion</th></tr></thead><tbody>
+    ${plan.rows.map(r => {
+      const off = Math.abs(r.nowPct - r.target) >= (m.drift ?? 2);
+      return `<tr><td>${coinCell({ ...r, symbol: r.symbol.toLowerCase(), coin_id: r.id })}${r.other ? ` <span class="tag">${r.stable ? "stables" : "outside model"}</span>` : ""}</td>
+        <td class="r num" style="white-space:nowrap"><span class="${off ? (r.nowPct > r.target ? "bad" : "") : "good"}">${r.nowPct.toFixed(1)}%</span> <span class="muted">→ ${r.target.toFixed(1)}%</span></td>
+        <td class="r num hide-sm">${fmtUsd(r.now)}</td><td class="r num hide-sm">${fmtUsd(r.targetVal)}</td>
+        <td>${fmtAct(r)}</td></tr>`;
+    }).join("")}</tbody></table></div>`;
+}
+function mixSliders(m, mix) {
+  const pool = poolSize(m);
+  return m.fixed.map(f => `<div class="bucket"><div class="bucket-head"><b>${esc(f.label || symOf(f.coin))}</b><span class="num"><b>${num(f.pct).toFixed(0)}%</b> <span class="muted">fixed</span></span></div></div>`).join("") +
+    `<div class="bucket" style="border-bottom:none;padding-bottom:0"><div class="bucket-head"><b>Flexible ${pool}%</b><span class="muted" style="font-size:13px">split it your way</span></div></div>` +
+    m.flex.map(f => `<div class="bucket flex">
+      <div class="bucket-head"><span>${esc(symOf(f.coin))} <span class="muted" style="font-size:12px">${esc(CG.info(f.coin)?.name || "")}</span></span><span class="num"><b id="fx-${esc(f.coin)}">${num(mix[f.coin]).toFixed(1)}%</b> <span class="muted">max ${Math.min(num(f.max) || pool, pool)}%</span></span></div>
+      <input type="range" class="range" min="0" max="${Math.min(num(f.max) || pool, pool)}" step="0.5" value="${num(mix[f.coin])}" data-flex="${esc(f.coin)}" aria-label="${esc(symOf(f.coin))} share of the flexible ${pool}%">
+    </div>`).join("");
+}
+async function viewRebalance(v) {
+  v.innerHTML = `<div class="spinner"></div>`;
+  const m = getModel();
+  await CG.ensure([...S.txs.map(t => t.coin_id), ...modelCoinIds(m)]);
+  S.reb ||= { mode: "full", newMoney: 0, includeOther: false };
+  let prefs = JSON.parse(JSON.stringify(myPrefs()));
+  const save = debounce(async () => {
+    try { S.me = await api.updateProfile(S.me.id, { model_prefs: prefs }); } catch (e) { toast("Couldn't save: " + e.message); }
+  }, 700);
+  const paint = () => {
+    const pf = computePortfolio(S.txs);
+    const plan = modelPlan(pf, m, prefs, S.reb);
+    const tgt = Object.entries(plan.T.coins).filter(([, p]) => p > 0).map(([id, p]) => ({ symbol: symOf(id), name: CG.info(id)?.name || id, value: p, alloc: p }));
+    $("#reb-body").innerHTML = `
+      <div class="kpis">
+        <div class="card kpi"><div class="label">Counted value</div><div class="value num">${fmtUsd(plan.baseNow)}</div><div class="sub muted">model coins${S.reb.includeOther ? " + everything else" : " only"}</div></div>
+        <div class="card kpi"><div class="label">Off target</div><div class="value num">${plan.rows.filter(r => Math.abs(r.nowPct - r.target) >= (m.drift ?? 2)).length}</div><div class="sub muted">more than ${m.drift ?? 2}% from target</div></div>
+        <div class="card kpi"><div class="label">To buy</div><div class="value num good">${fmtUsd(plan.rows.filter(r => r.action > 0).reduce((s, r) => s + r.action, 0))}</div><div class="sub muted">${S.reb.mode === "add" ? "from new money" : "incl. any new money"}</div></div>
+        <div class="card kpi"><div class="label">To trim</div><div class="value num bad">${fmtUsd(-plan.rows.filter(r => r.action < 0).reduce((s, r) => s + r.action, 0))}</div><div class="sub muted">${S.reb.mode === "add" ? "never sells in this mode" : "sell and move into underweights"}</div></div>
+      </div>
+      <div class="card"><h2>Your plan</h2>${plan.baseNow || S.reb.newMoney ? planTable(plan, m) : `<div class="empty"><div class="big">Nothing to balance yet</div>Log your holdings, or enter new money above to plan your first buys.</div>`}
+        ${plan.others.length ? `<div class="hint">Not counted: ${plan.others.map(h => `${esc((h.symbol || "").toUpperCase())} ${fmtUsd(h.value)}`).join(", ")} (${fmtUsd(plan.otherVal)} outside the model). Tick “include everything” to see what moving it into the model would look like.</div>` : ""}
+        <div class="hint">Suggestions only, not financial advice. Amounts use live CoinGecko prices; check fees and slippage before trading.</div></div>`;
+    renderDonut("pie-target", tgt, "Target", 100);
+    const c = document.querySelector("#pie-target")?.parentElement?.querySelector(".chart-center"); if (c) c.innerHTML = `<div><div class="v" style="font-size:15px">${esc(mixLabel(m, prefs))}</div><div class="l">target mix</div></div>`;
+  };
+  const presetChips = () => m.presets.map((p, i) => `<button class="chip ${presetIndex(prefs) === i || (presetIndex(prefs) == null && !prefs.mix && i === 0) ? "on" : ""}" data-p="${i}" title="${esc(m.flex.map(f => `${symOf(f.coin)} ${num(p.mix[f.coin])}%`).join(" · "))}">${esc(p.name)}</button>`).join("") +
+    `<button class="chip ${prefs.mix && presetIndex(prefs) == null ? "on" : ""}" data-p="custom" disabled style="cursor:default">Custom</button>`;
+  v.innerHTML = `
+    <div class="page-head"><div><h1>Rebalance</h1><div class="secondary">${esc(CONFIG.REVIEWER_NAME)}'s model: ${m.fixed.map(f => `${esc(symOf(f.coin))} ${num(f.pct)}%`).join(", ")}, and you split the other ${poolSize(m)}%. ${S.modelUpdatedAt ? `Updated ${ago(S.modelUpdatedAt)}.` : ""}</div></div></div>
+    <div class="two-col">
+      <div class="card"><h2>Your mix</h2>
+        <div class="field-div">Quick picks from ${esc(CONFIG.REVIEWER_NAME)}</div>
+        <div class="chips" id="presets" style="margin:-6px 0 8px">${presetChips()}</div>
+        <div id="sliders">${mixSliders(m, memberMix(m, prefs))}</div>
+        <div class="hint">Move a slider and the others adjust so the flexible part always adds up to ${poolSize(m)}%.</div>
+        <div class="chart-box" style="margin-top:12px"><canvas id="pie-target" role="img" aria-label="Target allocation pie chart"></canvas><div class="chart-center"></div></div>
+        <div class="legend" id="pie-target-legend"></div>
+      </div>
+      <div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="toolbar" style="margin:0">
+            <div class="seg" id="mode"><button data-m="full" class="${S.reb.mode === "full" ? "on" : ""}">Full rebalance</button><button data-m="add" class="${S.reb.mode === "add" ? "on" : ""}">Add new money only</button></div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px">New money $<input type="text" inputmode="decimal" id="newm" value="${S.reb.newMoney || ""}" placeholder="0" style="width:110px"></label>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="incl" ${S.reb.includeOther ? "checked" : ""} style="width:auto"> include everything</label>
+          </div>
+        </div>
+        <div id="reb-body"></div>
+      </div>
+    </div>`;
+  const bindSliders = () => v.querySelectorAll("[data-flex]").forEach(s => s.oninput = () => {
+    const mix = memberMix(m, prefs); mix[s.dataset.flex] = +s.value;
+    prefs = { mix: normalizeMix(m, mix, s.dataset.flex) };
+    m.flex.forEach(f => { const el = $("#fx-" + CSS.escape(f.coin)); if (el) el.textContent = num(prefs.mix[f.coin]).toFixed(1) + "%"; const r = v.querySelector(`[data-flex="${CSS.escape(f.coin)}"]`); if (r && r !== s) r.value = prefs.mix[f.coin]; });
+    $("#presets").innerHTML = presetChips(); bindPresets(); paint(); save();
+  });
+  const bindPresets = () => $("#presets").querySelectorAll("[data-p]").forEach(c => { if (c.dataset.p !== "custom") c.onclick = () => {
+    prefs = { preset: +c.dataset.p };
+    $("#presets").innerHTML = presetChips(); bindPresets();
+    $("#sliders").innerHTML = mixSliders(m, memberMix(m, prefs)); bindSliders(); paint(); save();
+  }; });
+  $("#mode").querySelectorAll("button").forEach(b => b.onclick = () => { S.reb.mode = b.dataset.m; $("#mode").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); paint(); });
+  $("#newm").oninput = debounce(e => { S.reb.newMoney = Math.max(0, decOr0(e.target.value)); paint(); }, 250);
+  $("#incl").onchange = e => { S.reb.includeOther = e.target.checked; paint(); };
+  bindSliders(); bindPresets(); paint();
+}
+/** Compact model-drift card for Dkay on a member's page. */
+function driftCard(p, pf) {
+  if (!pf.holdings.length) return "";
+  const m = getModel(), plan = planFor(p, pf, { mode: "full" });
+  const off = plan.rows.filter(r => Math.abs(r.nowPct - r.target) >= (m.drift ?? 2));
+  return `<div class="card" style="margin-top:14px"><h2>Model drift <span class="muted" style="font-weight:400;font-size:13px">· their mix: ${esc(mixLabel(m, p.model_prefs || {}))} (${m.flex.map(f => `${esc(symOf(f.coin))} ${num(plan.T.mix[f.coin]).toFixed(0)}%`).join(", ")})${plan.others.length ? ` · ${fmtUsd(plan.otherVal)} outside the model` : ""}</span></h2>
+    ${off.length ? "" : `<div class="secondary" style="margin-bottom:8px">On target: every position is within ${m.drift ?? 2}% of the model.</div>`}
+    ${planTable(plan, m)}</div>`;
+}
+
+/* ===================== ADMIN: MODEL EDITOR ===================== */
+async function viewModel(v) {
+  v.innerHTML = `<div class="spinner"></div>`;
+  const draft = JSON.parse(JSON.stringify(getModel()));
+  await CG.ensure(modelCoinIds(draft));
+  const pctIn = (val, attrs) => `<input type="text" inputmode="decimal" value="${val}" ${attrs} style="width:70px;text-align:right">`;
+  const paint = () => {
+    const pool = poolSize(draft);
+    const fixedSum = draft.fixed.reduce((s, f) => s + num(f.pct), 0);
+    v.innerHTML = `
+      <div class="page-head"><div><h1>Model portfolio</h1><div class="secondary">What members' Rebalance page aims for. Fixed coins always get their %; members split the flexible rest between the flex coins.</div></div>
+        <div class="row" style="flex:none"><button class="btn" id="reset">Reset to default</button><button class="btn primary" id="save">Save model</button></div></div>
+      <div class="two-col">
+        <div class="card"><h2>Fixed coins</h2>
+          <div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">%</th><th></th></tr></thead><tbody>
+            ${draft.fixed.map((f, i) => `<tr><td>${esc(symOf(f.coin))} <span class="muted" style="font-size:12px">${esc(CG.info(f.coin)?.name || "")}</span></td><td class="r">${pctIn(f.pct, `data-fx="${i}"`)}</td><td class="r"><button class="btn small danger" data-delfx="${i}">Remove</button></td></tr>`).join("")}
+          </tbody></table></div>
+          <button class="btn small" id="addfx" style="margin-top:8px">+ Add fixed coin</button>
+          <div class="secondary num" style="margin-top:10px">Fixed: <b>${fixedSum}%</b> → flexible pool: <b>${pool}%</b>${fixedSum > 100 ? ' <span class="bad">Fixed adds up to over 100%.</span>' : ""}</div>
+        </div>
+        <div class="card"><h2>Flexible ${pool}%: coins members can pick</h2>
+          <div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Max %</th><th></th></tr></thead><tbody>
+            ${draft.flex.map((f, i) => `<tr><td>${esc(symOf(f.coin))} <span class="muted" style="font-size:12px">${esc(CG.info(f.coin)?.name || "")}</span></td><td class="r">${pctIn(f.max, `data-fmax="${i}"`)}</td><td class="r"><button class="btn small danger" data-delfl="${i}">Remove</button></td></tr>`).join("")}
+          </tbody></table></div>
+          <button class="btn small" id="addfl" style="margin-top:8px">+ Add flex coin</button>
+          ${draft.flex.reduce((s, f) => s + Math.min(num(f.max) || pool, pool), 0) < pool ? `<div class="bad" style="margin-top:8px;font-size:13px">The max values add up to less than ${pool}%, so the pool can't be filled. Raise a max.</div>` : ""}
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px"><h2>Quick picks members see</h2>
+        <div class="table-wrap"><table><thead><tr><th>Name</th>${draft.flex.map(f => `<th class="r">${esc(symOf(f.coin))} %</th>`).join("")}<th class="r">Total</th><th></th></tr></thead><tbody>
+          ${draft.presets.map((p, i) => { const tot = draft.flex.reduce((s, f) => s + num(p.mix[f.coin]), 0); return `<tr>
+            <td><input type="text" value="${esc(p.name)}" data-pname="${i}" style="min-width:120px"></td>
+            ${draft.flex.map(f => `<td class="r">${pctIn(num(p.mix[f.coin]), `data-pmix="${i}" data-coin="${esc(f.coin)}"`)}</td>`).join("")}
+            <td class="r num ${Math.abs(tot - pool) > 0.01 ? "bad" : "good"}">${r1(tot)}%</td>
+            <td class="r"><button class="btn small danger" data-delp="${i}">Remove</button></td></tr>`; }).join("")}
+        </tbody></table></div>
+        <button class="btn small" id="addp" style="margin-top:8px">+ Add quick pick</button>
+        <div class="hint">Each quick pick should add up to ${pool}%. The first one is what members get until they choose. Members can also drag their own split.</div>
+      </div>
+      <div class="card" style="margin-top:14px"><h2>Rules</h2>
+        <div class="row">
+          <label class="field"><span>Suggest a trade when off by (% pts)</span><input type="text" inputmode="decimal" id="drift" value="${draft.drift}"></label>
+          <label class="field"><span>Urgent-bid alert: 24h drop ≥ %</span><input type="text" inputmode="decimal" id="d24" value="${draft.drop24}"></label>
+          <label class="field"><span>…or 7-day drop ≥ %</span><input type="text" inputmode="decimal" id="d7" value="${draft.drop7}"></label>
+        </div>
+        <div class="hint">Price-drop alerts show on everyone's Market updates page and ping you on Telegram so you can post an urgent bid.</div></div>`;
+    const setPct = (sel, fn) => v.querySelectorAll(sel).forEach(inp => inp.onchange = () => { fn(inp, Math.max(0, decOr0(inp.value))); paint(); });
+    setPct("[data-fx]", (inp, x) => { draft.fixed[+inp.dataset.fx].pct = x; });
+    setPct("[data-fmax]", (inp, x) => { draft.flex[+inp.dataset.fmax].max = x; });
+    setPct("[data-pmix]", (inp, x) => { draft.presets[+inp.dataset.pmix].mix[inp.dataset.coin] = x; });
+    v.querySelectorAll("[data-pname]").forEach(inp => inp.onchange = () => { draft.presets[+inp.dataset.pname].name = inp.value.trim() || "Quick pick"; });
+    v.querySelectorAll("[data-delfx]").forEach(b => b.onclick = () => { draft.fixed.splice(+b.dataset.delfx, 1); paint(); });
+    v.querySelectorAll("[data-delfl]").forEach(b => b.onclick = () => { const c = draft.flex[+b.dataset.delfl].coin; draft.flex.splice(+b.dataset.delfl, 1); draft.presets.forEach(p => delete p.mix[c]); paint(); });
+    v.querySelectorAll("[data-delp]").forEach(b => b.onclick = () => { draft.presets.splice(+b.dataset.delp, 1); paint(); });
+    const pick = (fn) => openCoinPicker(async c => { CG.cache[c.id] ||= { name: c.name, symbol: c.symbol, image: c.image, price: 0, at: 0 }; if (modelCoinIds(draft).includes(c.id)) return toast("Already in the model"); fn(c.id); await CG.ensure([c.id], 0); paint(); });
+    $("#addfx").onclick = () => pick(id => draft.fixed.push({ coin: id, label: "", pct: 5 }));
+    $("#addfl").onclick = () => pick(id => draft.flex.push({ coin: id, max: 10 }));
+    $("#addp").onclick = () => { draft.presets.push({ name: "New pick", mix: Object.fromEntries(draft.flex.map(f => [f.coin, 0])) }); paint(); };
+    $("#drift").onchange = e => { draft.drift = Math.max(0, decOr0(e.target.value)); };
+    $("#d24").onchange = e => { draft.drop24 = Math.max(1, decOr0(e.target.value)); };
+    $("#d7").onchange = e => { draft.drop7 = Math.max(1, decOr0(e.target.value)); };
+    $("#reset").onclick = () => confirmModal("Reset model?", "Go back to TET 40%, ACN 30% and a flexible 30% split between PAAL, VELO and OTK? Nothing is saved until you press Save model.", () => { Object.assign(draft, JSON.parse(JSON.stringify(DEFAULT_MODEL))); paint(); });
+    $("#save").onclick = async () => {
+      if (!draft.fixed.length && !draft.flex.length) return toast("Add at least one coin");
+      const bad = draft.presets.find(p => Math.abs(draft.flex.reduce((s, f) => s + num(p.mix[f.coin]), 0) - poolSize(draft)) > 0.01);
+      if (bad) return toast(`"${bad.name}" doesn't add up to ${poolSize(draft)}%`);
+      if (!draft.presets.length) draft.presets.push({ name: "Even split", mix: normalizeMix(draft, Object.fromEntries(draft.flex.map(f => [f.coin, poolSize(draft) / draft.flex.length]))) });
+      try { await api.setSetting("model", draft); S.model = JSON.parse(JSON.stringify(draft)); S.modelUpdatedAt = new Date().toISOString(); toast("Model saved: members see it right away"); }
+      catch (e) { toast("Couldn't save: " + e.message); }
+    };
+  };
+  paint();
+}
+
+/* ===================== MARKET UPDATES (weekly summary + urgent bids) ===================== */
+async function viewUpdates(v) {
+  v.innerHTML = `<div class="spinner"></div>`;
+  const m = getModel();
+  const [updates] = await Promise.all([api.updates(), CG.ensure([...modelCoinIds(m), ...S.txs.map(t => t.coin_id)], 60000)]);
+  S.updates = updates;
+  let g = null; try { g = await groupTotals(); } catch (e) {}
+  const urgent = activeUrgent(), drops = priceDrops(m);
+  const weeklies = updates.filter(u => u.kind === "weekly");
+  const latest = weeklies[0];
+  const pf = computePortfolio(S.txs);
+  const my7 = pf.holdings.reduce((s, h) => { const c7 = CG.info(h.coin_id)?.change7; return c7 == null ? s : s + (h.value - h.value / (1 + c7 / 100)); }, 0);
+  const coinRows = modelCoinIds(m).map(id => ({ id, i: CG.info(id) })).filter(x => x.i);
+  const bidCard = (u) => { const s = bidSuggestion(u.coin_id); return `<div class="card urgent">
+      <div class="row" style="align-items:center;justify-content:space-between"><div style="flex:1">${coinCell({ coin_id: u.coin_id, symbol: symOf(u.coin_id).toLowerCase(), name: CG.info(u.coin_id)?.name || u.coin_id, image: CG.info(u.coin_id)?.image })}</div><span class="tag req" style="flex:none">⚡ Urgent bid from ${esc(CONFIG.REVIEWER_NAME)}</span></div>
+      <h2 style="margin:10px 0 4px">${esc(u.title)}</h2>
+      ${u.buy_low || u.buy_high ? `<div class="num" style="margin-bottom:6px">Bid zone: <b>${u.buy_low ? fmtPrice(u.buy_low) : "…"} – ${u.buy_high ? fmtPrice(u.buy_high) : "…"}</b> · now ${fmtPrice(CG.info(u.coin_id)?.price)}</div>` : ""}
+      ${u.body ? `<div style="white-space:pre-wrap">${esc(u.body)}</div>` : ""}
+      ${!isAdmin() || api.demo ? `<div class="callout" style="margin:10px 0 0">${esc(s.text)}${s.amount ? `\nSuggested bid: <b>${fmtUsd(s.amount)}</b>` : ""}</div>` : ""}
+      <div class="muted" style="font-size:12px;margin-top:8px">Posted ${ago(u.created_at)}${u.expires_at ? ` · expires ${fmtDate(u.expires_at, false)}` : ""}${isAdmin() ? ` · <button class="link-btn" data-del-up="${esc(u.id)}">Remove</button>` : ""}</div></div>`; };
+  v.innerHTML = `
+    <div class="page-head"><div><h1>Market updates</h1><div class="secondary">${esc(CONFIG.REVIEWER_NAME)}'s weekly summary and urgent bids, plus automatic alerts when a model coin drops hard.</div></div><button class="btn" id="reload">Refresh</button></div>
+    <div class="kpis">
+      ${g ? groupKpi(g) : ""}
+      <div class="card kpi"><div class="label">Your portfolio, 7 days</div><div class="value num ${signCls(my7)}">${fmtUsd(my7)}</div><div class="sub num ${signCls(my7)}">${pf.totals.value - my7 > 0 ? fmtPct(my7 / (pf.totals.value - my7) * 100) : "—"}</div></div>
+      <div class="card kpi"><div class="label">Active alerts</div><div class="value num ${urgent.length + drops.length ? "bad" : ""}">${urgent.length + drops.length}</div><div class="sub muted">${urgent.length} urgent bid${urgent.length === 1 ? "" : "s"} · ${drops.length} price drop${drops.length === 1 ? "" : "s"}</div></div>
+    </div>
+    <h2 class="section-h">⚡ Urgent bids</h2>
+    ${urgent.length || drops.length ? "" : `<div class="card empty" style="padding:20px">No urgent bids right now. You'll see one here (and get a Telegram ping) when ${esc(CONFIG.REVIEWER_NAME)} posts one.</div>`}
+    <div class="grid">${urgent.map(bidCard).join("")}
+      ${drops.map(d => { const s = bidSuggestion(d.id); return `<div class="card drop">
+        <div class="row" style="align-items:center;justify-content:space-between"><div style="flex:1">${coinCell({ coin_id: d.id, symbol: d.symbol.toLowerCase(), name: d.name, image: d.image })}</div><span class="tag flag" style="flex:none">Automatic price alert</span></div>
+        <div class="num" style="margin:8px 0">${esc(d.symbol)} is <b class="bad">${fmtPct(d.change24)}</b> in 24h${d.change7 != null ? `, <b class="${signCls(d.change7)}">${fmtPct(d.change7)}</b> over 7 days` : ""} · now ${fmtPrice(d.price)}</div>
+        ${!isAdmin() || api.demo ? `<div class="secondary">${esc(s.text)}${s.amount ? ` Your plan says up to <b>${fmtUsd(s.amount)}</b> to get back to target.` : ""}</div>` : `<div class="secondary">Members see how far under target they are. Post an urgent bid below if you want them to act.</div>`}
+        <div class="muted" style="font-size:12px;margin-top:8px">Not a call from ${esc(CONFIG.REVIEWER_NAME)}: big drops can keep dropping. Wait for his take if unsure.</div></div>`; }).join("")}</div>
+    <h2 class="section-h">📰 Weekly summary</h2>
+    <div class="card">${latest ? `<div class="muted" style="font-size:12px">${fmtDate(latest.created_at, false)} · ${esc(CONFIG.REVIEWER_NAME)}${isAdmin() ? ` · <button class="link-btn" data-del-up="${esc(latest.id)}">Remove</button>` : ""}</div><h2 style="margin:6px 0 8px">${esc(latest.title)}</h2><div style="white-space:pre-wrap">${esc(latest.body || "")}</div>`
+      : `<div class="empty" style="padding:16px">No weekly summary posted yet.</div>`}</div>
+    <div class="card" style="margin-top:14px"><h2>Model coins this week</h2>
+      ${coinRows.length ? `<div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Price</th><th class="r">24h</th><th class="r">7d</th><th class="r hide-sm">Market cap</th></tr></thead><tbody>
+      ${coinRows.map(({ id, i }) => `<tr><td><a href="${coinLink(id)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${coinCell({ coin_id: id, symbol: i.symbol, name: i.name, image: i.image })}</a></td><td class="r num">${fmtPrice(i.price)}</td><td class="r num ${signCls(i.change24)}">${fmtPct(i.change24)}</td><td class="r num ${signCls(i.change7)}">${i.change7 == null ? "—" : fmtPct(i.change7)}</td><td class="r num hide-sm">${i.mcap ? fmtUsd(i.mcap, { compact: true }) : "—"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">No price data.</div>`}</div>
+    ${weeklies.length > 1 ? `<div class="card" style="margin-top:14px"><h2>Past summaries</h2>${weeklies.slice(1, 12).map(w => `<details class="past"><summary><b>${esc(w.title)}</b> <span class="muted">· ${fmtDate(w.created_at, false)}</span></summary><div style="white-space:pre-wrap;margin-top:6px">${esc(w.body || "")}</div></details>`).join("")}</div>` : ""}
+    ${isAdmin() ? `<div class="two-col" style="margin-top:14px">
+      <div class="card"><h2>Post an urgent bid</h2>
+        <label class="field"><span>Coin</span><select id="u-coin">${modelCoinIds(m).map(id => `<option value="${esc(id)}">${esc(symOf(id))}</option>`).join("")}${drops.length ? "" : ""}</select></label>
+        <label class="field"><span>Headline</span><input type="text" id="u-title" maxlength="140" placeholder="e.g. TET flushed to support, bid here"></label>
+        <div class="row"><label class="field"><span>Bid from $</span><input type="text" inputmode="decimal" id="u-lo"></label><label class="field"><span>to $</span><input type="text" inputmode="decimal" id="u-hi"></label></div>
+        <label class="field"><span>Note (optional)</span><textarea id="u-body" rows="3" maxlength="2000"></textarea></label>
+        <label class="field"><span>Show for</span><select id="u-exp"><option value="1">1 day</option><option value="3" selected>3 days</option><option value="7">7 days</option></select></label>
+        <button class="btn primary" id="u-post">Post urgent bid</button><div class="hint">Everyone linked on Telegram gets a ping.</div></div>
+      <div class="card"><h2>Post the weekly summary</h2>
+        <label class="field"><span>Title</span><input type="text" id="w-title" maxlength="140" value="Weekly update · ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}"></label>
+        <label class="field"><span>Summary</span><textarea id="w-body" rows="10" maxlength="6000" placeholder="Your take on the week…"></textarea></label>
+        <div class="row" style="justify-content:flex-end"><button class="btn" id="w-draft" style="flex:none">Fill with this week's numbers</button><button class="btn primary" id="w-post" style="flex:none">Post summary</button></div>
+        <div class="hint">Everyone linked on Telegram gets a ping with the first lines.</div></div>
+    </div>` : ""}`;
+  $("#reload").onclick = async () => { await CG.ensure(modelCoinIds(m), 0); render(); };
+  v.querySelectorAll("[data-del-up]").forEach(b => b.onclick = () => confirmModal("Remove this post?", "It disappears for everyone. Telegram messages already sent stay in their chats.", async () => { await api.deleteUpdate(b.dataset.delUp); render(); }));
+  if (!isAdmin()) return;
+  $("#w-draft").onclick = () => {
+    const lines = coinRows.map(({ id, i }) => `• ${symOf(id)}: ${fmtPrice(i.price)} (${i.change7 == null ? "n/a" : fmtPct(i.change7)} 7d, ${fmtPct(i.change24)} 24h)`);
+    const ta = $("#w-body");
+    ta.value = (ta.value ? ta.value + "\n\n" : "") + `Model coins this week:\n${lines.join("\n")}` + (g ? `\n\nGroup total: ${fmtUsd(g.value)} across ${g.members} members (${fmtPct(g.change24Pct)} 24h).` : "") + `\n\nMy take:\n`;
+    ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+  };
+  $("#w-post").onclick = async () => {
+    const title = $("#w-title").value.trim(), body = $("#w-body").value.trim();
+    if (!body) return $("#w-body").focus();
+    try { await api.addUpdate({ kind: "weekly", title: title || "Weekly update", body }); toast("Weekly summary posted"); render(); } catch (e) { toast(e.message); }
+  };
+  $("#u-post").onclick = async () => {
+    const coin_id = $("#u-coin").value, title = $("#u-title").value.trim();
+    if (!title) return $("#u-title").focus();
+    const lo = dec($("#u-lo").value), hi = dec($("#u-hi").value);
+    try {
+      await api.addUpdate({ kind: "urgent", coin_id, title, body: $("#u-body").value.trim() || null, buy_low: Number.isNaN(lo) ? null : lo, buy_high: Number.isNaN(hi) ? null : hi, expires_at: new Date(Date.now() + +$("#u-exp").value * 86400000).toISOString() });
+      toast("Urgent bid posted"); render();
+    } catch (e) { toast(e.message); }
+  };
+}
+function alertBanner() {
+  const u = activeUrgent(), d = priceDrops();
+  if (!u.length && !d.length) return "";
+  const parts = [...u.map(x => `<b>${esc(symOf(x.coin_id))}</b> urgent bid from ${esc(CONFIG.REVIEWER_NAME)}`), ...d.map(x => `<b>${esc(x.symbol)}</b> ${fmtPct(x.change24)} 24h`)];
+  return `<a href="#updates" class="alert-bar">⚡ ${parts.join(" · ")} <span style="margin-left:auto">See Market updates →</span></a>`;
+}
+
 /* ===================== ADMIN DATA ===================== */
 async function loadAdmin(force = false) {
   if (!force && Date.now() - S.admin.loadedAt < 30000) return;
@@ -1105,6 +1562,7 @@ async function viewMemberDetail(v, id) {
       ${pf.holdings.length ? donutCard("pie-member", "Allocation") : `<div class="card empty"><div class="big">No holdings</div>This member hasn't logged trades yet.</div>`}
       <div class="card"><h2>Holdings</h2>${holdingsTable(pf)}</div>
     </div>
+    ${driftCard(p, pf)}
     <div class="two-col" style="margin-top:14px">
       <div class="card"><h2>Send a suggestion</h2>
         <div class="chips" style="margin-bottom:10px">${TEMPLATES.map(([l], i) => `<button class="chip" data-tpl="${i}">${esc(l)}</button>`).join("")}</div>
@@ -1157,6 +1615,11 @@ async function viewInsights(v) {
   const conc = rows.filter(r => r.concentrated).sort((a, b) => b.top.alloc - a.top.alloc);
   v.innerHTML = `
     <div class="page-head"><div><h1>Group insights</h1><div class="secondary">What the ${esc(CONFIG.GROUP_NAME)} group holds, combined across ${rows.length} member portfolio${rows.length === 1 ? "" : "s"}.</div></div></div>
+    ${(() => { const t = rows.reduce((a, r) => ({ value: a.value + r.pf.totals.value, cost: a.cost + r.pf.totals.cost, chg: a.chg + r.pf.totals.change24Usd }), { value: 0, cost: 0, chg: 0 }); return `<div class="kpis">
+      <div class="card kpi"><div class="label">All members, total value</div><div class="value num">${fmtUsd(t.value)}</div><div class="sub num ${signCls(t.chg)}">${fmtUsd(t.chg)} 24h</div></div>
+      <div class="card kpi"><div class="label">Total invested</div><div class="value num">${fmtUsd(t.cost)}</div><div class="sub muted">cost basis</div></div>
+      <div class="card kpi"><div class="label">Group unrealized P&amp;L</div><div class="value num ${signCls(t.value - t.cost)}">${fmtUsd(t.value - t.cost)}</div><div class="sub num ${signCls(t.value - t.cost)}">${t.cost ? fmtPct((t.value - t.cost) / t.cost * 100) : "—"}</div></div>
+      <div class="card kpi"><div class="label">Avg portfolio</div><div class="value num">${fmtUsd(rows.length ? t.value / rows.length : 0)}</div><div class="sub muted">${rows.length} members with holdings</div></div></div>`; })()}
     <div class="two-col">
       ${list.length ? donutCard("pie-group", "Group allocation (by value)") : `<div class="card empty">No holdings yet.</div>`}
       <div class="card"><h2>Most-held coins</h2>
@@ -1231,6 +1694,9 @@ async function loadMe() {
   S.email = await api.email();
   S.txs = await api.transactions(S.me.id);
   S.msgs = await api.messages(S.me.id);
+  try { const st = await api.getSetting("model"); S.model = st?.value?.version === 2 ? { ...DEFAULT_MODEL, ...st.value } : null; S.modelUpdatedAt = st?.updated_at || null; } catch (e) { S.model = null; }
+  try { S.updates = await api.updates(); } catch (e) { S.updates = []; }
+  CG.ensure(modelCoinIds()).then(() => paintAlertBadge()).catch(() => {});
   S.admin.loadedAt = 0;
   if (isAdmin()) await loadAdmin(true);
 }
