@@ -486,7 +486,7 @@ function makeDemoApi() {
   tx("dkay", "velo", "buy", 300000, 0.006, d(40, 23));
   tx("dkay", "solidus-ai-tech", "buy", 150000, 0.02, d(33, 12));
   const msg = (member_id, author_id, kind, body, created_at, coin_id = null) => store.messages.push({ id: uid(), member_id, author_id, kind, body, created_at, coin_id });
-  msg("u3", "dkay", "suggestion", "Nice spread. ETH trim at 3.5k was clean. I'd keep ACN under 10% until the migration dust settles.", d(6, 17), "solidus-ai-tech");
+  msg("u3", "dkay", "suggestion", "Nice spread. Your ETH entries were clean. Keep adding to ACN on dips once the migration dust settles.", d(6, 17), "solidus-ai-tech");
   msg("u3", "u3", "reply", "Got it, thanks! Holding.", d(6, 18));
   msg("u2", "dkay", "suggestion", "OTK is ~70% of your bag. Consider taking another chunk off into SOL or stables, you're one bad week from a big drawdown.", d(40, 12), "octokn");
   msg("u1", "u1", "question", "Am I too heavy in PAAL? Thinking about adding more VELO before Q4.", d(1, 9));
@@ -684,7 +684,7 @@ async function viewOverview(v) {
     ${reviewNudge()}
     ${pf.holdings.length && exitStatus(S.me).state !== "committed" ? `<div class="card" style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><b>${exitStatus(S.me).state === "edited" ? "Re-commit your exit plan" : "Make your exit plan"}</b><div class="secondary">Decide now where you'll take profit, using ${esc(CONFIG.REVIEWER_NAME)}'s targets, and commit to it.</div></div><a class="btn primary" href="#exit" style="text-decoration:none">Plan my exit</a></div>` : ""}`;
   if (pf.holdings.length) renderDonut("pie-me", pf.holdings, "Total", pf.totals.value);
-  groupTotals().then(g => { const el = $("#grp-row"); if (el && g.members) el.innerHTML = groupKpi(g) + `<a class="card kpi" href="#rebalance" style="text-decoration:none;color:inherit"><div class="label">vs ${esc(CONFIG.REVIEWER_NAME)}'s model</div><div class="value" style="font-size:18px">Rebalance →</div><div class="sub muted">see what to buy or trim</div></a>`; }).catch(() => {});
+  { const el = $("#grp-row"); if (el && pf.holdings.length) el.innerHTML = `<a class="card kpi" href="#rebalance" style="text-decoration:none;color:inherit"><div class="label">vs ${esc(CONFIG.REVIEWER_NAME)}'s model</div><div class="value" style="font-size:18px">Rebalance →</div><div class="sub muted">see what to add next</div></a><a class="card kpi" href="#exit" style="text-decoration:none;color:inherit"><div class="label">Taking profit</div><div class="value" style="font-size:18px">Exit plan →</div><div class="sub muted">${exitStatus(S.me).state === "committed" ? "committed ✓" : "not committed yet"}</div></a>`; }
   $("#add").onclick = () => openTradeModal();
   v.querySelectorAll("tr[data-coin]").forEach(tr => tr.onclick = () => { S.tradeFilter = tr.dataset.coin; location.hash = "trades"; });
   $("#refresh").onclick = async () => { await CG.ensure(pf.coinIds, 0); render(); };
@@ -1127,7 +1127,7 @@ function modelTargets(m, prefs = {}) {
   return { coins, mix };
 }
 /**
- * Build an add-only plan (CC never trims). Coins outside the model are left out.
+ * Build an add-only plan (CC only adds). Coins outside the model are left out.
  * `need` = what each coin needs to reach its target without selling anything.
  * With new money, it fills the biggest gaps first, then follows the target mix.
  */
@@ -1208,7 +1208,7 @@ function groupKpi(g) {
   return `<div class="card kpi"><div class="label">${esc(CONFIG.GROUP_NAME)} group total</div><div class="value num">${fmtUsd(g.value, { compact: g.value >= 1e6 })}</div><div class="sub num ${signCls(g.change24)}">${fmtPct(g.change24Pct)} 24h · ${g.members} member${g.members === 1 ? "" : "s"}</div></div>`;
 }
 
-/* ===================== MEMBER: REBALANCE (add-only: we never trim) ===================== */
+/* ===================== MEMBER: REBALANCE (add-only) ===================== */
 function planTable(plan, m) {
   const drift = m.drift ?? 2, buying = plan.money > 0;
   const fmtAct = (r) => {
@@ -1258,14 +1258,14 @@ async function viewRebalance(v) {
       </div>
       <div class="card"><h2>Your plan</h2>${plan.baseNow || plan.money ? planTable(plan, m) : `<div class="empty"><div class="big">Nothing to balance yet</div>Log your holdings, or enter new money above to plan your first buys.</div>`}
         ${plan.others.length ? `<div class="hint">Held outside the model (not touched): ${plan.others.map(h => `${esc((h.symbol || "").toUpperCase())} ${fmtUsd(h.value)}`).join(", ")}.</div>` : ""}
-        <div class="hint">We only add, never trim: coins over target are simply held while new money tops up the ones below. Suggestions only, not financial advice; check fees before buying.</div></div>`;
+        <div class="hint">We only add when we can: coins over target are simply held while new money tops up the ones below. Suggestions only, not financial advice; check fees before buying.</div></div>`;
     renderDonut("pie-target", tgt, "Target", 100);
     const c = document.querySelector("#pie-target")?.parentElement?.querySelector(".chart-center"); if (c) c.innerHTML = `<div><div class="v" style="font-size:15px">${esc(mixLabel(m, prefs))}</div><div class="l">target mix</div></div>`;
   };
   const presetChips = () => m.presets.map((p, i) => `<button class="chip ${presetIndex(prefs) === i || (presetIndex(prefs) == null && !prefs.mix && i === 0) ? "on" : ""}" data-p="${i}" title="${esc(m.flex.map(f => `${symOf(f.coin)} ${num(p.mix[f.coin])}%`).join(" · "))}">${esc(p.name)}</button>`).join("") +
     `<button class="chip ${prefs.mix && presetIndex(prefs) == null ? "on" : ""}" data-p="custom" disabled style="cursor:default">Custom</button>`;
   v.innerHTML = `
-    <div class="page-head"><div><h1>Rebalance</h1><div class="secondary">${esc(CONFIG.REVIEWER_NAME)}'s model: ${m.fixed.map(f => `${esc(symOf(f.coin))} ${num(f.pct)}%`).join(", ")}, and you split the other ${poolSize(m)}%. We only add when we can, never trim. ${S.modelUpdatedAt ? `Updated ${ago(S.modelUpdatedAt)}.` : ""}</div></div></div>
+    <div class="page-head"><div><h1>Rebalance</h1><div class="secondary">${esc(CONFIG.REVIEWER_NAME)}'s model: ${m.fixed.map(f => `${esc(symOf(f.coin))} ${num(f.pct)}%`).join(", ")}, and you split the other ${poolSize(m)}%. We only add when we can. ${S.modelUpdatedAt ? `Updated ${ago(S.modelUpdatedAt)}.` : ""}</div></div></div>
     <div class="two-col">
       <div class="card"><h2>Your mix</h2>
         <div class="field-div">Quick picks from ${esc(CONFIG.REVIEWER_NAME)}</div>
@@ -1622,20 +1622,20 @@ async function viewExit(v) {
     <div class="page-head"><div><h1>Exit plan</h1><div class="secondary">Decide now, while you're calm, where you'll take profit, then commit to it. ${esc(CONFIG.REVIEWER_NAME)} can see your plan.</div></div><div id="ex-status"></div></div>
     <div class="card guide"><h2>${esc(CONFIG.REVIEWER_NAME)}'s exit rules</h2>
       <ul class="guide-list">
-        <li><b>Set your targets now</b> and sell when you hit your money goal: “Set your targets now and gtfo when you hit your financial goal” (256997).</li>
-        <li><b>Sell in steps:</b> “You wanna sell early, on time, and late” (210100). Nobody sells the exact top.</li>
-        <li><b>Get your initials out early.</b> On TET at $10–20 he said you “Should have initials out here at least” (475681).</li>
-        <li><b>Take profit at macro levels,</b> not small swings (266873). The levels below are his supercycle targets.</li>
-        <li><b>Defend what you made:</b> buy aggressively at the bottom, then make “capital preservation” the focus (227121). He exits the cycle when about 75% of his key charts agree (184150), so follow his call when it comes.</li>
+        <li><b>Set your targets now</b> and sell when you hit your money goal.</li>
+        <li><b>Sell in steps:</b> early, on time and late. Nobody sells the exact top.</li>
+        <li><b>Get your initials out early,</b> by the first targets.</li>
+        <li><b>Take profit at macro levels,</b> not small swings. The levels below are ${esc(CONFIG.REVIEWER_NAME)}'s supercycle targets.</li>
+        <li><b>Buy aggressively at the bottom, then make capital preservation the focus.</b> ${esc(CONFIG.REVIEWER_NAME)} calls the cycle exit when most of his key charts agree, so follow his call when it comes.</li>
       </ul>
-      <div class="hint">Targets are ${esc(CONFIG.REVIEWER_NAME)}'s "ideal supercycle" levels, not promises. Education, not financial advice.</div></div>
+      <div class="hint">Keep up with the ${esc(CONFIG.GROUP_NAME)} chat for ${esc(CONFIG.REVIEWER_NAME)}'s latest updates: targets and timing can change. These are his "ideal supercycle" levels, not promises. Education, not financial advice.</div></div>
     <div class="two-col" style="margin-top:14px">
       <div class="card"><h2>Your money goal</h2>
         <label class="field"><span>Total I want to cash out ($)</span><input type="text" inputmode="decimal" id="ex-goal" value="${plan.goal || ""}" placeholder="e.g. 50000"></label>
         <div id="ex-sum"></div>
       </div>
       <div class="card"><h2>Commit</h2>
-        <div id="ex-pledges">${EXIT_PLEDGES.map(([k, t, q]) => `<label class="pledge"><input type="checkbox" data-pledge="${k}" ${plan.pledges[k] ? "checked" : ""}><span>${esc(t)}<span class="muted" style="display:block;font-size:12px">${esc(q)}</span></span></label>`).join("")}</div>
+        <div id="ex-pledges">${EXIT_PLEDGES.map(([k, t, q]) => `<label class="pledge"><input type="checkbox" data-pledge="${k}" ${plan.pledges[k] ? "checked" : ""}><span>${esc(t)}</span></label>`).join("")}</div>
         <button class="btn primary" id="ex-commit" style="margin-top:10px">Commit to my exit plan</button>
         <div class="err" id="ex-err"></div>
       </div>
@@ -1865,7 +1865,7 @@ async function viewMembers(v) {
 
 /* ===================== ADMIN: MEMBER DETAIL ===================== */
 const TEMPLATES = [
-  ["Too concentrated", "Your top position is a big chunk of the portfolio. Consider trimming some into BTC/ETH or stables to lower risk."],
+  ["Too concentrated", "Your top position is a big chunk of the portfolio. Put your next buys into the other model coins to balance it out, rather than adding more here."],
   ["Take profit", "You're nicely up on this one. Think about taking initial out (or 25–50%) and letting the rest ride."],
   ["DCA, don't chase", "Don't chase green candles here. Set limit buys lower and DCA in over a few weeks."],
   ["Hold, thesis intact", "Thesis still intact. Hold and don't panic-sell the dips."],
