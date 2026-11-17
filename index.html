@@ -541,7 +541,12 @@ function makeDemoApi() {
     async updateTx(id, t) { const i = store.transactions.findIndex(x => x.id === id); store.transactions[i] = { ...store.transactions[i], ...t }; return clone(store.transactions[i]); },
     async deleteTx(id) { store.transactions = store.transactions.filter(x => x.id !== id); },
     async addTxs(rows) { return rows.map(t => { const row = { ...t, id: uid(), user_id: currentId }; store.transactions.push(row); return clone(row); }); },
-    async parseScreenshots() { await pause(); await new Promise(r => setTimeout(r, 1200)); return { source_app: "CoinGecko", currency: "USD", warnings: ["Demo mode: these are sample results, not your screenshot."],
+    async parseScreenshots(imgs, hint) { await pause(); await new Promise(r => setTimeout(r, 1200));
+      if (hint === "trades") return { source_app: "CoinGecko", currency: "USD", warnings: [], holdings: [], trades: [
+        { name: "Tectum", symbol: "TET", side: "buy", quantity: 518.992, total_usd: 155.357, price_usd: 155.357 / 518.992, date: "2026-10-26", coingecko_id_guess: "tectum" },
+        { name: "Tectum", symbol: "TET", side: "buy", quantity: 428.76, total_usd: 127.373, price_usd: 127.373 / 428.76, date: "2026-10-11", coingecko_id_guess: "tectum" },
+        { name: "Tectum", symbol: "TET", side: "buy", quantity: 500, total_usd: 132.536, price_usd: 132.536 / 500, date: "2026-10-07", coingecko_id_guess: "tectum" } ] };
+      return { source_app: "CoinGecko", currency: "USD", warnings: ["Demo mode: these are sample results, not your screenshot."],
       holdings: [ { name: "Paal AI", symbol: "PAAL", quantity: 5200, avg_buy_price: 0.21, current_price: null, value: null, coingecko_id_guess: "paal-ai" },
                   { name: "Ethereum", symbol: "ETH", quantity: 0.8, avg_buy_price: 2850, current_price: null, value: null, coingecko_id_guess: "ethereum" },
                   { name: "Velo", symbol: "VELO", quantity: 42000, avg_buy_price: null, current_price: null, value: null, coingecko_id_guess: null } ] }; },
@@ -925,6 +930,15 @@ async function importSearch(q) {
 }
 const normName = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 async function matchImportedCoins(rows, onProgress) {
+  // Rows of the same coin (e.g. a transaction history) are matched once and share the result.
+  const groups = new Map();
+  for (const r of rows) { r.key = [r.coingecko_id_guess || "", String(r.symbol || "").toLowerCase(), normName(r.name)].join("|"); if (!groups.has(r.key)) groups.set(r.key, []); groups.get(r.key).push(r); }
+  const reps = [...groups.values()].map(g => g[0]);
+  await matchCoinsInner(reps, onProgress);
+  for (const g of groups.values()) for (const r of g.slice(1)) { r.match = g[0].match; r.sure = g[0].sure; }
+  return rows;
+}
+async function matchCoinsInner(rows, onProgress) {
   // 1) Claude's CoinGecko id guesses: verified in one batched call.
   const guesses = [...new Set(rows.map(r => r.coingecko_id_guess).filter(Boolean))];
   if (guesses.length) await CG.ensure(guesses, 5 * 60000);
@@ -975,7 +989,13 @@ function openImportModal() {
   const close = () => { if (!busy || confirm("Stop the import?")) ov.remove(); };
   ov.querySelector(".x").onclick = close;
   const body = $("#imp-body", ov);
-  let result = null, rows = [];
+  let result = null, rows = [], mode = "holdings";
+  const dayKey = (d) => { const x = new Date(d); return `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`; };
+  // Transaction already logged (same coin, side, day and amount)? Untick it.
+  function applyDup(r) {
+    r.dup = !!(r.match && r.date && S.txs.some(t => t.coin_id === r.match.id && t.side === r.side && dayKey(t.executed_at) === dayKey(r.date + "T12:00") && Math.abs(num(t.quantity) - num(r.quantity)) <= num(r.quantity) * 0.005));
+    if (r.dup) r.include = false;
+  }
 
   // Already logged this coin? Only import the extra the screenshot shows, so nothing is counted twice.
   function applyHeld(r) {
@@ -1010,12 +1030,15 @@ function openImportModal() {
       for (const f of files) slices = slices.concat(await screenshotSlices(f));
       if (slices.length > IMPORT_MAX_SLICES) throw new Error("Those screenshots are very long. Try fewer at a time (or crop them).");
       status("Reading your holdings… (10–20 seconds)");
-      result = await api.parseScreenshots(slices);
-      rows = (result.holdings || []).map(h => ({ ...h, include: true }));
+      result = await api.parseScreenshots(slices, /tx|trade|history/i.test(files[0]?.name || "") ? "trades" : "");
+      mode = (result.trades || []).length ? "trades" : "holdings";
+      rows = mode === "trades"
+        ? result.trades.map(t => ({ name: t.name, symbol: t.symbol, quantity: t.quantity, avg_buy_price: t.price_usd, total_usd: t.total_usd, current_price: null, coingecko_id_guess: t.coingecko_id_guess, side: t.side, date: t.date, include: true }))
+        : (result.holdings || []).map(h => ({ ...h, include: true }));
       if (!rows.length) throw new Error((result.warnings || [])[0] || "No holdings found in that screenshot. Try one that shows your coin list with amounts.");
       status("Matching coins on CoinGecko…");
       await matchImportedCoins(rows, (d, t) => { const p = body.querySelector("p"); if (p) p.textContent = `Matching coins on CoinGecko… ${d}/${t}`; });
-      for (const r of rows) { applyHeld(r); if (!r.quantity) r.include = false; }
+      for (const r of rows) { if (mode === "trades") applyDup(r); else applyHeld(r); if (!r.quantity) r.include = false; }
       busy = false; stepConfirm();
     } catch (e) { busy = false; stepPick(e.message || "Something went wrong. Try again."); }
   }
@@ -1027,14 +1050,16 @@ function openImportModal() {
     if (nonUsd) warns.unshift(`Prices in this screenshot look like ${result.currency}, not USD. Buy prices were left out, so enter them in USD.`);
     if (nonUsd) rows.forEach(r => { r.avg_buy_price = null; });
     body.innerHTML = `
-      <p class="secondary" style="margin-top:0">Found <b>${rows.length}</b> coin${rows.length === 1 ? "" : "s"}${src ? ` in your ${esc(src)} screenshot` : ""}. Check each one, fix anything that's off, then import.</p>
+      <p class="secondary" style="margin-top:0">${mode === "trades"
+        ? `Found <b>${rows.length}</b> transaction${rows.length === 1 ? "" : "s"}${src ? ` in your ${esc(src)} screenshot` : ""}. Each one is saved as its own trade with its date. Check them, then import.`
+        : `Found <b>${rows.length}</b> coin${rows.length === 1 ? "" : "s"}${src ? ` in your ${esc(src)} screenshot` : ""}. Check each one, fix anything that's off, then import.`}</p>
       ${warns.length ? `<div class="card" style="padding:10px 12px;margin-bottom:12px;font-size:13px">⚠️ ${warns.map(esc).join("<br>⚠️ ")}</div>` : ""}
       <div id="imp-rows"></div>
       <div class="row" style="margin-top:6px">
-        <label class="field"><span>Bought around</span><input type="datetime-local" id="imp-when" value="${toLocalInput(new Date())}"></label>
+        ${mode === "trades" ? "" : `<label class="field"><span>Bought around</span><input type="datetime-local" id="imp-when" value="${toLocalInput(new Date())}"></label>`}
         <label class="field"><span>Exchange / wallet</span><input type="text" id="imp-exch" maxlength="60" value="${esc(src && !/coingecko|coinmarketcap/i.test(src) ? src : "")}" placeholder="MEXC, Binance, Phantom…"></label>
       </div>
-      <div class="hint" style="margin-top:-6px">Every imported coin gets this date. You can fix individual dates later under Trades.</div>
+      ${mode === "trades" ? "" : `<div class="hint" style="margin-top:-6px">Every imported coin gets this date. You can fix individual dates later under Trades.</div>`}
       <div class="err" id="imp-err"></div>
       <div class="row" style="justify-content:space-between;align-items:center"><button class="link-btn" id="imp-again" type="button">Use different screenshots</button>
         <button class="btn primary" id="imp-save" style="flex:none"></button></div>`;
@@ -1054,6 +1079,24 @@ function openImportModal() {
         : !r.sure ? `<div class="hint" style="color:var(--bad)">Not 100% sure this is the right coin. Please check.</div>`
         : r.topUp ? `<div class="hint">You have ${fmtQty(r.heldQty)} logged and the screenshot shows ${fmtQty(r.shotQty)}, so only the extra ${fmtQty(r.quantity)} will be added.</div>`
         : r.alreadyHeld ? `<div class="hint">Already logged (you have ${fmtQty(r.heldQty)}), so it's unticked. Tick it only if this is a new buy on top.</div>` : "";
+      if (mode === "trades") {
+        const firstOfCoin = i === 0 || rows[i - 1].key !== r.key;
+        const coinFlag = !r.match ? `<div class="hint" style="color:var(--bad);margin:-4px 0 8px">Couldn't match “${esc(shot)}”. Pick the coin.</div>`
+          : !r.sure ? `<div class="hint" style="color:var(--bad);margin:-4px 0 8px">Not 100% sure this is the right coin. Please check.</div>` : "";
+        const tot = num(r.quantity) * num(r.avg_buy_price);
+        return `${firstOfCoin ? `<div style="margin:4px 0 8px">${coin}</div>${coinFlag}` : ""}<div class="card" style="padding:10px 12px;margin-bottom:10px;${r.include ? "" : "opacity:.6"}">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <input type="checkbox" data-inc="${i}" ${r.include ? "checked" : ""} style="width:auto;margin-top:10px" aria-label="Import this trade">
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span class="tag" style="color:var(--${r.side === "sell" ? "bad" : "good"})">${r.side === "sell" ? "Sell" : "Buy"}</span><input type="date" data-date="${i}" value="${esc(r.date || "")}" style="flex:1"></div>
+              ${r.dup ? `<div class="hint" style="margin-bottom:6px">Looks already logged (same coin, day and amount), so it's unticked.</div>` : ""}
+              <div class="row">
+                <label class="field" style="margin-bottom:0"><span>Quantity</span><input type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-qty="${i}" value="${r.quantity != null ? esc(+Number(r.quantity).toPrecision(10)) : ""}"></label>
+                <label class="field" style="margin-bottom:0"><span>Price per coin (USD)</span><input type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-price="${i}" value="${r.avg_buy_price != null ? esc(+Number(r.avg_buy_price).toPrecision(8)) : ""}">${tot ? `<div class="hint">Total ${fmtUsd(tot)}</div>` : ""}</label>
+              </div>
+            </div>
+          </div></div>`;
+      }
       const priceHint = r.avg_buy_price == null ? `<div class="hint">Not in screenshot. Leave empty to use today's price.</div>` : "";
       return `<div class="card" style="padding:10px 12px;margin-bottom:10px;${r.include ? "" : "opacity:.6"}">
         <div style="display:flex;gap:10px;align-items:flex-start">
@@ -1072,22 +1115,28 @@ function openImportModal() {
     list.querySelectorAll("[data-inc]").forEach(cb => cb.onchange = () => { rows[+cb.dataset.inc].include = cb.checked; paintRows(); });
     list.querySelectorAll("[data-qty]").forEach(inp => inp.oninput = () => { rows[+inp.dataset.qty].quantity = inp.value; });
     list.querySelectorAll("[data-price]").forEach(inp => inp.oninput = () => { rows[+inp.dataset.price].avg_buy_price = inp.value === "" ? null : inp.value; });
+    list.querySelectorAll("[data-date]").forEach(inp => inp.onchange = () => { rows[+inp.dataset.date].date = inp.value || null; });
     list.querySelectorAll("[data-change]").forEach(b => b.onclick = () => openCoinPicker(async (c) => {
-      const r = rows[+b.dataset.change];
-      r.match = { id: c.id, name: c.name, symbol: c.symbol, image: c.image }; r.sure = true;
-      if (r.shotQty != null) r.quantity = r.shotQty;
-      applyHeld(r); if (!r.alreadyHeld) r.include = true;
+      const r = rows[+b.dataset.change], m = { id: c.id, name: c.name, symbol: c.symbol, image: c.image };
+      if (mode === "trades") { for (const x of rows) if (x.key === r.key) { x.match = m; x.sure = true; x.include = true; applyDup(x); } }
+      else {
+        r.match = m; r.sure = true;
+        if (r.shotQty != null) r.quantity = r.shotQty;
+        applyHeld(r); if (!r.alreadyHeld) r.include = true;
+      }
       await CG.ensure([c.id]); paintRows();
     }));
     const n = rows.filter(r => r.include).length, btn = $("#imp-save", ov);
-    if (btn) { btn.textContent = n ? `Import ${n} coin${n === 1 ? "" : "s"}` : "Nothing selected"; btn.disabled = !n; }
+    if (btn) { btn.textContent = n ? `Import ${n} ${mode === "trades" ? "trade" : "coin"}${n === 1 ? "" : "s"}` : "Nothing selected"; btn.disabled = !n; }
   }
 
   async function save() {
     const err = $("#imp-err", ov); err.textContent = "";
-    const when = $("#imp-when", ov).value;
-    if (!when) return err.textContent = "Enter roughly when you bought.";
-    if (new Date(when) > new Date(Date.now() + 5 * 60000)) return err.textContent = "The date can't be in the future.";
+    const when = mode === "trades" ? null : $("#imp-when", ov).value;
+    if (mode !== "trades") {
+      if (!when) return err.textContent = "Enter roughly when you bought.";
+      if (new Date(when) > new Date(Date.now() + 5 * 60000)) return err.textContent = "The date can't be in the future.";
+    }
     const picked = rows.filter(r => r.include);
     await CG.ensure(picked.filter(r => r.match).map(r => r.match.id));
     const out = [];
@@ -1098,16 +1147,23 @@ function openImportModal() {
       if (!(q > 0)) return err.textContent = `Enter the quantity for ${label} as a number (e.g. 1500 or 0.25).`;
       let p = r.avg_buy_price == null || r.avg_buy_price === "" ? null : dec(r.avg_buy_price), usedToday = false;
       if (p != null && (Number.isNaN(p) || p < 0)) return err.textContent = `Enter ${label}'s buy price as a number (e.g. 0.67).`;
+      let at = when ? new Date(when) : null;
+      if (mode === "trades") {
+        if (!r.date) return err.textContent = `Enter the date for the ${label} ${r.side} of ${fmtQty(q)}.`;
+        at = new Date(r.date + "T12:00");
+        if (at > new Date(Date.now() + 86400000)) return err.textContent = `The ${label} trade on ${r.date} is in the future.`;
+        if (p == null) return err.textContent = `Enter the price for the ${label} ${r.side} on ${r.date}.`;
+      }
       if (p == null) { p = CG.info(r.match.id)?.price; usedToday = true; if (!(p > 0)) return err.textContent = `No live price for ${label} right now. Enter its buy price.`; }
-      out.push({ coin_id: r.match.id, symbol: r.match.symbol, name: r.match.name, side: "buy", quantity: q, price_usd: p, fee_usd: 0,
-        executed_at: new Date(when).toISOString(), exchange: $("#imp-exch", ov).value.trim() || null,
+      out.push({ coin_id: r.match.id, symbol: r.match.symbol, name: r.match.name, side: mode === "trades" ? r.side : "buy", quantity: q, price_usd: p, fee_usd: 0,
+        executed_at: at.toISOString(), exchange: $("#imp-exch", ov).value.trim() || null,
         note: `Imported from ${result.source_app && !/unknown/i.test(result.source_app) ? result.source_app + " " : ""}screenshot${usedToday ? " (buy price not shown; used price on import day)" : ""}` });
     }
     const btn = $("#imp-save", ov); btn.disabled = true; btn.textContent = "Importing…";
     try {
       const saved = await api.addTxs(out);
       S.txs.push(...saved); ov.remove();
-      toast(`Imported ${saved.length} coin${saved.length === 1 ? "" : "s"}`);
+      toast(`Imported ${saved.length} ${mode === "trades" ? "trade" : "coin"}${saved.length === 1 ? "" : "s"}`);
       if (location.hash.replace("#", "") === "overview") render(); else location.hash = "overview";
     } catch (e) { btn.disabled = false; paintRows(); err.textContent = e.message || "Couldn't save. Try again."; }
   }
