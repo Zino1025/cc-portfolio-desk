@@ -180,6 +180,13 @@ tr.click:hover td { background:var(--surface-2); }
 .atts .att-file { max-width:100%; overflow-wrap:anywhere; }
 .att-pick { margin:-4px 0 12px; }
 .att-pick .att-btn { cursor:pointer; display:inline-flex; gap:6px; align-items:center; }
+.att-pick { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; }
+.att-pick .att-list { flex-basis:100%; }
+.att-pick .att-btn svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.att-rec.recording { color:var(--bad); background:color-mix(in srgb, var(--bad) 12%, var(--surface-1)); }
+.att-rec.recording svg { fill:currentColor; animation:recpulse 1s ease-in-out infinite; }
+@keyframes recpulse { 50% { opacity:.35; } }
+.att-preview { width:100%; height:40px; margin-top:2px; }
 .att-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
 .att-chip { display:inline-flex; gap:6px; align-items:center; font-size:13px; padding:4px 6px 4px 10px; border-radius:999px; background:var(--surface-2); border:1px solid var(--border); max-width:100%; }
 .att-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px; }

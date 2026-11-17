@@ -79,6 +79,8 @@ const ICON = {
   target: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>',
   arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
   moon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>',
+  mic: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
+  stop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>',
   clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
 };
 function coinIcon(c) {
@@ -107,12 +109,35 @@ function coinLabel(id) { return symOf(id); }
 const ATT = {
   MAX: 50 * 1024 * 1024, ACCEPT: "image/*,audio/*,video/*,application/pdf", picks: {}, signed: {},
   pickerHtml(id) {
-    return `<div class="att-pick" id="${id}"><label class="btn small att-btn">Attach chart, voice note or video<input type="file" multiple accept="${this.ACCEPT}" hidden></label><div class="att-list"></div></div>`;
+    return `<div class="att-pick" id="${id}"><label class="btn small att-btn">Attach chart, voice note or video<input type="file" multiple accept="${this.ACCEPT}" hidden></label><button type="button" class="btn small att-btn att-rec">${ICON.mic}<span>Record voice note</span></button><div class="att-list"></div></div>`;
+  },
+  /** Record straight from the mic. Prefers mp4/AAC so it plays on iPhone. */
+  async record(btn, onDone) {
+    if (btn._rec) return btn._rec.stop();
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast("Recording isn't supported here. Record in your voice memos app and attach it instead.");
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e) { return toast("Microphone blocked. Allow mic access for Telegram in Settings, then try again."); }
+    const mime = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"].find(t => MediaRecorder.isTypeSupported(t)) || "";
+    const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : {}), chunks = [], t0 = Date.now(), label = btn.querySelector("span");
+    rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+    const tick = () => { const s = Math.floor((Date.now() - t0) / 1000); label.textContent = `Stop · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; if (s >= 600) rec.stop(); };
+    const iv = setInterval(tick, 500);
+    rec.onstop = () => {
+      clearInterval(iv); stream.getTracks().forEach(t => t.stop()); btn._rec = null;
+      btn.classList.remove("recording"); btn.innerHTML = `${ICON.mic}<span>Record voice note</span>`;
+      const type = (rec.mimeType || mime || "audio/webm").split(";")[0], ext = /mp4/.test(type) ? "m4a" : /ogg/.test(type) ? "ogg" : "webm";
+      if (Date.now() - t0 < 800 || !chunks.length) return toast("Too short, hold on a bit longer");
+      const d = new Date(), name = `Voice note ${d.getHours()}-${String(d.getMinutes()).padStart(2, "0")}.${ext}`;
+      onDone(new File([new Blob(chunks, { type })], name, { type }));
+    };
+    rec.start(1000); btn._rec = rec; btn.classList.add("recording"); btn.innerHTML = `${ICON.stop}<span>Stop · 0:00</span>`;
   },
   bind(id) {
     const root = document.getElementById(id); if (!root) return;
     const files = this.picks[id] = [];
-    const paint = () => { root.querySelector(".att-list").innerHTML = files.map((f, i) => `<span class="att-chip">${this.icon(f.type)} <span title="${esc(f.name)}">${esc(f.name)}</span> <small class="muted">${this.size(f.size)}</small><button type="button" data-rm="${i}" aria-label="Remove ${esc(f.name)}">✕</button></span>`).join("");
+    const paint = () => { root.querySelector(".att-list").innerHTML = files.map((f, i) => `<span class="att-chip">${this.icon(f.type)} <span title="${esc(f.name)}">${esc(f.name)}</span> <small class="muted">${this.size(f.size)}</small><button type="button" data-rm="${i}" aria-label="Remove ${esc(f.name)}">✕</button></span>`).join("")
+      + files.filter(f => /^audio/.test(f.type)).map(f => `<audio class="att-preview" controls preload="metadata" src="${URL.createObjectURL(f)}"></audio>`).join("");
       root.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { files.splice(+b.dataset.rm, 1); paint(); }); };
     root.querySelector("input[type=file]").onchange = (e) => {
       for (const f of e.target.files) {
@@ -123,6 +148,12 @@ const ATT = {
       }
       e.target.value = ""; paint();
     };
+    const recBtn = root.querySelector(".att-rec");
+    if (recBtn) recBtn.onclick = () => this.record(recBtn, (f) => {
+      if (files.length >= 10) return toast("Max 10 files per post");
+      if (f.size > this.MAX) return toast("Voice note is over 50 MB");
+      files.push(f); paint(); toast("Voice note added. Tap Post to send it.");
+    });
   },
   files(id) { return this.picks[id] || []; },
   icon(t) { return /^image/.test(t) ? "🖼️" : /^audio/.test(t) ? "🎙️" : /^video/.test(t) ? "🎬" : "📄"; },
