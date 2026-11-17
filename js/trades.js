@@ -110,12 +110,13 @@ function openTradeModal(existing, presetCoinId) {
       <label class="field"><span>Quantity</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="qty" value="${existing ? esc(+Number(existing.quantity).toPrecision(12)) : ""}" placeholder="0.00"></label>
       <label class="field"><span>Price per coin</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="price" value="${existing ? esc(+Number(existing.price_usd).toPrecision(6)) : ""}" placeholder="$0.00"></label>
     </div>
-    <div class="row">
-      <label class="field"><span>Total</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="total" placeholder="$0.00"></label>
-      <label class="field"><span>Fee</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="fee" value="${num(t.fee_usd) ? esc(t.fee_usd) : ""}" placeholder="$0.00"></label>
-    </div>
+    <label class="field"><span>Total</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="total" placeholder="$0.00"></label>
     <label class="field"><span>Date</span><input type="datetime-local" id="when" value="${toLocalInput(t.executed_at)}"></label>
-    <label class="field"><span>Notes</span><textarea id="note" maxlength="500" placeholder="Optional">${esc(t.note || "")}</textarea></label>
+    ${num(t.fee_usd) || t.note ? "" : `<button class="link-btn more-btn" type="button" id="show-extra">+ Add fee or note</button>`}
+    <div id="extra" class="${num(t.fee_usd) || t.note ? "" : "hidden"}">
+      <label class="field"><span>Fee <span class="muted">(optional)</span></span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="fee" value="${num(t.fee_usd) ? esc(t.fee_usd) : ""}" placeholder="$0.00"></label>
+      <label class="field"><span>Notes <span class="muted">(optional)</span></span><textarea id="note" maxlength="500">${esc(t.note || "")}</textarea></label>
+    </div>
     <div class="err" id="trade-err"></div>
     <div class="row" style="justify-content:space-between;align-items:center">${existing ? `<button class="link-btn" id="del-trade" type="button" style="color:var(--bad)">Delete</button>` : "<span></span>"}
       <div class="row" style="flex:none;gap:8px"><button class="btn" id="cancel" style="flex:none">Cancel</button><button class="btn primary" id="save" style="flex:none">${existing ? "Save" : "Add trade"}</button></div></div>
@@ -124,6 +125,7 @@ function openTradeModal(existing, presetCoinId) {
   const close = () => ov.remove();
   ov.querySelector(".x").onclick = close; $("#cancel", ov).onclick = close;
   ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  $("#show-extra", ov) && ($("#show-extra", ov).onclick = (e) => { e.target.remove(); $("#extra", ov).classList.remove("hidden"); $("#fee", ov).focus(); });
   let side = t.side;
   const paintSide = () => ov.querySelectorAll("#side button").forEach(b => b.classList.toggle("on", b.dataset.s === side));
   ov.querySelectorAll("#side button").forEach(b => b.onclick = () => { side = b.dataset.s; paintSide(); });

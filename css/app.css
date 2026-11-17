@@ -393,3 +393,16 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .cta-card { display:flex; align-items:center; gap:14px; text-decoration:none; color:var(--text); border-radius:var(--r-sm); margin-top:16px; padding:14px 14px 14px 16px; cursor:pointer; }
 .cta-card .t { font-weight:600; } .cta-card .d { color:var(--muted); margin-top:4px; }
 .cta-card > div { flex:1; min-width:0; }
+
+/* ===== TOUCH (LukeW mobile input: 44px targets, no iOS zoom on focus) ===== */
+.seg.seg-fill { display:flex; width:100%; } .seg.seg-fill button { flex:1; }
+.more-btn { display:block; margin:-2px 0 14px; padding:6px 0; }
+@media (pointer: coarse) {
+  input, select, textarea { font-size:16px; }
+  .btn { min-height:44px; } .btn.small { min-height:40px; }
+  .seg button { min-height:40px; padding:9px 16px; }
+  nav.tabs a { padding:11px 15px; }
+  .icon-btn.sm { width:40px; height:40px; }
+  .x { min-width:44px; min-height:44px; margin:-10px -12px -10px 0; }
+  .link-btn { padding:8px 0; }
+}

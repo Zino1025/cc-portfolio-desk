@@ -65,6 +65,24 @@ function toLocalInput(d) { const dt = new Date(d); const p = (n) => String(n).pa
 function uid() { return (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)); }
 function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+/* Short dropdowns -> tap segments (LukeW: dropdowns are the UI of last resort).
+   Any <select class="as-seg"> gets a .seg row of buttons; the select stays (hidden) as the source of truth,
+   so existing .value reads and change handlers keep working. Empty-value options ("Choose…") are skipped. */
+function enhanceSegSelects(root) {
+  (root || document).querySelectorAll("select.as-seg:not([data-seg])").forEach(sel => {
+    sel.dataset.seg = "1"; sel.hidden = true;
+    const seg = document.createElement("div"); seg.className = "seg seg-fill"; seg.setAttribute("role", "radiogroup");
+    const paint = () => seg.querySelectorAll("button").forEach(b => { const on = b.dataset.v === sel.value; b.classList.toggle("on", on); b.setAttribute("aria-checked", on); });
+    [...sel.options].filter(o => o.value !== "" && !o.disabled).forEach(o => {
+      const b = document.createElement("button"); b.type = "button"; b.dataset.v = o.value; b.textContent = o.textContent; b.setAttribute("role", "radio");
+      b.onclick = () => { sel.value = o.value; paint(); sel.dispatchEvent(new Event("change", { bubbles: true })); };
+      seg.appendChild(b);
+    });
+    sel.after(seg); paint();
+  });
+}
+new MutationObserver(() => enhanceSegSelects()).observe(document.documentElement, { childList: true, subtree: true });
 const SERIES = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8"];
 const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 function memberName(p) { return p?.display_name || (p?.telegram_handle ? "@" + p.telegram_handle.replace(/^@/, "") : "Member"); }

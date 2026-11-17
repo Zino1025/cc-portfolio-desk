@@ -125,7 +125,7 @@ async function viewUpdates(v) {
         <div class="row"><label class="field"><span>Bid from $</span><input type="text" enterkeyhint="done" inputmode="decimal" id="u-lo"></label><label class="field"><span>to $</span><input type="text" enterkeyhint="done" inputmode="decimal" id="u-hi"></label></div>
         <label class="field"><span>Note (optional)</span><textarea id="u-body" rows="3" maxlength="2000"></textarea></label>
         ${ATT.pickerHtml("att-urgent")}
-        <label class="field"><span>Show for</span><select id="u-exp"><option value="1">1 day</option><option value="3" selected>3 days</option><option value="7">7 days</option></select></label>
+        <label class="field"><span>Show for</span><select id="u-exp" class="as-seg"><option value="1">1 day</option><option value="3" selected>3 days</option><option value="7">7 days</option></select></label>
         <button class="btn primary" id="u-post">Post urgent bid</button><div class="hint">Everyone linked on Telegram gets a ping.</div></div>
       <div class="card"><h2>Post the weekly summary</h2>
         <label class="field"><span>Title</span><input type="text" enterkeyhint="done" id="w-title" maxlength="140" value="Weekly update · ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}"></label>

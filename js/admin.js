@@ -26,7 +26,7 @@ function openBroadcast() {
     <label class="field hidden" id="bc-coin-wrap"><span>Coin</span><select id="bc-coin">${coinList.map((c, i) => `${i === big.length && i ? `<option disabled>──────────</option>` : ""}<option value="${esc(c.id)}">${big.includes(c.id) ? "★ " : ""}${esc(c.symbol)} · ${c.n} holder${c.n === 1 ? "" : "s"}</option>`).join("")}</select></label>
     <div class="hidden" id="bc-pick" style="margin-bottom:12px"><input type="search" enterkeyhint="done" id="bc-q" placeholder="Search members" style="margin-bottom:6px">
       <div id="bc-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:4px 8px"></div></div>
-    <label class="field"><span>Type</span><select id="bc-kind"><option value="note">Note</option><option value="suggestion">Suggestion</option></select></label>
+    <label class="field"><span>Type</span><select id="bc-kind" class="as-seg"><option value="note">Note</option><option value="suggestion">Suggestion</option></select></label>
     <label class="field"><span>Message</span><textarea id="bc-body" rows="6" maxlength="4000" placeholder="Hey {name}, quick heads-up…"></textarea></label>
     <div class="hint" style="margin-top:-6px">Type <b>{name}</b> and each member sees their own name.</div>
     <div class="callout" id="bc-count" style="margin:12px 0"></div>
@@ -192,7 +192,7 @@ async function viewMemberDetail(v, id) {
       <div class="card"><h2>Send a suggestion</h2>
         <div class="chips" style="margin-bottom:10px">${TEMPLATES.map(([l], i) => `<button class="chip" data-tpl="${i}">${esc(l)}</button>`).join("")}</div>
         <div class="row">
-          <label class="field"><span>Type</span><select id="kind"><option value="suggestion">Suggestion</option><option value="note">Note</option><option value="reply">Reply</option></select></label>
+          <label class="field"><span>Type</span><select id="kind" class="as-seg"><option value="suggestion">Suggestion</option><option value="note">Note</option><option value="reply">Reply</option></select></label>
           <label class="field"><span>About coin (optional)</span><select id="coin"><option value="">—</option>${(() => { const big = modelCoinIds(); const held = Object.fromEntries(pf.holdings.map(h => [h.coin_id, h])); const nm = (id) => held[id]?.name || CG.info(id)?.name || SAMPLE_PRICES[id]?.name || id; const opt = (id) => `<option value="${esc(id)}">${big.includes(id) ? "★ " : ""}${esc(symOf(id))} · ${esc(nm(id))}${held[id] ? "" : " (not held)"}</option>`; const others = pf.holdings.map(h => h.coin_id).filter(id => !big.includes(id)); return big.map(opt).join("") + (others.length ? `<option disabled>──────────</option>` + others.map(opt).join("") : ""); })()}</select></label>
         </div>
         <label class="field"><span>Message</span><textarea id="body" maxlength="4000" rows="5" placeholder="Your suggestion for ${esc(memberName(p))}…"></textarea></label>

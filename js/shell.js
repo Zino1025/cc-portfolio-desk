@@ -36,6 +36,7 @@ function renderShell() {
   $("#theme-btn").onclick = toggleTheme;
   $("#signout") && ($("#signout").onclick = async () => { LIVE.stop(); await api.signOut(); location.hash = ""; boot(); });
   $("#demo-user") && ($("#demo-user").onchange = async (e) => { api.setUser(e.target.value); location.hash = ""; S.proj = null; await loadMe(); render(); });
+  const act = $("nav.tabs a.active"); act && act.scrollIntoView({ block: "nearest", inline: "center" });
   renderView(route);
 }
 function toggleTheme() {
