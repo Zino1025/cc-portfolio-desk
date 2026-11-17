@@ -156,6 +156,18 @@ tr.click:hover td { background:var(--surface-2); }
 .thread { display:flex; flex-direction:column; gap:10px; max-height:520px; overflow-y:auto; padding:4px 2px; }
 .msg { max-width:85%; padding:10px 13px; border-radius:12px; background:var(--surface-2); border:1px solid var(--border); white-space:pre-wrap; word-wrap:break-word; }
 .msg.mine { align-self:flex-end; }
+.atts { display:flex; flex-direction:column; gap:8px; margin-top:8px; white-space:normal; }
+.atts img { max-width:100%; max-height:420px; border-radius:10px; border:1px solid var(--border); display:block; cursor:zoom-in; background:var(--surface-2); min-height:60px; }
+.atts video { width:100%; max-height:420px; border-radius:10px; background:#000; }
+.atts audio { width:100%; }
+.atts .att-file { display:inline-flex; gap:6px; align-items:center; padding:8px 11px; border:1px solid var(--border); border-radius:10px; text-decoration:none; color:var(--text-primary); background:var(--surface-1); font-size:13px; }
+.atts .att-cap { font-size:11px; color:var(--text-muted); margin-top:-4px; }
+.att-pick { margin:-4px 0 12px; }
+.att-pick .att-btn { cursor:pointer; display:inline-flex; gap:6px; align-items:center; }
+.att-list { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.att-chip { display:inline-flex; gap:6px; align-items:center; font-size:12px; padding:4px 6px 4px 10px; border-radius:999px; background:var(--surface-2); border:1px solid var(--border); max-width:100%; }
+.att-chip span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:200px; }
+.att-chip button { border:none; background:none; cursor:pointer; color:var(--text-muted); font-size:14px; padding:0 4px; }
 .msg.reviewer { border-left:3px solid var(--accent); }
 .msg .meta { font-size:12px; color:var(--text-muted); margin-bottom:4px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 .msg .meta b { color:var(--text-primary); font-weight:650; }
@@ -432,6 +444,73 @@ function nameSym(name, sym) {
   name = String(name || "").trim(); const m = name.match(/\(([^)]+)\)\s*$/); return m ? m[1].toUpperCase() : name;
 }
 function coinLabel(id) { return symOf(id); }
+
+/* ===================== ATTACHMENTS (charts, voice notes, videos, PDFs) =====================
+   Stored in the private Supabase bucket "attachments"; shown through short-lived signed links.
+   updates/<id>/file -> every member · msg/<member_id>/<id>/file -> that member + admins (see supabase/attachments.sql) */
+const ATT = {
+  MAX: 50 * 1024 * 1024, ACCEPT: "image/*,audio/*,video/*,application/pdf", picks: {}, signed: {},
+  pickerHtml(id) {
+    return `<div class="att-pick" id="${id}"><label class="btn small att-btn">📎 Attach chart, voice note or video<input type="file" multiple accept="${this.ACCEPT}" hidden></label><div class="att-list"></div></div>`;
+  },
+  bind(id) {
+    const root = document.getElementById(id); if (!root) return;
+    const files = this.picks[id] = [];
+    const paint = () => { root.querySelector(".att-list").innerHTML = files.map((f, i) => `<span class="att-chip">${this.icon(f.type)} <span title="${esc(f.name)}">${esc(f.name)}</span> <small class="muted">${this.size(f.size)}</small><button type="button" data-rm="${i}" aria-label="Remove ${esc(f.name)}">✕</button></span>`).join("");
+      root.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { files.splice(+b.dataset.rm, 1); paint(); }); };
+    root.querySelector("input[type=file]").onchange = (e) => {
+      for (const f of e.target.files) {
+        if (!/^(image|audio|video)\//.test(f.type) && f.type !== "application/pdf") { toast(`${f.name}: only images, audio, video or PDF`); continue; }
+        if (f.size > this.MAX) { toast(`${f.name} is ${this.size(f.size)}. Max is 50 MB, trim or compress it first.`); continue; }
+        if (files.length >= 10) { toast("Max 10 files per post"); break; }
+        files.push(f);
+      }
+      e.target.value = ""; paint();
+    };
+  },
+  files(id) { return this.picks[id] || []; },
+  icon(t) { return /^image/.test(t) ? "🖼️" : /^audio/.test(t) ? "🎙️" : /^video/.test(t) ? "🎬" : "📄"; },
+  size(b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1024)) + " KB"; },
+  /** Upload picked files; returns [{path,name,type,size}] or null. onStep(i, n) lets the button show progress. */
+  async upload(id, prefix, onStep) {
+    const files = this.files(id); if (!files.length) return null;
+    const out = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i]; onStep && onStep(i + 1, files.length);
+      const safe = f.name.normalize("NFKD").replace(/[^\w.\-]+/g, "_").slice(-80) || "file";
+      const path = `${prefix}/${uid()}/${safe}`;
+      if (api.demo || !sb) { out.push({ path, name: f.name, type: f.type, size: f.size, url: URL.createObjectURL(f) }); continue; }
+      const { error } = await sb.storage.from("attachments").upload(path, f, { contentType: f.type, upsert: false });
+      if (error) throw new Error(`Couldn't upload ${f.name}: ${error.message}`);
+      out.push({ path, name: f.name, type: f.type, size: f.size });
+    }
+    return out;
+  },
+  html(list) {
+    if (!Array.isArray(list) || !list.length) return "";
+    return `<div class="atts">${list.map(a => {
+      const src = a.url ? `src="${esc(a.url)}"` : `data-att-path="${esc(a.path)}"`, nm = esc(a.name || "file");
+      if (/^image/.test(a.type)) return `<a ${a.url ? `href="${esc(a.url)}"` : `data-att-href="${esc(a.path)}"`} target="_blank" rel="noopener"><img ${src} alt="${nm}" loading="lazy"></a>`;
+      if (/^audio/.test(a.type)) return `<audio controls preload="none" ${src}></audio><div class="att-cap">🎙️ ${nm}${/ogg|opus/i.test(a.type + a.name) ? " · if it won't play on iPhone, tap to download" : ""}</div>`;
+      if (/^video/.test(a.type)) return `<video controls playsinline preload="metadata" ${src}></video><div class="att-cap">🎬 ${nm}</div>`;
+      return `<a class="att-file" ${a.url ? `href="${esc(a.url)}"` : `data-att-href="${esc(a.path)}"`} target="_blank" rel="noopener">📄 ${nm}</a>`;
+    }).join("")}</div>`;
+  },
+  /** Fill in signed links for any attachment elements on the page. */
+  async hydrate(root = document) {
+    const els = [...root.querySelectorAll("[data-att-path],[data-att-href]")]; if (!els.length || !sb) return;
+    const now = Date.now(), need = [...new Set(els.map(e => e.dataset.attPath || e.dataset.attHref))].filter(p => !(this.signed[p] && this.signed[p].exp > now));
+    if (need.length) {
+      const { data } = await sb.storage.from("attachments").createSignedUrls(need, 3600);
+      for (const r of data || []) if (r.signedUrl) this.signed[r.path] = { url: r.signedUrl, exp: now + 50 * 60000 };
+    }
+    for (const e of els) {
+      const p = e.dataset.attPath || e.dataset.attHref, u = this.signed[p]?.url; if (!u) continue;
+      if (e.dataset.attPath) { e.src = u; delete e.dataset.attPath; } else { e.href = u; delete e.dataset.attHref; }
+    }
+  },
+};
+new MutationObserver(debounce(() => { if (document.querySelector("[data-att-path],[data-att-href]")) ATT.hydrate().catch(() => {}); }, 60)).observe(document.documentElement, { childList: true, subtree: true });
 
 /** CoinGecko renamed some coin ids (ACN after the AITECH migration, OTK). Saved trades, plans and settings may
  *  still use the old ids, so everything read from the database is translated to the current ones. */
@@ -1881,7 +1960,7 @@ function threadHtml(msgs, viewerId, memberId, names) {
     const who = fromReviewer ? (names?.[m.author_id] || CONFIG.REVIEWER_NAME) : (mine ? "You" : names?.[m.author_id] || "Member");
     const kindTag = m.kind && m.kind !== "note" && m.kind !== "reply" ? `<span class="tag">${esc(m.kind)}</span>` : "";
     const coinTag = m.coin_id ? `<a class="tag" href="${coinLink(m.coin_id)}" target="_blank" rel="noopener">${esc((CG.info(m.coin_id)?.symbol || m.coin_id).toUpperCase())}</a>` : "";
-    return `<div class="msg ${mine ? "mine" : ""} ${fromReviewer ? "reviewer" : ""}"><div class="meta"><b>${esc(who)}</b>${kindTag}${coinTag}<span>${ago(m.created_at)}</span>${mine ? `<button class="link-btn" data-delmsg="${esc(m.id)}" style="font-size:12px;color:var(--text-muted)">delete</button>` : ""}</div>${esc(m.body)}</div>`;
+    return `<div class="msg ${mine ? "mine" : ""} ${fromReviewer ? "reviewer" : ""}"><div class="meta"><b>${esc(who)}</b>${kindTag}${coinTag}<span>${ago(m.created_at)}</span>${mine ? `<button class="link-btn" data-delmsg="${esc(m.id)}" style="font-size:12px;color:var(--text-muted)">delete</button>` : ""}</div>${esc(m.body)}${ATT.html(m.attachments)}</div>`;
   }).join("");
 }
 async function viewFeedback(v) {
@@ -2432,7 +2511,7 @@ async function viewUpdates(v) {
       <div class="row" style="align-items:center;justify-content:space-between"><div style="flex:1">${coinCell({ coin_id: u.coin_id, symbol: symOf(u.coin_id).toLowerCase(), name: CG.info(u.coin_id)?.name || u.coin_id, image: CG.info(u.coin_id)?.image })}</div><span class="tag req" style="flex:none">⚡ Urgent bid from ${esc(CONFIG.REVIEWER_NAME)}</span></div>
       <h2 style="margin:10px 0 4px">${esc(u.title)}</h2>
       ${u.buy_low || u.buy_high ? `<div class="num" style="margin-bottom:6px">Bid zone: <b>${u.buy_low ? fmtPrice(u.buy_low) : "…"} – ${u.buy_high ? fmtPrice(u.buy_high) : "…"}</b> · now ${fmtPrice(CG.info(u.coin_id)?.price)}</div>` : ""}
-      ${u.body ? `<div style="white-space:pre-wrap">${esc(u.body)}</div>` : ""}
+      ${u.body ? `<div style="white-space:pre-wrap">${esc(u.body)}</div>` : ""}${ATT.html(u.attachments)}
       ${!isAdmin() || api.demo ? `<div class="callout" style="margin:10px 0 0">${esc(s.text)}${s.amount ? `\nSuggested bid: <b>${fmtUsd(s.amount)}</b>` : ""}</div>` : ""}
       <div class="muted" style="font-size:12px;margin-top:8px">Posted ${ago(u.created_at)}${u.expires_at ? ` · expires ${fmtDate(u.expires_at, false)}` : ""}${isAdmin() ? ` · <button class="link-btn" data-del-up="${esc(u.id)}">Remove</button>` : ""}</div></div>`; };
   v.innerHTML = `
@@ -2452,20 +2531,22 @@ async function viewUpdates(v) {
         ${!isAdmin() || api.demo ? `<div class="secondary">${esc(s.text)}${s.amount ? ` Your plan says up to <b>${fmtUsd(s.amount)}</b> to get back to target.` : ""}</div>` : `<div class="secondary">Members see how far under target they are. Post an urgent bid below if you want them to act.</div>`}
         <div class="muted" style="font-size:12px;margin-top:8px">Not a call from ${esc(CONFIG.REVIEWER_NAME)}: big drops can keep dropping. Wait for his take if unsure.</div></div>`; }).join("")}</div>
     <h2 class="section-h">📰 Weekly summary</h2>
-    <div class="card">${latest ? `<div class="muted" style="font-size:12px">${fmtDate(latest.created_at, false)} · ${esc(CONFIG.REVIEWER_NAME)}${isAdmin() ? ` · <button class="link-btn" data-del-up="${esc(latest.id)}">Remove</button>` : ""}</div><h2 style="margin:6px 0 8px">${esc(latest.title)}</h2><div style="white-space:pre-wrap">${esc(latest.body || "")}</div>`
+    <div class="card">${latest ? `<div class="muted" style="font-size:12px">${fmtDate(latest.created_at, false)} · ${esc(CONFIG.REVIEWER_NAME)}${isAdmin() ? ` · <button class="link-btn" data-del-up="${esc(latest.id)}">Remove</button>` : ""}</div><h2 style="margin:6px 0 8px">${esc(latest.title)}</h2><div style="white-space:pre-wrap">${esc(latest.body || "")}</div>${ATT.html(latest.attachments)}`
       : `<div class="empty" style="padding:16px">No weekly summary posted yet.</div>`}</div>
-    ${weeklies.length > 1 ? `<div class="card" style="margin-top:16px"><h2>Past summaries</h2>${weeklies.slice(1, 12).map(w => `<details class="past"><summary><b>${esc(w.title)}</b> <span class="muted">· ${fmtDate(w.created_at, false)}</span></summary><div style="white-space:pre-wrap;margin-top:6px">${esc(w.body || "")}</div></details>`).join("")}</div>` : ""}
+    ${weeklies.length > 1 ? `<div class="card" style="margin-top:16px"><h2>Past summaries</h2>${weeklies.slice(1, 12).map(w => `<details class="past"><summary><b>${esc(w.title)}</b> <span class="muted">· ${fmtDate(w.created_at, false)}</span></summary><div style="white-space:pre-wrap;margin-top:6px">${esc(w.body || "")}</div>${ATT.html(w.attachments)}</details>`).join("")}</div>` : ""}
     ${isAdmin() ? `<div class="two-col" style="margin-top:16px">
       <div class="card"><h2>Post an urgent bid</h2>
         <label class="field"><span>Coin</span><select id="u-coin">${modelCoinIds(m).map(id => `<option value="${esc(id)}">${esc(symOf(id))}</option>`).join("")}${drops.length ? "" : ""}</select></label>
         <label class="field"><span>Headline</span><input type="text" enterkeyhint="done" id="u-title" maxlength="140" placeholder="e.g. TET flushed to support, bid here"></label>
         <div class="row"><label class="field"><span>Bid from $</span><input type="text" enterkeyhint="done" inputmode="decimal" id="u-lo"></label><label class="field"><span>to $</span><input type="text" enterkeyhint="done" inputmode="decimal" id="u-hi"></label></div>
         <label class="field"><span>Note (optional)</span><textarea id="u-body" rows="3" maxlength="2000"></textarea></label>
+        ${ATT.pickerHtml("att-urgent")}
         <label class="field"><span>Show for</span><select id="u-exp"><option value="1">1 day</option><option value="3" selected>3 days</option><option value="7">7 days</option></select></label>
         <button class="btn primary" id="u-post">Post urgent bid</button><div class="hint">Everyone linked on Telegram gets a ping.</div></div>
       <div class="card"><h2>Post the weekly summary</h2>
         <label class="field"><span>Title</span><input type="text" enterkeyhint="done" id="w-title" maxlength="140" value="Weekly update · ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}"></label>
         <label class="field"><span>Summary</span><textarea id="w-body" rows="10" maxlength="6000" placeholder="Your take on the week…"></textarea></label>
+        ${ATT.pickerHtml("att-weekly")}
         <div class="btn-row"><button class="btn" id="w-draft">Fill with this week's numbers</button><button class="btn primary" id="w-post">Post summary</button></div>
         <div class="hint">Everyone linked on Telegram gets a ping with the first lines.</div></div>
     </div>` : ""}`;
@@ -2479,19 +2560,25 @@ async function viewUpdates(v) {
     ta.value = (ta.value ? ta.value + "\n\n" : "") + `Model coins this week:\n${lines.join("\n")}` + (g ? `\n\nGroup total: ${fmtUsd(g.value)} across ${g.members} members (${fmtPct(g.change24Pct)} 24h).` : "") + `\n\nMy take:\n`;
     ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
   };
+  ATT.bind("att-weekly"); ATT.bind("att-urgent");
+  const withUploads = async (btn, pickId, fn) => {
+    const label = btn.textContent; btn.disabled = true;
+    try { const attachments = await ATT.upload(pickId, "updates", (i, n) => { btn.textContent = `Uploading ${i}/${n}…`; }); btn.textContent = "Posting…"; await fn(attachments); }
+    catch (e) { toast(e.message); btn.disabled = false; btn.textContent = label; }
+  };
   $("#w-post").onclick = async () => {
     const title = $("#w-title").value.trim(), body = $("#w-body").value.trim();
-    if (!body) return $("#w-body").focus();
-    try { await api.addUpdate({ kind: "weekly", title: title || "Weekly update", body }); toast("Weekly summary posted"); render(); } catch (e) { toast(e.message); }
+    if (!body && !ATT.files("att-weekly").length) return $("#w-body").focus();
+    await withUploads($("#w-post"), "att-weekly", async (attachments) => { await api.addUpdate({ kind: "weekly", title: title || "Weekly update", body, ...(attachments ? { attachments } : {}) }); toast("Weekly summary posted"); render(); });
   };
   $("#u-post").onclick = async () => {
     const coin_id = $("#u-coin").value, title = $("#u-title").value.trim();
     if (!title) return $("#u-title").focus();
     const lo = dec($("#u-lo").value), hi = dec($("#u-hi").value);
-    try {
-      await api.addUpdate({ kind: "urgent", coin_id, title, body: $("#u-body").value.trim() || null, buy_low: Number.isNaN(lo) ? null : lo, buy_high: Number.isNaN(hi) ? null : hi, expires_at: new Date(Date.now() + +$("#u-exp").value * 86400000).toISOString() });
+    await withUploads($("#u-post"), "att-urgent", async (attachments) => {
+      await api.addUpdate({ kind: "urgent", coin_id, title, body: $("#u-body").value.trim() || null, buy_low: Number.isNaN(lo) ? null : lo, buy_high: Number.isNaN(hi) ? null : hi, expires_at: new Date(Date.now() + +$("#u-exp").value * 86400000).toISOString(), ...(attachments ? { attachments } : {}) });
       toast("Urgent bid posted"); render();
-    } catch (e) { toast(e.message); }
+    });
   };
 }
 function alertBanner() {
@@ -3006,6 +3093,7 @@ async function viewMemberDetail(v, id) {
           <label class="field"><span>About coin (optional)</span><select id="coin"><option value="">—</option>${(() => { const big = modelCoinIds(); const held = Object.fromEntries(pf.holdings.map(h => [h.coin_id, h])); const nm = (id) => held[id]?.name || CG.info(id)?.name || SAMPLE_PRICES[id]?.name || id; const opt = (id) => `<option value="${esc(id)}">${big.includes(id) ? "★ " : ""}${esc(symOf(id))} · ${esc(nm(id))}${held[id] ? "" : " (not held)"}</option>`; const others = pf.holdings.map(h => h.coin_id).filter(id => !big.includes(id)); return big.map(opt).join("") + (others.length ? `<option disabled>──────────</option>` + others.map(opt).join("") : ""); })()}</select></label>
         </div>
         <label class="field"><span>Message</span><textarea id="body" maxlength="4000" rows="5" placeholder="Your suggestion for ${esc(memberName(p))}…"></textarea></label>
+        ${ATT.pickerHtml("att-msg")}
         <div class="row" style="justify-content:flex-end"><button class="btn" id="send" style="flex:none">Send</button><button class="btn primary" id="send-mark" style="flex:none">Send &amp; mark reviewed</button></div>
       </div>
       <div class="card"><h2>Thread</h2><div class="thread" id="thread">${threadHtml(msgs, S.me.id, p.id, names)}</div></div>
@@ -3043,10 +3131,16 @@ async function viewMemberDetail(v, id) {
     Object.assign(S.admin.profiles.find(x => x.id === p.id), up);
     if (p.id === S.me.id) S.me = up;
   };
+  ATT.bind("att-msg");
   const send = async (mark) => {
     const body = $("#body").value.trim();
-    if (!body) { $("#body").focus(); return; }
-    const m = await api.addMessage({ member_id: p.id, kind: $("#kind").value, coin_id: $("#coin").value || null, body });
+    if (!body && !ATT.files("att-msg").length) { $("#body").focus(); return; }
+    const btns = [$("#send"), $("#send-mark")], labels = btns.map(b => b.textContent);
+    btns.forEach(b => b.disabled = true);
+    let attachments = null;
+    try { attachments = await ATT.upload("att-msg", `msg/${p.id}`, (i, n) => { btns[mark ? 1 : 0].textContent = `Uploading ${i}/${n}…`; }); }
+    catch (e) { toast(e.message); btns.forEach((b, i) => { b.disabled = false; b.textContent = labels[i]; }); return; }
+    const m = await api.addMessage({ member_id: p.id, kind: $("#kind").value, coin_id: $("#coin").value || null, body, ...(attachments ? { attachments } : {}) });
     S.admin.meta.push({ member_id: p.id, author_id: m.author_id, created_at: m.created_at, kind: m.kind });
     if (mark) await markReviewed();
     toast(mark ? "Sent and marked reviewed" : "Sent"); render();

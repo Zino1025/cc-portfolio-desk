@@ -19,6 +19,7 @@ const COIN_ID_RENAMES: Record<string, string> = { "solidus-ai-tech": "solidus-ai
 
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const cut = (s: string, n = 300) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
+const attNote = (a: unknown) => (Array.isArray(a) && a.length ? `\n\n📎 ${a.length} attachment${a.length === 1 ? "" : "s"} (chart, voice note or video): open the Desk to view.` : "");
 const nameOf = (p: any) => p?.display_name || (p?.telegram_handle ? "@" + p.telegram_handle : "A member");
 
 async function send(chatId: number | string, text: string, go: string) {
@@ -54,16 +55,16 @@ Deno.serve(async (req) => {
         .eq("id", id).is("notified_at", null).select().maybeSingle();
       if (!m) return Response.json({ skipped: "already" });
       const { data: member } = await db.from("profiles").select("*").eq("id", m.member_id).single();
-      const body = esc(cut(m.body));
+      const body = m.body ? `\n\n“${esc(cut(m.body))}”` : "";
       if (m.author_id === m.member_id) {
         // Member wrote in their thread -> tell the admins.
         for (const a of await admins(m.author_id)) {
-          await send(a.telegram_chat_id, `💬 <b>${esc(nameOf(member))}</b> sent a message:\n\n“${body}”`, `member-${m.member_id}`);
+          await send(a.telegram_chat_id, `💬 <b>${esc(nameOf(member))}</b> sent a message:${body}${attNote(m.attachments)}`, `member-${m.member_id}`);
         }
       } else if (member?.telegram_chat_id) {
         // Admin wrote to the member -> tell the member.
         const kind = m.kind === "suggestion" ? "left you a suggestion" : m.kind === "note" ? "sent you a note" : "replied to you";
-        await send(member.telegram_chat_id, `📝 <b>${REVIEWER}</b> ${kind}:\n\n“${body}”`, "feedback");
+        await send(member.telegram_chat_id, `📝 <b>${REVIEWER}</b> ${kind}:${body}${attNote(m.attachments)}`, "feedback");
       }
       return Response.json({ ok: true });
     }
@@ -89,9 +90,9 @@ Deno.serve(async (req) => {
       let text: string;
       if (u.kind === "urgent") {
         const zone = u.buy_low || u.buy_high ? `\nBid zone: ${u.buy_low ?? "…"} – ${u.buy_high ?? "…"} USD` : "";
-        text = `⚡ <b>Urgent bid from ${REVIEWER}</b>\n\n<b>${esc(u.title)}</b>${zone}${u.body ? `\n\n${esc(cut(u.body, 400))}` : ""}\n\nOpen the Desk to see how much your plan suggests.`;
+        text = `⚡ <b>Urgent bid from ${REVIEWER}</b>\n\n<b>${esc(u.title)}</b>${zone}${u.body ? `\n\n${esc(cut(u.body, 400))}` : ""}${attNote(u.attachments)}\n\nOpen the Desk to see how much your plan suggests.`;
       } else {
-        text = `📰 <b>${esc(u.title)}</b>\n\n${esc(cut(u.body || "", 700))}`;
+        text = `📰 <b>${esc(u.title)}</b>${u.body ? `\n\n${esc(cut(u.body, 700))}` : ""}${attNote(u.attachments)}`;
       }
       let sent = 0;
       for (const p of people ?? []) {
