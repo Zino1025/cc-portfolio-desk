@@ -839,6 +839,58 @@ async function paintHero(txs, chartId = "hero") {
     },
   });
 }
+/* ---------- Price charts: BTC, ETH and the group's coins ---------- */
+const PRICE_PERIODS = [[1, "24H"], [7, "7D"], [30, "1M"], [90, "3M"], [365, "1Y"]];
+function priceChartCoins() { return [...new Set(["bitcoin", "ethereum", ...modelCoinIds()])]; }
+function priceChartCard() {
+  const coins = priceChartCoins();
+  if (!coins.includes(S.pcCoin)) S.pcCoin = coins[0];
+  const days = S.pcDays || 30;
+  return `<div class="card hero" id="pc-card">
+    <div class="hero-head"><div><div class="label">Price charts</div>
+      <div class="big num" id="pc-price">—</div>
+      <div class="chg" id="pc-chg"></div></div>
+      <div class="periods" id="pc-periods">${PRICE_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
+    <div class="chips" id="pc-coins" style="margin-top:12px">${coins.map(id => `<button class="chip ${id === S.pcCoin ? "on" : ""}" data-c="${esc(id)}">${esc(symOf(id))}</button>`).join("")}</div>
+    <div class="hero-chart" id="pc-chart"></div>
+    <div class="hero-key"><span id="pc-name"></span><span style="margin-left:auto" class="num" id="pc-range"></span></div>
+  </div>`;
+}
+async function paintPriceChart() {
+  const box = document.getElementById("pc-chart"); if (!box) return;
+  const id = S.pcCoin, days = S.pcDays || 30, tok = (S.pcTok = (S.pcTok || 0) + 1);
+  document.querySelectorAll("#pc-coins [data-c]").forEach(b => { b.classList.toggle("on", b.dataset.c === id); b.onclick = () => { S.pcCoin = b.dataset.c; paintPriceChart(); }; });
+  document.querySelectorAll("#pc-periods [data-d]").forEach(b => { b.classList.toggle("on", +b.dataset.d === days); b.onclick = () => { S.pcDays = +b.dataset.d; paintPriceChart(); }; });
+  const info = CG.info(id) || {};
+  $("#pc-price").textContent = info.price != null ? fmtPrice(info.price) : "—";
+  $("#pc-name").innerHTML = `<a href="${coinLink(id)}" target="_blank" rel="noopener" style="color:inherit">${esc(info.name || id)} on CoinGecko ↗</a>`;
+  if (!S.charts.pc) box.innerHTML = `<div class="note">Loading chart…</div>`;
+  let pts = null; try { pts = await CG.chart(id, days); } catch (e) { CG.offline = true; }
+  if (tok !== S.pcTok || !document.body.contains(box)) return;
+  if (S.charts.pc) { S.charts.pc.destroy(); delete S.charts.pc; }
+  if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">${CG.offline ? "Price history needs live CoinGecko data. Try again in a minute." : "No price history for this coin yet."}</div>`; $("#pc-chg").innerHTML = ""; $("#pc-range").textContent = ""; return; }
+  const first = pts[0][1], last = info.price ?? pts[pts.length - 1][1], chg = (last - first) / first * 100;
+  $("#pc-price").textContent = fmtPrice(last);
+  const lo = Math.min(...pts.map(p => p[1])), hi = Math.max(...pts.map(p => p[1]));
+  const label = PRICE_PERIODS.find(x => x[0] === days)?.[1] || "";
+  $("#pc-chg").innerHTML = `<span class="pill ${signCls(chg)}">${arrow(chg)} ${fmtPct(chg)}</span><span>${label}</span>`;
+  $("#pc-range").textContent = `Low ${fmtPrice(lo)} · High ${fmtPrice(hi)}`;
+  box.innerHTML = `<canvas id="pc-cv" role="img" aria-label="${esc(symOf(id))} price chart"></canvas>`;
+  const col = cssVar(chg < 0 ? "--bad" : "--good");
+  const fmtT = (t) => new Date(t).toLocaleString(undefined, days <= 7 ? { month: "short", day: "numeric", hour: "numeric", minute: days <= 1 ? "2-digit" : undefined } : { month: "short", day: "numeric", year: days > 90 ? "2-digit" : undefined });
+  S.charts.pc = new Chart(document.getElementById("pc-cv"), {
+    type: "line",
+    data: { labels: pts.map(p => p[0]), datasets: [{ data: pts.map(p => p[1]), borderColor: col, borderWidth: 2.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: col, tension: 0.25, fill: true,
+      backgroundColor: (c) => { const ca = c.chart.chartArea; if (!ca) return "transparent"; const g = c.chart.ctx.createLinearGradient(0, ca.top, 0, ca.bottom); g.addColorStop(0, rgba(col, 0.3)); g.addColorStop(1, rgba(col, 0)); return g; } }] },
+    options: {
+      maintainAspectRatio: false, animation: { duration: 350 }, interaction: { mode: "index", intersect: false },
+      layout: { padding: { left: 6, right: 6 } },
+      scales: { x: { display: false }, y: { position: "right", grace: "6%", grid: { color: cssVar("--grid") }, border: { display: false }, ticks: { color: cssVar("--text-muted"), maxTicksLimit: 4, callback: (v) => v >= 1000 ? "$" + new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(v) : fmtPrice(v) } } },
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
+        callbacks: { title: (it) => fmtT(pts[it[0].dataIndex][0]), label: (it) => fmtPrice(it.raw) } } },
+    },
+  });
+}
 function perfCard(id) {
   return `<div class="card"><div class="card-h"><h2>Performance by coin</h2><span class="sub">P&amp;L vs avg buy</span></div><div class="perf-box" id="${id}-box"><canvas id="${id}" role="img" aria-label="Profit and loss by coin bar chart"></canvas></div></div>`;
 }
@@ -2184,7 +2236,7 @@ async function viewModel(v) {
 async function viewUpdates(v) {
   v.innerHTML = `<div class="spinner"></div>`;
   const m = getModel();
-  const [updates] = await Promise.all([api.updates(), CG.ensure([...modelCoinIds(m), ...S.txs.map(t => t.coin_id)], 60000)]);
+  const [updates] = await Promise.all([api.updates(), CG.ensure(["bitcoin", "ethereum", ...modelCoinIds(m), ...S.txs.map(t => t.coin_id)], 60000)]);
   S.updates = updates;
   let g = null; try { g = await groupTotals(); } catch (e) {}
   const urgent = activeUrgent(), drops = priceDrops(m);
@@ -2207,6 +2259,7 @@ async function viewUpdates(v) {
       <div class="card kpi"><div class="label">Your portfolio, 7 days</div><div class="value num ${signCls(my7)}">${fmtUsd(my7)}</div><div class="sub num ${signCls(my7)}">${pf.totals.value - my7 > 0 ? fmtPct(my7 / (pf.totals.value - my7) * 100) : "—"}</div></div>
       <div class="card kpi"><div class="label">Active alerts</div><div class="value num ${urgent.length + drops.length ? "bad" : ""}">${urgent.length + drops.length}</div><div class="sub muted">${urgent.length} urgent bid${urgent.length === 1 ? "" : "s"} · ${drops.length} price drop${drops.length === 1 ? "" : "s"}</div></div>
     </div>
+    ${priceChartCard()}
     <h2 class="section-h">⚡ Urgent bids</h2>
     ${urgent.length || drops.length ? "" : `<div class="card empty" style="padding:20px">No urgent bids right now. You'll see one here (and get a Telegram ping) when ${esc(CONFIG.REVIEWER_NAME)} posts one.</div>`}
     <div class="grid">${urgent.map(bidCard).join("")}
@@ -2236,7 +2289,8 @@ async function viewUpdates(v) {
         <div class="btn-row"><button class="btn" id="w-draft">Fill with this week's numbers</button><button class="btn primary" id="w-post">Post summary</button></div>
         <div class="hint">Everyone linked on Telegram gets a ping with the first lines.</div></div>
     </div>` : ""}`;
-  $("#reload").onclick = async () => { await CG.ensure(modelCoinIds(m), 0); render(); };
+  paintPriceChart();
+  $("#reload").onclick = async () => { await CG.ensure(["bitcoin", "ethereum", ...modelCoinIds(m)], 0); CG.hist = {}; render(); };
   v.querySelectorAll("[data-del-up]").forEach(b => b.onclick = () => confirmModal("Remove this post?", "It disappears for everyone. Telegram messages already sent stay in their chats.", async () => { await api.deleteUpdate(b.dataset.delUp); render(); }));
   if (!isAdmin()) return;
   $("#w-draft").onclick = () => {
