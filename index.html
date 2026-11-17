@@ -450,7 +450,7 @@ const CG = {
     const d = await this.get(`/simple/price?ids=${encodeURIComponent(id)}&vs_currencies=usd&include_24hr_change=true`);
     const r = d && d[id]; if (!r || !Number.isFinite(r.usd)) throw new Error("no price");
     const c = this.cache[id] || {};
-    this.cache[id] = { ...c, price: r.usd, change24: r.usd_24h_change ?? c.change24, at: Date.now(), sample: false, liveAt: Date.now() };
+    this.cache[id] = { ...c, price: r.usd, change24: r.usd_24h_change ?? c.change24, at: Date.now(), sample: false, liveAt: Date.now(), src: "CoinGecko", cgPrice: r.usd };
     this.offline = false;
     return this.cache[id];
   },
@@ -462,7 +462,11 @@ const CG = {
       const batch = need.slice(i, i + 200);
       try {
         const rows = await this.get(`/coins/markets?vs_currency=usd&ids=${encodeURIComponent(batch.join(","))}&per_page=250&price_change_percentage=24h,7d`);
-        for (const r of rows) this.cache[r.id] = { price: r.current_price, change24: r.price_change_percentage_24h, change7: r.price_change_percentage_7d_in_currency ?? null, mcap: r.market_cap, image: r.image, symbol: r.symbol, name: r.name, at: now };
+        for (const r of rows) {
+          const prev = this.cache[r.id], fresh = prev && prev.liveAt && now - prev.liveAt < 60000;   // keep a live exchange price over CoinGecko's slower one
+          this.cache[r.id] = { price: r.current_price, change24: r.price_change_percentage_24h, change7: r.price_change_percentage_7d_in_currency ?? null, mcap: r.market_cap, image: r.image, symbol: r.symbol, name: r.name, at: now, cgPrice: r.current_price,
+            ...(fresh ? { price: prev.price, change24: prev.change24 ?? r.price_change_percentage_24h, liveAt: prev.liveAt, src: prev.src } : {}) };
+        }
         this.offline = false;
       } catch (e) {
         this.offline = true;
@@ -859,6 +863,55 @@ async function paintHero(txs, chartId = "hero") {
     },
   });
 }
+/* ---------- LIVE PRICES: Coinbase (BTC, ETH) + MEXC via Supabase (alts), CoinGecko as fallback ---------- */
+const LIVE = {
+  CB: { "BTC-USD": "bitcoin", "ETH-USD": "ethereum" },
+  ws: null, wsRetry: 0, altTimer: null, altOff: 0, listeners: new Set(),
+  /** Store a live price, skipping it if it disagrees wildly with CoinGecko (a different token with the same ticker). */
+  set(id, price, change24, src) {
+    if (!Number.isFinite(price) || price <= 0) return;
+    const c = CG.cache[id] || {};
+    if (src === "MEXC" && (!c.cgPrice || Math.abs(price / c.cgPrice - 1) > 0.3)) return;   // need CoinGecko's price to check it's the same token
+    CG.cache[id] = { ...c, price, change24: change24 ?? c.change24, at: Date.now(), liveAt: Date.now(), sample: false, src };
+    CG.offline = false;
+    this.listeners.forEach(fn => { try { fn(id); } catch (e) {} });
+  },
+  start() { this.startCoinbase(); this.startAlts(); },
+  stop() { try { this.ws && this.ws.close(); } catch (e) {} this.ws = null; clearInterval(this.altTimer); this.altTimer = null; },
+  startCoinbase() {
+    if (this.ws && this.ws.readyState < 2) return;
+    try {
+      const ws = new WebSocket("wss://ws-feed.exchange.coinbase.com"); this.ws = ws;
+      ws.onopen = () => { this.wsRetry = 0; ws.send(JSON.stringify({ type: "subscribe", product_ids: Object.keys(this.CB), channels: ["ticker"] })); };
+      ws.onmessage = (e) => {
+        let m; try { m = JSON.parse(e.data); } catch (_) { return; }
+        if (m.type !== "ticker" || !this.CB[m.product_id]) return;
+        const p = +m.price, open = +m.open_24h;
+        this.set(this.CB[m.product_id], p, open > 0 ? (p - open) / open * 100 : null, "Coinbase");
+      };
+      ws.onclose = () => { if (this.ws === ws) this.ws = null; if (!document.hidden && S.me) setTimeout(() => this.startCoinbase(), Math.min(30000, 2000 * 2 ** this.wsRetry++)); };
+      ws.onerror = () => { try { ws.close(); } catch (_) {} };
+    } catch (e) {}
+  },
+  altIds() {
+    const ids = new Set([...modelCoinIds(), ...(S.txs || []).map(t => t.coin_id)]);
+    Object.values(this.CB).forEach(id => ids.delete(id)); STABLE_IDS.forEach(id => ids.delete(id));
+    return [...ids].filter(Boolean);
+  },
+  async pollAlts() {
+    if (api.demo || !sb || document.hidden || Date.now() < this.altOff) return;
+    const ids = this.altIds(); if (!ids.length) return;
+    const bySym = {}; ids.forEach(id => { const sy = symOf(id); if (sy && sy.length <= 12) (bySym[sy] ||= []).push(id); });
+    try {
+      const { data, error } = await sb.functions.invoke("prices", { body: { symbols: Object.keys(bySym) } });
+      if (error || !data || !data.prices) throw error || new Error("no data");
+      for (const [sy, t] of Object.entries(data.prices)) (bySym[sy] || []).forEach(id => this.set(id, t.price, t.change24, "MEXC"));
+    } catch (e) { this.altOff = Date.now() + 5 * 60000; }   // function not deployed / MEXC down: CoinGecko only, try again in 5 min
+  },
+  startAlts() { if (this.altTimer) return; this.pollAlts(); this.altTimer = setInterval(() => this.pollAlts(), 10000); },
+};
+document.addEventListener("visibilitychange", () => { if (!S.me) return; if (document.hidden) LIVE.stop(); else LIVE.start(); });
+
 /* ---------- Chart helpers: price tag on the last point, readable axes, tap tooltips ---------- */
 const lastTagPlugin = {
   id: "lastTag",
@@ -900,7 +953,7 @@ function priceChartCard() {
       <div class="periods" id="pc-periods">${PRICE_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
     <div class="hero-chart" id="pc-chart" style="height:240px"></div>
     <div class="hero-key"><span class="num" id="pc-range"></span><a style="margin-left:auto;color:var(--text-muted)" id="pc-cg" target="_blank" rel="noopener">CoinGecko ↗</a></div>
-    <div class="hint" style="margin-top:6px">Tap or drag on the chart to see the price at any point. Live price refreshes every 30 seconds.</div>
+    <div class="hint" style="margin-top:6px">Tap or drag on the chart to see the price at any point. BTC and ETH stream live from Coinbase; our alts update every 10 seconds from MEXC.</div>
   </div>`;
 }
 function pcHeader() {
@@ -909,25 +962,34 @@ function pcHeader() {
   el.textContent = live ? fmtPrice(info.price) : "—";
   $("#pc-sym").textContent = symOf(id);
   const ago = info.liveAt || info.at; const secs = ago ? Math.max(0, Math.round((Date.now() - ago) / 1000)) : null;
-  $("#pc-live").innerHTML = live ? `<span style="color:var(--good)">● Live</span> · ${secs < 60 ? "updated " + secs + "s ago" : "updated " + Math.round(secs / 60) + "m ago"}` : `<span class="bad">Live price unavailable</span> · CoinGecko is busy, retrying`;
+  const src = info.liveAt && Date.now() - info.liveAt < 60000 ? info.src : "CoinGecko";
+  $("#pc-live").innerHTML = live ? `<span style="color:var(--good)">● Live</span> · ${esc(src)} · ${secs < 5 ? "just now" : secs < 60 ? secs + "s ago" : Math.round(secs / 60) + "m ago"}` : `<span class="bad">Live price unavailable</span> · retrying`;
   const ch = info.change24;
   const per = S.pcPeriodChg;
   $("#pc-chg").innerHTML = (live && ch != null ? `<span class="pill ${signCls(ch)}">${arrow(ch)} ${fmtPct(ch)}</span><span>24h</span>` : "") +
     (per && (S.pcDays || 1) !== 1 ? `<span class="pill ${signCls(per.chg)}" style="margin-left:6px">${arrow(per.chg)} ${fmtPct(per.chg)}</span><span>${per.label}</span>` : "");
 }
-async function pcTick() {
-  const id = S.pcCoin; if (!document.getElementById("pc-card") || document.hidden) return;
-  try { await CG.live(id); } catch (e) {}
-  if (id !== S.pcCoin) return;
-  const c = S.charts.pc, info = CG.info(id);
+function pcPushLive() {
+  const id = S.pcCoin, c = S.charts.pc, info = CG.info(id);
   if (c && info && !info.sample && info.price != null) {   // extend the line with the live price
     const ds = c.data.datasets[0], last = c.data.labels[c.data.labels.length - 1];
     if (Date.now() - last > 60000) { c.data.labels.push(Date.now()); ds.data.push(info.price); }
-    else ds.data[ds.data.length - 1] = info.price;
+    else { ds.data[ds.data.length - 1] = info.price; c.data.labels[c.data.labels.length - 1] = Date.now(); }
     c.update("none");
   }
   pcHeader();
 }
+async function pcTick() {   // every 30s: CoinGecko only for coins with no live exchange feed
+  const id = S.pcCoin; if (!document.getElementById("pc-card") || document.hidden) return;
+  const i = CG.info(id);
+  if (!(i && i.liveAt && Date.now() - i.liveAt < 30000)) { try { await CG.live(id); } catch (e) {} }
+  if (id === S.pcCoin) pcPushLive();
+}
+let pcLast = 0;
+LIVE.listeners.add((id) => {   // exchange tick → update the open chart, at most once a second
+  if (id !== S.pcCoin || !document.getElementById("pc-card")) return;
+  const now = Date.now(); if (now - pcLast < 1000) return; pcLast = now; pcPushLive();
+});
 async function paintPriceChart() {
   const box = document.getElementById("pc-chart"); if (!box) return;
   const id = S.pcCoin, days = S.pcDays || 1, tok = (S.pcTok = (S.pcTok || 0) + 1);
@@ -936,8 +998,10 @@ async function paintPriceChart() {
   $("#pc-cg").href = coinLink(id);
   S.pcPeriodChg = null; pcHeader();
   clearInterval(S.pcTimer); S.pcTimer = setInterval(pcTick, 30000);
+  clearInterval(S.pcAgo); S.pcAgo = setInterval(() => { if (document.getElementById("pc-card")) pcHeader(); else clearInterval(S.pcAgo); }, 1000);
   if (!S.charts.pc) box.innerHTML = `<div class="note">Loading chart…</div>`;
-  const [pts] = await Promise.all([CG.chart(id, days).catch(() => null), CG.live(id).catch(() => null)]);
+  const fresh = (CG.info(id)?.liveAt || 0) > Date.now() - 30000;
+  const [pts] = await Promise.all([CG.chart(id, days).catch(() => null), fresh ? null : CG.live(id).catch(() => null)]);
   if (tok !== S.pcTok || !document.body.contains(box)) return;
   pcHeader();
   if (S.charts.pc) { S.charts.pc.destroy(); delete S.charts.pc; }
@@ -1024,7 +1088,7 @@ function renderShell() {
     </div></header>
     <main id="view"></main>`;
   $("#theme-btn").onclick = toggleTheme;
-  $("#signout") && ($("#signout").onclick = async () => { await api.signOut(); location.hash = ""; boot(); });
+  $("#signout") && ($("#signout").onclick = async () => { LIVE.stop(); await api.signOut(); location.hash = ""; boot(); });
   $("#demo-user") && ($("#demo-user").onchange = async (e) => { api.setUser(e.target.value); location.hash = ""; S.proj = null; await loadMe(); render(); });
   renderView(route);
 }
@@ -3118,6 +3182,7 @@ async function boot() {
     // Members always open on their portfolio, whatever page they were on last time.
     if (!isAdmin() && location.hash !== "#overview") history.replaceState(null, "", location.pathname + location.search + "#overview");
     render();
+    LIVE.start();
   } catch (e) {
     $("#app").innerHTML = `<div class="auth-wrap"><div class="card" style="max-width:440px"><h2>Couldn't load</h2><p class="secondary">${esc(e.message || e)}</p><button class="btn" onclick="location.reload()">Retry</button></div></div>`;
   }
