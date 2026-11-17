@@ -4,46 +4,47 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CC Portfolio Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-/* ================= THEME ================= */
+/* ================= THEME (Delta-inspired) ================= */
 :root {
   color-scheme: light;
-  --page: #f9f9f7; --surface-1: #fcfcfb; --surface-2: #f3f2ee;
-  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
-  --border: rgba(11,11,11,0.10); --grid: #e1e0d9;
-  --accent: #2a78d6; --accent-ink: #ffffff;
-  --good: #006300; --bad: #d03b3b; --warn-bg: #fff4d6; --warn-ink: #7a5300;
-  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#6250d6; --s8:#e34948;
-  --other: #b9b8b0;
-  --radius: 12px;
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --page: #f3f2f8; --surface-1: #ffffff; --surface-2: #f0eef7;
+  --text-primary: #120d24; --text-secondary: #575170; --text-muted: #8d88a3;
+  --border: rgba(18,13,36,0.08); --grid: #ebe8f3;
+  --accent: #5b2ee6; --accent-ink: #ffffff;
+  --good: #0a9d55; --bad: #e0364f; --warn-bg: #fff3d6; --warn-ink: #7a5300;
+  --s1:#6a3df0; --s2:#12b06a; --s3:#e0559f; --s4:#9cb81a; --s5:#f0652f; --s6:#1aa6d6; --s7:#e0a800; --s8:#3d6ff0;
+  --other: #c4c0d4; --shadow: 0 1px 2px rgba(18,13,36,.04), 0 6px 24px rgba(18,13,36,.05);
+  --radius: 18px;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
-    --page:#0d0d0d; --surface-1:#1a1a19; --surface-2:#232321;
-    --text-primary:#f0efec; --text-secondary:#c3c2b7; --text-muted:#898781;
-    --border: rgba(255,255,255,0.10); --grid:#2c2c2a;
-    --accent:#3987e5; --good:#0ca30c; --bad:#e66767; --warn-bg:#3a2e10; --warn-ink:#fab219;
-    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
-    --other:#55554f;
+    --page:#0c0918; --surface-1:#161228; --surface-2:#211b38;
+    --text-primary:#f5f2ff; --text-secondary:#bcb5d6; --text-muted:#8a83a6;
+    --border: rgba(200,180,255,0.10); --grid:#272042;
+    --accent:#3cf58c; --accent-ink:#0c0918; --good:#3ce38a; --bad:#ff5d7d; --warn-bg:#33270f; --warn-ink:#ffc94a;
+    --s1:#8f6bff; --s2:#3ce38a; --s3:#ff8fc8; --s4:#d4f15a; --s5:#ff7a45; --s6:#3cc9f5; --s7:#ffc93c; --s8:#5b8cff;
+    --other:#4a4363; --shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 8px 30px rgba(0,0,0,.25);
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page:#0d0d0d; --surface-1:#1a1a19; --surface-2:#232321;
-  --text-primary:#f0efec; --text-secondary:#c3c2b7; --text-muted:#898781;
-  --border: rgba(255,255,255,0.10); --grid:#2c2c2a;
-  --accent:#3987e5; --good:#0ca30c; --bad:#e66767; --warn-bg:#3a2e10; --warn-ink:#fab219;
-  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
-  --other:#55554f;
+    --page:#0c0918; --surface-1:#161228; --surface-2:#211b38;
+    --text-primary:#f5f2ff; --text-secondary:#bcb5d6; --text-muted:#8a83a6;
+    --border: rgba(200,180,255,0.10); --grid:#272042;
+    --accent:#3cf58c; --accent-ink:#0c0918; --good:#3ce38a; --bad:#ff5d7d; --warn-bg:#33270f; --warn-ink:#ffc94a;
+    --s1:#8f6bff; --s2:#3ce38a; --s3:#ff8fc8; --s4:#d4f15a; --s5:#ff7a45; --s6:#3cc9f5; --s7:#ffc93c; --s8:#5b8cff;
+    --other:#4a4363; --shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 8px 30px rgba(0,0,0,.25);
 }
 
 * { box-sizing: border-box; }
-body { margin:0; background:var(--page); color:var(--text-primary); font-size:15px; line-height:1.45; }
+body { margin:0; background:var(--page); color:var(--text-primary); font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); }
 .num { font-variant-numeric: tabular-nums; }
@@ -53,42 +54,42 @@ a { color: var(--accent); }
 .hidden { display:none !important; }
 
 /* ================= LAYOUT ================= */
-header.top { position: sticky; top:0; z-index:20; background:var(--surface-1); border-bottom:1px solid var(--border); }
-.top-inner { max-width:1180px; margin:0 auto; padding:10px 16px; display:flex; align-items:center; gap:14px; }
+header.top { position: sticky; top:0; z-index:20; background:color-mix(in srgb, var(--page) 82%, transparent); backdrop-filter:saturate(1.4) blur(14px); -webkit-backdrop-filter:saturate(1.4) blur(14px); border-bottom:1px solid var(--border); }
+.top-inner { max-width:1180px; margin:0 auto; padding:12px 20px; display:flex; align-items:center; gap:14px; }
 .brand { font-weight:700; letter-spacing:-0.01em; display:flex; align-items:center; gap:8px; white-space:nowrap; }
-.brand .logo { width:26px; height:26px; border-radius:8px; background:var(--accent); color:var(--accent-ink); display:grid; place-items:center; font-size:12px; font-weight:800; }
-nav.tabs { display:flex; gap:4px; overflow-x:auto; flex:1; scrollbar-width:none; }
+.brand .logo { width:30px; height:30px; border-radius:10px; background:var(--accent); color:var(--accent-ink); display:grid; place-items:center; font-size:12px; font-weight:800; }
+nav.tabs { display:flex; gap:6px; overflow-x:auto; flex:1; scrollbar-width:none; }
 nav.tabs::-webkit-scrollbar { display:none; }
-nav.tabs a { text-decoration:none; color:var(--text-secondary); padding:7px 12px; border-radius:8px; white-space:nowrap; font-size:14px; position:relative; }
+nav.tabs a { text-decoration:none; color:var(--text-secondary); padding:8px 14px; border-radius:999px; white-space:nowrap; font-size:14px; font-weight:500; position:relative; transition:background .15s, color .15s; }
 nav.tabs a:hover { background:var(--surface-2); }
-nav.tabs a.active { color:var(--text-primary); background:var(--surface-2); font-weight:600; }
+nav.tabs a.active { color:var(--accent-ink); background:var(--accent); font-weight:600; }
 nav.tabs .sep { width:1px; background:var(--border); margin:6px 4px; }
 .badge { display:inline-block; min-width:18px; padding:0 5px; height:18px; line-height:18px; border-radius:9px; background:var(--bad); color:#fff; font-size:11px; font-weight:700; text-align:center; margin-left:4px; }
 .user-chip { display:flex; align-items:center; gap:8px; font-size:13px; white-space:nowrap; }
-main { max-width:1180px; margin:0 auto; padding:20px 16px 80px; }
+main { max-width:1180px; margin:0 auto; padding:28px 20px 96px; }
 .banner { background:var(--warn-bg); color:var(--warn-ink); padding:9px 16px; font-size:13px; text-align:center; }
 .banner button { margin-left:8px; }
 
-h1 { font-size:22px; margin:0 0 4px; letter-spacing:-0.01em; }
-h2 { font-size:16px; margin:0 0 12px; }
-.page-head { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+h1 { font-size:26px; font-weight:750; margin:0 0 4px; letter-spacing:-0.025em; }
+h2 { font-size:16px; font-weight:650; margin:0 0 16px; letter-spacing:-0.01em; }
+.page-head { display:flex; align-items:flex-end; justify-content:space-between; gap:14px; margin-bottom:22px; flex-wrap:wrap; }
 
-.card { background:var(--surface-1); border:1px solid var(--border); border-radius:var(--radius); padding:16px; }
-.grid { display:grid; gap:14px; }
-.kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(160px,1fr)); gap:12px; margin-bottom:14px; }
-.kpi .label { font-size:12px; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.04em; }
-.kpi .value { font-size:24px; font-weight:650; margin-top:4px; letter-spacing:-0.01em; }
+.card { background:var(--surface-1); border:1px solid var(--border); border-radius:var(--radius); padding:20px; box-shadow:var(--shadow); }
+.grid { display:grid; gap:16px; }
+.kpis { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px,1fr)); gap:16px; margin-bottom:16px; }
+.kpi .label { font-size:12px; color:var(--text-muted); font-weight:500; text-transform:uppercase; letter-spacing:0.06em; }
+.kpi .value { font-size:24px; font-weight:700; margin-top:6px; letter-spacing:-0.02em; }
 .kpi .sub { font-size:13px; margin-top:2px; }
-.two-col { display:grid; grid-template-columns: minmax(280px, 380px) 1fr; gap:14px; align-items:start; }
+.two-col { display:grid; grid-template-columns: minmax(280px, 380px) 1fr; gap:16px; align-items:start; }
 .two-col > * { min-width:0; }
 @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
 
 /* ================= CONTROLS ================= */
-.btn { white-space:nowrap; border:1px solid var(--border); background:var(--surface-1); padding:8px 14px; border-radius:9px; cursor:pointer; font-size:14px; font-weight:550; }
-.btn:hover { background:var(--surface-2); }
+.btn { white-space:nowrap; border:1px solid var(--border); background:var(--surface-2); padding:9px 16px; border-radius:999px; cursor:pointer; font-size:14px; font-weight:600; transition:filter .15s, background .15s; }
+.btn:hover { filter:brightness(1.06); }
 .btn.primary { background:var(--accent); color:var(--accent-ink); border-color:transparent; }
 .btn.primary:hover { filter:brightness(1.08); }
-.btn.small { padding:5px 10px; font-size:13px; }
+.btn.small { padding:6px 12px; font-size:13px; }
 .btn.danger { color:var(--bad); }
 .btn:disabled { opacity:.55; cursor:default; }
 .link-btn { background:none; border:none; color:var(--accent); cursor:pointer; padding:0; font-size:13px; }
@@ -96,19 +97,19 @@ label.field { display:block; font-size:13px; color:var(--text-secondary); margin
 label.field > span, .field-div span:first-child, .field-div label span { display:block; margin-bottom:5px; }
 .field-div { font-size:13px; color:var(--text-secondary); margin-bottom:12px; }
 input[type=text], input[type=email], input[type=password], input[type=number], input[type=datetime-local], input[type=search], select, textarea {
-  width:100%; padding:9px 11px; border-radius:9px; border:1px solid var(--border); background:var(--surface-2); outline:none;
+  width:100%; padding:10px 13px; border-radius:12px; border:1px solid var(--border); background:var(--surface-2); outline:none;
 }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 textarea { resize:vertical; min-height:70px; }
 .row { display:flex; gap:10px; }
 .row > * { flex:1; }
-.seg { display:inline-flex; background:var(--surface-2); border-radius:9px; padding:3px; border:1px solid var(--border); }
-.seg button { border:none; background:none; padding:6px 14px; border-radius:7px; cursor:pointer; font-weight:550; color:var(--text-secondary); }
+.seg { display:inline-flex; background:var(--surface-2); border-radius:999px; padding:3px; border:1px solid var(--border); }
+.seg button { border:none; background:none; padding:6px 14px; border-radius:999px; cursor:pointer; font-weight:550; color:var(--text-secondary); }
 .seg button.on { background:var(--surface-1); color:var(--text-primary); box-shadow:0 1px 2px rgba(0,0,0,.12); }
 .seg button.on.buy { color:var(--good); } .seg button.on.sell { color:var(--bad); }
 .chips { display:flex; gap:6px; flex-wrap:wrap; }
 .chip { border:1px solid var(--border); background:var(--surface-1); border-radius:999px; padding:5px 11px; font-size:13px; cursor:pointer; color:var(--text-secondary); }
-.chip.on { background:var(--text-primary); color:var(--surface-1); border-color:transparent; }
+.chip.on { background:var(--accent); color:var(--accent-ink); border-color:transparent; font-weight:600; }
 .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
 .toolbar input[type=search] { max-width:260px; }
 .toolbar select { width:auto; }
@@ -116,15 +117,17 @@ textarea { resize:vertical; min-height:70px; }
 /* ================= TABLES ================= */
 .table-wrap { overflow-x:auto; }
 table { width:100%; border-collapse:collapse; font-size:14px; }
-th { text-align:left; font-weight:550; color:var(--text-secondary); font-size:12px; text-transform:uppercase; letter-spacing:.04em; padding:8px 10px; border-bottom:1px solid var(--grid); white-space:nowrap; }
-td { padding:10px; border-bottom:1px solid var(--grid); white-space:nowrap; }
+th { text-align:left; font-weight:500; color:var(--text-muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; padding:10px 12px; border-bottom:1px solid var(--grid); white-space:nowrap; }
+td { padding:14px 12px; border-bottom:1px solid var(--grid); white-space:nowrap; }
+tbody tr:last-child td { border-bottom:none; }
 td.r, th.r { text-align:right; }
 tr.click { cursor:pointer; }
 tr.click:hover td { background:var(--surface-2); }
 .coin { display:flex; align-items:center; gap:9px; }
-.coin img, .coin .ph { width:22px; height:22px; border-radius:50%; flex:none; }
+.coin { gap:11px; }
+.coin img, .coin .ph { width:32px; height:32px; border-radius:50%; flex:none; }
 .coin .ph { background:var(--surface-2); display:grid; place-items:center; font-size:10px; font-weight:700; color:var(--text-secondary); border:1px solid var(--border); }
-.coin .sym { color:var(--text-muted); font-size:12px; text-transform:uppercase; }
+.coin .sym { color:var(--text-muted); font-size:12px; text-transform:uppercase; margin-top:1px; }
 .swatch { width:10px; height:10px; border-radius:3px; display:inline-block; flex:none; }
 .tag { display:inline-block; font-size:11px; font-weight:650; padding:2px 7px; border-radius:6px; background:var(--surface-2); color:var(--text-secondary); border:1px solid var(--border); text-transform:uppercase; letter-spacing:.03em; }
 .tag.req { background:var(--warn-bg); color:var(--warn-ink); border-color:transparent; }
@@ -134,12 +137,13 @@ tr.click:hover td { background:var(--surface-2); }
 .empty .big { font-size:17px; color:var(--text-primary); font-weight:600; margin-bottom:6px; }
 
 /* ================= CHART ================= */
-.chart-box { position:relative; height:240px; max-width:280px; margin:0 auto; }
+.chart-box { position:relative; height:230px; max-width:260px; margin:4px auto 0; }
 .chart-center { position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; text-align:center; }
-.chart-center .v { font-size:19px; font-weight:650; }
+.chart-center .v { font-size:22px; font-weight:750; letter-spacing:-0.02em; }
 .chart-center .l { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; }
-.legend { margin-top:14px; display:grid; gap:6px; }
-.legend .li { display:flex; align-items:center; gap:8px; font-size:13px; }
+.legend { margin-top:20px; display:grid; grid-template-columns:1fr 1fr; gap:10px 18px; }
+.legend .li { display:flex; align-items:center; gap:9px; font-size:14px; font-weight:500; }
+.legend .swatch { width:10px; height:10px; border-radius:50%; }
 .legend .li .n { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .legend .li .p { color:var(--text-secondary); }
 
@@ -151,11 +155,11 @@ tr.click:hover td { background:var(--surface-2); }
 .msg .meta { font-size:12px; color:var(--text-muted); margin-bottom:4px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
 .msg .meta b { color:var(--text-primary); font-weight:650; }
 .composer { margin-top:12px; display:grid; gap:8px; }
-.callout { background:var(--warn-bg); color:var(--warn-ink); border-radius:10px; padding:12px 14px; font-size:14px; margin-bottom:14px; white-space:pre-wrap; }
+.callout { background:var(--warn-bg); color:var(--warn-ink); border-radius:10px; padding:12px 14px; font-size:14px; margin-bottom:16px; white-space:pre-wrap; }
 
 /* ================= MODAL / AUTH ================= */
 .overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:50; display:grid; place-items:center; padding:16px; }
-.modal { background:var(--surface-1); border-radius:16px; width:100%; max-width:480px; max-height:92vh; overflow-y:auto; padding:20px; border:1px solid var(--border); }
+.modal { background:var(--surface-1); border-radius:22px; width:100%; max-width:480px; max-height:92vh; overflow-y:auto; padding:20px; border:1px solid var(--border); }
 .modal h2 { font-size:18px; display:flex; justify-content:space-between; align-items:center; }
 .x { border:none; background:none; font-size:22px; cursor:pointer; color:var(--text-muted); line-height:1; }
 .search-wrap { position:relative; }
@@ -173,7 +177,7 @@ tr.click:hover td { background:var(--surface-2); }
 .section-h { font-size:16px; margin:20px 0 10px; }
 .card.urgent { border-left:4px solid var(--accent); }
 .card.drop { border-left:4px solid var(--bad); }
-.alert-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; background:var(--warn-bg); color:var(--warn-ink); border-radius:10px; padding:10px 14px; margin-bottom:14px; text-decoration:none; font-size:14px; }
+.alert-bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; background:var(--warn-bg); color:var(--warn-ink); border-radius:14px; padding:12px 16px; margin-bottom:18px; text-decoration:none; font-size:14px; }
 details.past { padding:8px 0; border-bottom:1px solid var(--grid); }
 details.past summary { cursor:pointer; }
 .tpbar { position:relative; height:12px; border-radius:6px; background:var(--surface-2); border:1px solid var(--border); margin:14px 0 6px; }
@@ -208,9 +212,69 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .auth-wrap { min-height:100vh; display:grid; place-items:center; padding:20px; }
 .auth { width:100%; max-width:400px; }
 .auth .brand { justify-content:center; font-size:20px; margin-bottom:6px; }
-.toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--text-primary); color:var(--surface-1); padding:10px 16px; border-radius:10px; font-size:14px; z-index:60; box-shadow:0 6px 20px rgba(0,0,0,.25); }
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--text-primary); color:var(--surface-1); padding:11px 18px; border-radius:999px; font-size:14px; z-index:60; box-shadow:0 6px 20px rgba(0,0,0,.25); }
 .spinner { width:22px; height:22px; border:3px solid var(--grid); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; margin:40px auto; }
 @keyframes spin { to { transform:rotate(360deg); } }
+
+
+/* ================= DELTA-STYLE COMPONENTS ================= */
+.pill { display:inline-flex; align-items:center; gap:3px; padding:3px 10px; border-radius:999px; font-size:13px; font-weight:600; background:var(--surface-2); color:var(--text-secondary); white-space:nowrap; }
+.pill.good { color:var(--good); background:color-mix(in srgb, var(--good) 14%, transparent); }
+.pill.bad { color:var(--bad); background:color-mix(in srgb, var(--bad) 14%, transparent); }
+.pill.sm { font-size:12px; padding:2px 8px; }
+.hero { padding:24px 24px 18px; margin-bottom:16px; }
+.hero-head { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; }
+.hero .label { font-size:13px; color:var(--text-muted); font-weight:500; }
+.hero .big { font-size:40px; font-weight:800; letter-spacing:-0.035em; line-height:1.1; margin:6px 0 10px; }
+.hero .chg { display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:13px; color:var(--text-muted); }
+.periods { display:inline-flex; gap:2px; background:var(--surface-2); border-radius:999px; padding:3px; }
+.periods button { border:none; background:none; color:var(--text-muted); font-size:13px; font-weight:600; padding:6px 12px; border-radius:999px; cursor:pointer; }
+.periods button.on { background:var(--surface-1); color:var(--text-primary); box-shadow:0 1px 3px rgba(0,0,0,.18); }
+.hero-chart { position:relative; height:210px; margin:16px -6px 4px; }
+.hero-chart .note { position:absolute; inset:0; display:grid; place-items:center; color:var(--text-muted); font-size:13px; text-align:center; padding:0 20px; }
+.hero-key { display:flex; gap:16px; font-size:12px; color:var(--text-muted); margin:2px 0 0; }
+.hero-key i { display:inline-block; width:14px; height:3px; border-radius:2px; vertical-align:3px; margin-right:6px; }
+.hero-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; border-top:1px solid var(--grid); margin-top:16px; padding-top:16px; }
+.hero-stats .l { font-size:12px; color:var(--text-muted); font-weight:500; }
+.hero-stats .v { font-size:17px; font-weight:700; letter-spacing:-0.01em; margin-top:3px; }
+.hero-stats .s { font-size:12px; margin-top:1px; }
+.quick { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; }
+.quick a { display:flex; align-items:center; gap:14px; text-decoration:none; color:inherit; padding:16px 18px; }
+.quick .ic { width:40px; height:40px; border-radius:12px; display:grid; place-items:center; font-size:18px; background:color-mix(in srgb, var(--accent) 16%, transparent); flex:none; }
+.quick .t { font-weight:650; }
+.quick .d { font-size:13px; color:var(--text-muted); }
+.quick .go { margin-left:auto; color:var(--text-muted); font-size:18px; }
+.ov-grid { display:grid; grid-template-columns:minmax(280px,380px) 1fr; gap:16px; margin-bottom:16px; align-items:stretch; }
+.ov-grid > * { min-width:0; }
+.perf-box { position:relative; }
+.card-h { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:16px; }
+.card-h h2 { margin:0; }
+.card-h .sub { font-size:13px; color:var(--text-muted); }
+.hl-list { display:none; }
+.hl-row { display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:center; padding:13px 2px; border-bottom:1px solid var(--grid); cursor:pointer; }
+.hl-row:last-child { border-bottom:none; }
+.hl-row .coin img, .hl-row .coin .ph { width:38px; height:38px; }
+.hl-row .nm { font-weight:600; }
+.hl-row .q { font-size:13px; color:var(--text-muted); margin-top:1px; }
+.hl-row .rt { text-align:right; }
+.hl-row .val { font-weight:650; margin-bottom:3px; }
+.head-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+@media (max-width: 860px) { .ov-grid { grid-template-columns:1fr; } }
+@media (max-width: 640px) {
+  .hero { padding:20px 18px 14px; }
+  .hero .big { font-size:34px; }
+  .hero-chart { height:180px; }
+  .hero-stats .v { font-size:15px; }
+  .quick { gap:12px; }
+  .quick a { padding:14px; gap:10px; flex-direction:column; align-items:flex-start; }
+  .quick .go { display:none; }
+  .hl-list { display:block; }
+  .hl-table { display:none; }
+  .head-actions { width:100%; justify-content:stretch; }
+  .head-actions .btn { flex:1 1 auto; padding:9px 10px; }
+  .periods { width:100%; justify-content:space-between; }
+  .periods button { flex:1; }
+}
 
 @media (max-width: 640px) {
   #pj-table thead { display:none; }
@@ -227,8 +291,10 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
   .hide-sm { display:none; }
   td, th { padding:8px 7px; }
   .btn-row > .btn { flex:1 1 100%; }
-  main { padding:16px 12px 80px; }
-  .card { padding:14px; }
+  main { padding:18px 14px 88px; }
+  .card { padding:16px; }
+  .top-inner { padding:10px 14px; gap:10px; }
+  h1 { font-size:24px; }
   .page-head > * { min-width:0; }
   table.exit-steps select { min-width:0 !important; width:100%; max-width:160px; }
   table.exit-steps td.sell { min-width:118px; }
@@ -313,6 +379,10 @@ const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValu
 function memberName(p) { return p?.display_name || (p?.telegram_handle ? "@" + p.telegram_handle.replace(/^@/, "") : "Member"); }
 function handleLink(h) { if (!h) return ""; const clean = esc(h.replace(/^@/, "")); return `<a href="https://t.me/${clean}" target="_blank" rel="noopener">@${clean}</a>`; }
 function coinLink(id) { return `https://www.coingecko.com/en/coins/${encodeURIComponent(id)}`; }
+function coinIcon(c) {
+  const ab = esc((c.symbol || "?").slice(0, 3).toUpperCase());
+  return c.image ? `<img src="${esc(c.image)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'${ab}'}))">` : `<span class="ph">${ab}</span>`;
+}
 function coinCell(c) {
   const img = c.image ? `<img src="${esc(c.image)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'${esc((c.symbol||'?').slice(0,3).toUpperCase())}'}))">` : `<span class="ph">${esc((c.symbol || "?").slice(0, 3).toUpperCase())}</span>`;
   return `<div class="coin">${img}<div><div>${esc(c.name || c.coin_id)}</div><div class="sym">${esc(c.symbol || "")}</div></div></div>`;
@@ -599,9 +669,9 @@ function renderDonut(canvasId, holdings, totalLabel, totalValue) {
   if (rest.length) slices.push({ label: "Other", name: `${rest.length} more coins`, value: rest.reduce((s, h) => s + h.value, 0), alloc: rest.reduce((s, h) => s + h.alloc, 0), color: cssVar("--other") });
   S.charts[canvasId] = new Chart(el, {
     type: "doughnut",
-    data: { labels: slices.map(s => s.label), datasets: [{ data: slices.map(s => s.value), backgroundColor: slices.map(s => s.color), borderColor: cssVar("--surface-1"), borderWidth: 2, hoverOffset: 6, borderRadius: 4 }] },
+    data: { labels: slices.map(s => s.label), datasets: [{ data: slices.map(s => s.value), backgroundColor: slices.map(s => s.color), borderColor: cssVar("--surface-1"), borderWidth: 3, hoverOffset: 4, borderRadius: 6 }] },
     options: {
-      cutout: "68%", maintainAspectRatio: false, animation: { duration: 300 },
+      cutout: "74%", layout: { padding: 4 }, maintainAspectRatio: false, animation: { duration: 300 },
       plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
         callbacks: { title: (it) => slices[it[0].dataIndex].name || slices[it[0].dataIndex].label, label: (it) => `${fmtUsd(slices[it.dataIndex].value)} · ${slices[it.dataIndex].alloc.toFixed(1)}%` } } },
     },
@@ -613,6 +683,137 @@ function renderDonut(canvasId, holdings, totalLabel, totalValue) {
 }
 function donutCard(id, title) {
   return `<div class="card"><h2>${esc(title)}</h2><div class="chart-box"><canvas id="${id}" role="img" aria-label="${esc(title)} pie chart"></canvas><div class="chart-center"></div></div><div class="legend" id="${id}-legend"></div></div>`;
+}
+
+
+/* ===================== DELTA-STYLE CHARTS ===================== */
+const HIST_PERIODS = [[7, "7D"], [30, "1M"], [90, "3M"], [365, "1Y"]];
+CG.hist = {};
+CG.chart = async function (id, days) {
+  const k = id + ":" + days, c = this.hist[k];
+  if (c && Date.now() - c.at < 10 * 60000) return c.prices;
+  const d = await this.get(`/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=${days}`);
+  const prices = (d.prices || []).filter(p => Number.isFinite(p[1]));
+  this.hist[k] = { prices, at: Date.now() };
+  return prices;
+};
+function rgba(hex, a) {
+  const h = String(hex).trim().replace("#", "");
+  if (h.length !== 6) return hex;
+  return `rgba(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)},${a})`;
+}
+const signed = (v) => (num(v) > 0 ? "+" : "") + fmtUsd(v);
+const arrow = (v) => num(v) > 0 ? "▲" : num(v) < 0 ? "▼" : "";
+/** Portfolio value and money invested over the last `days`, from trades + CoinGecko price history. */
+async function portfolioHistory(txs, days) {
+  const sorted = [...txs].sort((a, b) => new Date(a.executed_at) - new Date(b.executed_at));
+  if (!sorted.length) return null;
+  const now = Date.now();
+  const from = Math.max(now - days * 864e5, new Date(sorted[0].executed_at).getTime());
+  const cur = computePortfolio(txs);
+  const val = (id) => cur.holdings.find(h => h.coin_id === id)?.value || 0;
+  const ids = [...new Set(sorted.map(t => t.coin_id))].sort((a, b) => val(b) - val(a)).slice(0, 12);
+  const series = {}; let ok = 0;
+  for (const id of ids) { try { series[id] = await CG.chart(id, days); if (series[id].length) ok++; } catch (e) {} }
+  if (!ok) return null;
+  const priceAt = (id, t, fallback) => {
+    const s = series[id];
+    if (!s || !s.length) return CG.info(id)?.price ?? fallback;
+    let lo = 0, hi = s.length - 1;
+    if (t <= s[0][0]) return s[0][1];
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (s[m][0] <= t) lo = m; else hi = m - 1; }
+    return s[lo][1];
+  };
+  const N = 90, pos = {}, pts = []; let j = 0;
+  for (let i = 0; i < N; i++) {
+    const t = from + (now - from) * i / (N - 1);
+    while (j < sorted.length && new Date(sorted[j].executed_at).getTime() <= t) {
+      const x = sorted[j++], h = pos[x.coin_id] ||= { qty: 0, cost: 0, last: 0 };
+      const q = num(x.quantity), pr = num(x.price_usd), fee = num(x.fee_usd); h.last = pr;
+      if (x.side === "buy") { h.qty += q; h.cost += q * pr + fee; }
+      else { const sq = Math.min(q, h.qty), avg = h.qty > 0 ? h.cost / h.qty : 0; h.cost -= sq * avg; h.qty -= sq; if (h.qty < 1e-12) { h.qty = 0; h.cost = 0; } }
+    }
+    let value = 0, invested = 0;
+    for (const [id, h] of Object.entries(pos)) { if (h.qty <= 0) continue; value += h.qty * priceAt(id, t, h.last); invested += h.cost; }
+    pts.push({ t, value, invested });
+  }
+  return pts;
+}
+function heroCard(pf, chartId = "hero") {
+  const t = pf.totals, days = S.histDays || 30;
+  return `<div class="card hero">
+    <div class="hero-head"><div><div class="label">Portfolio value</div><div class="big num">${fmtUsd(t.value)}</div>
+      <div class="chg"><span class="pill ${signCls(t.change24Pct)}">${arrow(t.change24Pct)} ${fmtPct(t.change24Pct)}</span><span class="num ${signCls(t.change24Usd)}">${signed(t.change24Usd)}</span><span>today</span></div></div>
+      <div class="periods" data-hero="${chartId}">${HIST_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
+    <div class="hero-chart" id="${chartId}-chart"></div>
+    <div class="hero-key"><span><i style="background:var(--good)" id="${chartId}-key"></i>Value</span><span><i style="background:repeating-linear-gradient(90deg,var(--text-muted) 0 4px,transparent 4px 7px)"></i>Invested</span><span style="margin-left:auto" class="num" id="${chartId}-period"></span></div>
+    <div class="hero-stats">
+      <div><div class="l">Invested</div><div class="v num">${fmtUsd(t.cost)}</div><div class="s muted">fees included</div></div>
+      <div><div class="l">Unrealized P&amp;L</div><div class="v num ${signCls(t.pnl)}">${signed(t.pnl)}</div><div class="s num ${signCls(t.pnl)}">${fmtPct(t.pnlPct)}</div></div>
+      <div><div class="l">Realized P&amp;L</div><div class="v num ${signCls(t.realized)}">${signed(t.realized)}</div><div class="s muted">from sells</div></div>
+    </div></div>`;
+}
+async function paintHero(txs, chartId = "hero") {
+  const box = document.getElementById(chartId + "-chart"); if (!box) return;
+  const days = S.histDays || 30, tok = (S.heroTok = (S.heroTok || 0) + 1);
+  document.querySelectorAll(`[data-hero="${chartId}"] button`).forEach(b => b.onclick = () => {
+    S.histDays = +b.dataset.d;
+    b.parentElement.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+    paintHero(txs, chartId);
+  });
+  if (!S.charts[chartId]) box.innerHTML = `<div class="note">Loading chart…</div>`;
+  const pts = await portfolioHistory(txs, days).catch(() => null);
+  if (tok !== S.heroTok || !document.body.contains(box)) return;
+  if (S.charts[chartId]) { S.charts[chartId].destroy(); delete S.charts[chartId]; }
+  const per = document.getElementById(chartId + "-period");
+  if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">${CG.offline ? "The chart needs live CoinGecko prices. Try again in a minute." : "Not enough price history yet."}</div>`; if (per) per.textContent = ""; return; }
+  box.innerHTML = `<canvas id="${chartId}-cv" role="img" aria-label="Portfolio value over time"></canvas>`;
+  const a = pts[0], z = pts[pts.length - 1];
+  const gain = (z.value - z.invested) - (a.value - a.invested);
+  const base = a.value + Math.max(0, z.invested - a.invested);
+  const label = HIST_PERIODS.find(x => x[0] === days)?.[1] || "";
+  if (per) per.innerHTML = `<span class="${signCls(gain)}">${signed(gain)}${base > 0 ? ` (${fmtPct(gain / base * 100)})` : ""}</span> · ${label}`;
+  const col = cssVar(gain < 0 ? "--bad" : "--good"), muted = cssVar("--text-muted");
+  const key = document.getElementById(chartId + "-key"); if (key) key.style.background = col;
+  const fmtT = (t) => new Date(t).toLocaleString(undefined, days <= 7 ? { month: "short", day: "numeric", hour: "numeric" } : { month: "short", day: "numeric", year: days > 90 ? "2-digit" : undefined });
+  S.charts[chartId] = new Chart(document.getElementById(chartId + "-cv"), {
+    type: "line",
+    data: { labels: pts.map(p => p.t), datasets: [
+      { data: pts.map(p => p.value), borderColor: col, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: col, tension: 0.35, fill: true,
+        backgroundColor: (c) => { const ca = c.chart.chartArea; if (!ca) return "transparent"; const g = c.chart.ctx.createLinearGradient(0, ca.top, 0, ca.bottom); g.addColorStop(0, rgba(col, 0.32)); g.addColorStop(1, rgba(col, 0)); return g; } },
+      { data: pts.map(p => p.invested), borderColor: muted, borderWidth: 1.5, borderDash: [4, 3], pointRadius: 0, pointHoverRadius: 0, tension: 0, fill: false, stepped: true },
+    ] },
+    options: {
+      maintainAspectRatio: false, animation: { duration: 400 }, interaction: { mode: "index", intersect: false },
+      layout: { padding: { left: 6, right: 6 } },
+      scales: { x: { display: false }, y: { display: false, grace: "8%" } },
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
+        callbacks: { title: (it) => fmtT(pts[it[0].dataIndex].t), label: (it) => (it.datasetIndex ? "Invested " : "Value ") + fmtUsd(it.raw) } } },
+    },
+  });
+}
+function perfCard(id) {
+  return `<div class="card"><div class="card-h"><h2>Performance by coin</h2><span class="sub">P&amp;L vs avg buy</span></div><div class="perf-box" id="${id}-box"><canvas id="${id}" role="img" aria-label="Profit and loss by coin bar chart"></canvas></div></div>`;
+}
+function renderPerf(id, holdings) {
+  const el = document.getElementById(id); if (!el) return;
+  if (S.charts[id]) { S.charts[id].destroy(); delete S.charts[id]; }
+  const hs = holdings.filter(h => h.cost > 0).slice(0, 10).sort((a, b) => b.pnlPct - a.pnlPct);
+  document.getElementById(id + "-box").style.height = Math.max(150, hs.length * 40 + 30) + "px";
+  const good = cssVar("--good"), bad = cssVar("--bad");
+  S.charts[id] = new Chart(el, {
+    type: "bar",
+    data: { labels: hs.map(h => (h.symbol || h.coin_id).toUpperCase()), datasets: [{ data: hs.map(h => h.pnlPct), backgroundColor: hs.map(h => rgba(h.pnlPct < 0 ? bad : good, 0.85)), borderRadius: 6, borderSkipped: false, barThickness: 16 }] },
+    options: {
+      indexAxis: "y", maintainAspectRatio: false, animation: { duration: 300 },
+      scales: {
+        x: { grid: { color: cssVar("--grid") }, border: { display: false }, ticks: { color: cssVar("--text-muted"), callback: (v) => v + "%" } },
+        y: { grid: { display: false }, border: { display: false }, ticks: { color: cssVar("--text-primary"), font: { weight: 600 } } },
+      },
+      plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
+        callbacks: { title: (it) => hs[it[0].dataIndex].name, label: (it) => `${fmtPct(hs[it.dataIndex].pnlPct)} · ${signed(hs[it.dataIndex].pnl)}` } } },
+    },
+  });
 }
 
 /* ===================== SHELL ===================== */
@@ -696,16 +897,21 @@ function kpiRow(pf) {
 }
 function holdingsTable(pf, editable = false) {
   if (!pf.holdings.length) return `<div class="empty"><div class="big">No holdings yet</div>Add your first buy, or import everything at once from a screenshot of CoinGecko, your exchange or wallet.${editable ? `<div style="margin-top:12px"><button class="btn primary" id="empty-import">📸 Import from screenshot</button></div>` : ""}</div>`;
-  return `<div class="table-wrap"><table><thead><tr><th></th><th>Coin</th><th class="r">Holdings</th><th class="r">Avg buy</th><th class="r">Price</th><th class="r hide-sm">24h</th><th class="r">Value</th><th class="r">P&amp;L</th><th class="r hide-sm">Alloc</th><th class="hide-sm">First buy</th></tr></thead><tbody>
+  const list = `<div class="hl-list">${pf.holdings.map(h => `<div class="hl-row" ${editable ? `data-coin="${esc(h.coin_id)}"` : ""}>
+      <div class="coin">${coinIcon(h)}</div>
+      <div style="min-width:0"><div class="nm">${esc((h.symbol || h.coin_id).toUpperCase())} <span class="pill sm ${signCls(h.change24)}">${fmtPct(h.change24)}</span></div><div class="q num">${fmtQty(h.qty)} · ${fmtPrice(h.price)}${h.priceEstimated ? "*" : ""}</div></div>
+      <div class="rt"><div class="val num">${fmtUsd(h.value)}</div><div class="num ${signCls(h.pnl)}" style="font-size:13px;font-weight:600">${signed(h.pnl)} (${fmtPct(h.pnlPct)})</div></div>
+    </div>`).join("")}</div>`;
+  return `${list}<div class="table-wrap hl-table"><table><thead><tr><th></th><th>Coin</th><th class="r">Holdings</th><th class="r">Avg buy</th><th class="r">Price</th><th class="r hide-sm">24h</th><th class="r">Value</th><th class="r">P&amp;L</th><th class="r hide-sm">Alloc</th><th class="hide-sm">First buy</th></tr></thead><tbody>
     ${pf.holdings.map((h, i) => `<tr ${editable ? `class="click" data-coin="${esc(h.coin_id)}" title="Tap to see and edit these trades"` : ""}>
       <td style="width:14px"><span class="swatch" style="background:${i < 7 ? `var(${SERIES[i]})` : "var(--other)"}"></span></td>
       <td>${editable ? coinCell(h) : `<a href="${coinLink(h.coin_id)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${coinCell(h)}</a>`}</td>
       <td class="r num">${fmtQty(h.qty)}</td>
       <td class="r num">${fmtPrice(h.avg)}</td>
       <td class="r num">${fmtPrice(h.price)}${h.priceEstimated ? ` <span class="muted" title="No live price; using last trade price">*</span>` : ""}</td>
-      <td class="r num hide-sm ${signCls(h.change24)}">${fmtPct(h.change24)}</td>
+      <td class="r num hide-sm"><span class="pill sm ${signCls(h.change24)}">${fmtPct(h.change24)}</span></td>
       <td class="r num">${fmtUsd(h.value)}</td>
-      <td class="r num ${signCls(h.pnl)}">${fmtUsd(h.pnl)}<div style="font-size:12px">${fmtPct(h.pnlPct)}</div></td>
+      <td class="r num ${signCls(h.pnl)}" style="font-weight:600">${signed(h.pnl)}<div style="font-size:12px;font-weight:500">${fmtPct(h.pnlPct)}</div></td>
       <td class="r num hide-sm">${h.alloc.toFixed(1)}%</td>
       <td class="hide-sm secondary" style="font-size:13px">${fmtDate(h.firstBuy)}</td>
     </tr>`).join("")}</tbody></table></div>
@@ -716,31 +922,31 @@ async function viewOverview(v) {
   v.innerHTML = `<div class="spinner"></div>`;
   await CG.ensure([...S.txs.map(t => t.coin_id), ...modelCoinIds()]);
   const pf = computePortfolio(S.txs);
+  const has = pf.holdings.length, ex = exitStatus(S.me).state;
   v.innerHTML = `
     ${alertBanner()}
     <div class="page-head"><div><h1>My portfolio</h1><div class="secondary">Prices from CoinGecko${CG.offline ? " (sample, offline)" : ", refreshed every minute"}.</div></div>
-      <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end"><button class="btn" id="refresh">Refresh prices</button><button class="btn" id="import-shot">📸 Import screenshot</button><button class="btn primary" id="add">+ Add trade</button></div></div>
-    ${kpiRow(pf)}
-    <div class="kpis" id="grp-row"></div>
-    <div class="two-col">
-      ${pf.holdings.length ? donutCard("pie-me", "Allocation") : `<div class="card empty"><div class="big">Your pie chart shows up here</div>once you log a buy.</div>`}
-      <div class="card"><h2>Holdings</h2>${holdingsTable(pf, true)}</div>
+      <div class="head-actions"><button class="btn" id="refresh">↻ Refresh</button><button class="btn" id="import-shot">📸 Import</button><button class="btn primary" id="add">+ Add trade</button></div></div>
+    ${has ? heroCard(pf) : ""}
+    ${has ? `<div class="quick">
+      <a class="card" href="#rebalance"><span class="ic">⚖️</span><div><div class="t">Rebalance</div><div class="d">vs ${esc(CONFIG.REVIEWER_NAME)}'s model</div></div><span class="go">›</span></a>
+      <a class="card" href="#exit"><span class="ic">🎯</span><div><div class="t">${ex === "edited" ? "Re-commit exit plan" : "Exit plan"}</div><div class="d">${ex === "committed" ? "committed ✓" : "not committed yet"}</div></div><span class="go">›</span></a>
     </div>
-    ${reviewNudge()}
-    ${pf.holdings.length && exitStatus(S.me).state !== "committed" ? `<div class="card" style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><b>${exitStatus(S.me).state === "edited" ? "Re-commit your exit plan" : "Make your exit plan"}</b><div class="secondary">Decide now where you'll take profit, using ${esc(CONFIG.REVIEWER_NAME)}'s targets, and commit to it.</div></div><a class="btn primary" href="#exit" style="text-decoration:none">Plan my exit</a></div>` : ""}`;
-  if (pf.holdings.length) renderDonut("pie-me", pf.holdings, "Total", pf.totals.value);
-  { const el = $("#grp-row"); if (el && pf.holdings.length) el.innerHTML = `<a class="card kpi" href="#rebalance" style="text-decoration:none;color:inherit"><div class="label">vs ${esc(CONFIG.REVIEWER_NAME)}'s model</div><div class="value" style="font-size:18px">Rebalance →</div><div class="sub muted">see what to add next</div></a><a class="card kpi" href="#exit" style="text-decoration:none;color:inherit"><div class="label">Taking profit</div><div class="value" style="font-size:18px">Exit plan →</div><div class="sub muted">${exitStatus(S.me).state === "committed" ? "committed ✓" : "not committed yet"}</div></a>`; }
+    <div class="ov-grid">${donutCard("pie-me", "Allocation")}${perfCard("perf-me")}</div>` : ""}
+    <div class="card"><div class="card-h"><h2>Holdings</h2>${has ? `<span class="sub">${has} coin${has > 1 ? "s" : ""}</span>` : ""}</div>${holdingsTable(pf, true)}</div>
+    ${reviewNudge()}`;
+  if (has) { renderDonut("pie-me", pf.holdings, "Total", pf.totals.value); renderPerf("perf-me", pf.holdings); paintHero(S.txs); }
   $("#add").onclick = () => openTradeModal();
   $("#import-shot").onclick = openImportModal;
   $("#empty-import") && ($("#empty-import").onclick = openImportModal);
-  v.querySelectorAll("tr[data-coin]").forEach(tr => tr.onclick = () => { S.tradeFilter = tr.dataset.coin; location.hash = "trades"; });
+  v.querySelectorAll("[data-coin]").forEach(tr => tr.onclick = () => { S.tradeFilter = tr.dataset.coin; location.hash = "trades"; });
   $("#refresh").onclick = async () => { await CG.ensure(pf.coinIds, 0); render(); };
   $("#ask-review") && ($("#ask-review").onclick = () => { location.hash = "feedback"; });
 }
 function reviewNudge() {
   if (!S.txs.length) return "";
-  if (S.me.review_requested) return `<div class="card" style="margin-top:14px">⏳ You asked ${esc(CONFIG.REVIEWER_NAME)} for a review ${ago(S.me.review_requested_at)}. You'll see his notes under <a href="#feedback">Feedback</a>.</div>`;
-  return `<div class="card" style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><b>Want ${esc(CONFIG.REVIEWER_NAME)}'s eyes on this?</b><div class="secondary">Request a review here instead of DMing. He sees your full portfolio and replies in your Feedback tab.</div></div><button class="btn primary" id="ask-review">Request a review</button></div>`;
+  if (S.me.review_requested) return `<div class="card" style="margin-top:16px">⏳ You asked ${esc(CONFIG.REVIEWER_NAME)} for a review ${ago(S.me.review_requested_at)}. You'll see his notes under <a href="#feedback">Feedback</a>.</div>`;
+  return `<div class="card" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><b>Want ${esc(CONFIG.REVIEWER_NAME)}'s eyes on this?</b><div class="secondary">Request a review here instead of DMing. He sees your full portfolio and replies in your Feedback tab.</div></div><button class="btn primary" id="ask-review">Request a review</button></div>`;
 }
 
 /* ===================== MEMBER: TRADES ===================== */
@@ -796,7 +1002,7 @@ function openTradeModal(existing) {
   ov.className = "overlay";
   ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
     <h2>${existing ? "Edit trade" : "Add trade"} <button class="x" aria-label="Close">×</button></h2>
-    <div style="margin-bottom:14px"><div class="seg" id="side"><button data-s="buy" class="buy">Buy</button><button data-s="sell" class="sell">Sell</button></div></div>
+    <div style="margin-bottom:16px"><div class="seg" id="side"><button data-s="buy" class="buy">Buy</button><button data-s="sell" class="sell">Sell</button></div></div>
     <div class="field-div"><span>Coin (search CoinGecko)</span><div id="coin-slot"></div></div>
     <div class="row">
       <label class="field"><span>Quantity (coins)</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="qty" value="${existing ? esc(existing.quantity) : ""}" placeholder="0.00"></label>
@@ -1339,7 +1545,7 @@ async function viewProjections(v) {
   v.innerHTML = `
     <div class="page-head"><div><h1>Projections</h1><div class="secondary">What could your coins be worth? Set a target price or multiple per coin. Hypothetical only, not financial advice.</div></div>
       <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end">${hasPf ? `<button class="btn" id="pj-load">Load my portfolio</button>` : ""}<button class="btn" id="pj-clear">Start blank</button><button class="btn primary" id="pj-add">+ Add coin</button></div></div>
-    <div class="card" style="margin-bottom:14px">
+    <div class="card" style="margin-bottom:16px">
       <div class="toolbar" style="margin:0">
         <span class="secondary" style="font-size:13px">Apply to all coins:</span>
         <div class="chips">${PROJ_MULTS.map(m => `<button class="chip" data-mall="${m}">${m}×</button>`).join("")}</div>
@@ -1349,7 +1555,7 @@ async function viewProjections(v) {
       </div>
     </div>
     <div id="pj-kpis"></div>
-    <div class="card" style="margin-bottom:14px"><h2>Coins</h2><div id="pj-table"></div></div>
+    <div class="card" style="margin-bottom:16px"><h2>Coins</h2><div id="pj-table"></div></div>
     <div id="pj-chart" style="max-width:440px"></div>`;
   const rerender = () => paintProj();
   $("#pj-add").onclick = () => openCoinPicker(async c => {
@@ -1659,7 +1865,7 @@ async function viewRebalance(v) {
         <div class="legend" id="pie-target-legend"></div>
       </div>
       <div>
-        <div class="card" style="margin-bottom:14px">
+        <div class="card" style="margin-bottom:16px">
           <label style="display:flex;align-items:center;gap:8px;font-size:14px;flex-wrap:wrap"><b>New money to add</b> <span>$<input type="text" enterkeyhint="done" inputmode="decimal" id="newm" value="${S.reb.newMoney || ""}" placeholder="0" style="width:130px"></span><span class="muted" style="font-size:13px">it goes to the coins furthest below target first</span></label>
         </div>
         <div id="reb-body"></div>
@@ -1684,7 +1890,7 @@ function driftCard(p, pf) {
   if (!pf.holdings.length) return "";
   const m = getModel(), plan = planFor(p, pf, {});
   const off = plan.rows.filter(r => Math.abs(r.nowPct - r.target) >= (m.drift ?? 2));
-  return `<div class="card" style="margin-top:14px"><h2>Model drift <span class="muted" style="font-weight:400;font-size:13px">· their mix: ${esc(mixLabel(m, p.model_prefs || {}))} (${m.flex.map(f => `${esc(symOf(f.coin))} ${num(plan.T.mix[f.coin]).toFixed(0)}%`).join(", ")})${plan.others.length ? ` · ${fmtUsd(plan.otherVal)} outside the model` : ""}</span></h2>
+  return `<div class="card" style="margin-top:16px"><h2>Model drift <span class="muted" style="font-weight:400;font-size:13px">· their mix: ${esc(mixLabel(m, p.model_prefs || {}))} (${m.flex.map(f => `${esc(symOf(f.coin))} ${num(plan.T.mix[f.coin]).toFixed(0)}%`).join(", ")})${plan.others.length ? ` · ${fmtUsd(plan.otherVal)} outside the model` : ""}</span></h2>
     ${off.length ? "" : `<div class="secondary" style="margin-bottom:8px">On target: every position is within ${m.drift ?? 2}% of the model.</div>`}
     ${planTable(plan, m)}</div>`;
 }
@@ -1718,7 +1924,7 @@ async function viewModel(v) {
           ${draft.flex.reduce((s, f) => s + Math.min(num(f.max) || pool, pool), 0) < pool ? `<div class="bad" style="margin-top:8px;font-size:13px">The max values add up to less than ${pool}%, so the pool can't be filled. Raise a max.</div>` : ""}
         </div>
       </div>
-      <div class="card" style="margin-top:14px"><h2>Quick picks members see</h2>
+      <div class="card" style="margin-top:16px"><h2>Quick picks members see</h2>
         <div class="table-wrap"><table><thead><tr><th>Name</th>${draft.flex.map(f => `<th class="r">${esc(symOf(f.coin))} %</th>`).join("")}<th class="r">Total</th><th></th></tr></thead><tbody>
           ${draft.presets.map((p, i) => { const tot = draft.flex.reduce((s, f) => s + num(p.mix[f.coin]), 0); return `<tr>
             <td><input type="text" enterkeyhint="done" value="${esc(p.name)}" data-pname="${i}" style="min-width:120px"></td>
@@ -1729,11 +1935,11 @@ async function viewModel(v) {
         <button class="btn small" id="addp" style="margin-top:8px">+ Add quick pick</button>
         <div class="hint">Each quick pick should add up to ${pool}%. The first one is what members get until they choose. Members can also drag their own split.</div>
       </div>
-      <div class="card" style="margin-top:14px"><h2>Take-profit targets (supercycle)</h2>
+      <div class="card" style="margin-top:16px"><h2>Take-profit targets (supercycle)</h2>
         <div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Bare minimum</th><th class="r">Ideal low</th><th class="r">Ideal high</th><th class="r">Extension</th></tr></thead><tbody>
           ${draft.tps.map((t, i) => `<tr><td><b>${esc(t.sym)}</b>${t.main ? "" : ' <span class="muted" style="font-size:12px">other</span>'}</td>${["min", "lo", "hi", "ext"].map(k => `<td class="r"><input type="text" enterkeyhint="done" inputmode="decimal" value="${t[k] ?? ""}" data-tp="${i}" data-tk="${k}" style="width:90px;text-align:right"></td>`).join("")}</tr>`).join("")}
         </tbody></table></div><div class="hint">These power every member's Exit plan page. Leave a box empty if there's no level for it.</div></div>
-      <div class="card" style="margin-top:14px"><h2>Rules</h2>
+      <div class="card" style="margin-top:16px"><h2>Rules</h2>
         <div class="row">
           <label class="field"><span>Suggest a trade when off by (% pts)</span><input type="text" enterkeyhint="done" inputmode="decimal" id="drift" value="${draft.drift}"></label>
           <label class="field"><span>Urgent-bid alert: 24h drop ≥ %</span><input type="text" enterkeyhint="done" inputmode="decimal" id="d24" value="${draft.drop24}"></label>
@@ -1807,11 +2013,11 @@ async function viewUpdates(v) {
     <h2 class="section-h">📰 Weekly summary</h2>
     <div class="card">${latest ? `<div class="muted" style="font-size:12px">${fmtDate(latest.created_at, false)} · ${esc(CONFIG.REVIEWER_NAME)}${isAdmin() ? ` · <button class="link-btn" data-del-up="${esc(latest.id)}">Remove</button>` : ""}</div><h2 style="margin:6px 0 8px">${esc(latest.title)}</h2><div style="white-space:pre-wrap">${esc(latest.body || "")}</div>`
       : `<div class="empty" style="padding:16px">No weekly summary posted yet.</div>`}</div>
-    <div class="card" style="margin-top:14px"><h2>Model coins this week</h2>
+    <div class="card" style="margin-top:16px"><h2>Model coins this week</h2>
       ${coinRows.length ? `<div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Price</th><th class="r">24h</th><th class="r">7d</th><th class="r hide-sm">Market cap</th></tr></thead><tbody>
       ${coinRows.map(({ id, i }) => `<tr><td><a href="${coinLink(id)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${coinCell({ coin_id: id, symbol: i.symbol, name: i.name, image: i.image })}</a></td><td class="r num">${fmtPrice(i.price)}</td><td class="r num ${signCls(i.change24)}">${fmtPct(i.change24)}</td><td class="r num ${signCls(i.change7)}">${i.change7 == null ? "—" : fmtPct(i.change7)}</td><td class="r num hide-sm">${i.mcap ? fmtUsd(i.mcap, { compact: true }) : "—"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">No price data.</div>`}</div>
-    ${weeklies.length > 1 ? `<div class="card" style="margin-top:14px"><h2>Past summaries</h2>${weeklies.slice(1, 12).map(w => `<details class="past"><summary><b>${esc(w.title)}</b> <span class="muted">· ${fmtDate(w.created_at, false)}</span></summary><div style="white-space:pre-wrap;margin-top:6px">${esc(w.body || "")}</div></details>`).join("")}</div>` : ""}
-    ${isAdmin() ? `<div class="two-col" style="margin-top:14px">
+    ${weeklies.length > 1 ? `<div class="card" style="margin-top:16px"><h2>Past summaries</h2>${weeklies.slice(1, 12).map(w => `<details class="past"><summary><b>${esc(w.title)}</b> <span class="muted">· ${fmtDate(w.created_at, false)}</span></summary><div style="white-space:pre-wrap;margin-top:6px">${esc(w.body || "")}</div></details>`).join("")}</div>` : ""}
+    ${isAdmin() ? `<div class="two-col" style="margin-top:16px">
       <div class="card"><h2>Post an urgent bid</h2>
         <label class="field"><span>Coin</span><select id="u-coin">${modelCoinIds(m).map(id => `<option value="${esc(id)}">${esc(symOf(id))}</option>`).join("")}${drops.length ? "" : ""}</select></label>
         <label class="field"><span>Headline</span><input type="text" enterkeyhint="done" id="u-title" maxlength="140" placeholder="e.g. TET flushed to support, bid here"></label>
@@ -2015,7 +2221,7 @@ async function viewExit(v) {
         <li><b>Buy aggressively at the bottom, then make capital preservation the focus.</b></li>
       </ul>
       <div class="hint">Keep up with the ${esc(CONFIG.GROUP_NAME)} chat for ${esc(CONFIG.REVIEWER_NAME)}'s latest updates: targets and timing can change. These are his "ideal supercycle" levels, not promises. Education, not financial advice.</div></div>
-    <div class="two-col" style="margin-top:14px">
+    <div class="two-col" style="margin-top:16px">
       <div class="card"><h2>Your money goal</h2>
         <label class="field"><span>Total I want to cash out ($)</span><input type="text" enterkeyhint="done" inputmode="decimal" id="ex-goal" value="${plan.goal || ""}" placeholder="e.g. 50000"></label>
         <div id="ex-sum"></div>
@@ -2028,12 +2234,12 @@ async function viewExit(v) {
     </div>
     <h2 class="section-h">Your coins</h2>
     <div class="grid" id="ex-coins">${coins.map(coinCard).join("")}</div>
-    <div class="card" style="margin-top:14px"><h2>Add a coin</h2>
+    <div class="card" style="margin-top:16px"><h2>Add a coin</h2>
       <div class="secondary" style="font-size:13px;margin-bottom:10px">Plan an exit for a coin you don't hold yet. It starts with a suggested plan you can change.</div>
       <div class="add-coin"><select id="ex-add-sel" aria-label="Coin with ${esc(CONFIG.REVIEWER_NAME)}'s targets"></select><button class="btn" id="ex-add-btn">Add</button></div>
       <div class="search-wrap" style="margin-top:10px"><input type="search" enterkeyhint="done" id="ex-add-q" placeholder="…or search any coin (name or ticker)" autocomplete="off"><div class="dropdown hidden" id="ex-add-dd"></div></div>
     </div>
-    ${getTps().some(t => !t.main) ? `<div class="card" style="margin-top:14px"><h2>Other coins ${esc(CONFIG.REVIEWER_NAME)} has targets for</h2><div class="secondary" style="font-size:13px">${getTps().filter(t => !t.main).map(t => `${esc(t.sym)}: ${tpLevels(t).filter(l => l.k !== "mid").map(l => fmtPrice(l.price)).join(" / ")}`).join(" · ")}</div><div class="hint">Not part of the main five. They show up above if you hold or add them.</div></div>` : ""}`;
+    ${getTps().some(t => !t.main) ? `<div class="card" style="margin-top:16px"><h2>Other coins ${esc(CONFIG.REVIEWER_NAME)} has targets for</h2><div class="secondary" style="font-size:13px">${getTps().filter(t => !t.main).map(t => `${esc(t.sym)}: ${tpLevels(t).filter(l => l.k !== "mid").map(l => fmtPrice(l.price)).join(" / ")}`).join(" · ")}</div><div class="hint">Not part of the main five. They show up above if you hold or add them.</div></div>` : ""}`;
   const paintStatus = () => {
     if (!$("#ex-status") || !v.isConnected) return;
     const st = exitStatus({ exit_plan: { ...plan, updated_at: dirty ? new Date().toISOString() : plan.updated_at } });
@@ -2150,12 +2356,12 @@ async function viewExit(v) {
 /** Dkay's read-only view of a member's exit plan. */
 function exitCard(p, pf) {
   const st = exitStatus(p), ep = p.exit_plan;
-  if (!ep || !ep.coins || !Object.keys(ep.coins).length) return `<div class="card" style="margin-top:14px"><h2>Exit plan</h2><div class="secondary">${esc(memberName(p))} hasn't made an exit plan yet.</div></div>`;
+  if (!ep || !ep.coins || !Object.keys(ep.coins).length) return `<div class="card" style="margin-top:16px"><h2>Exit plan</h2><div class="secondary">${esc(memberName(p))} hasn't made an exit plan yet.</div></div>`;
   const lines = Object.entries(ep.coins).map(([id, cp]) => {
     const h = pf.holdings.find(x => x.coin_id === id), tp = tpFor(id, h?.symbol || cp.sym), k = exitCalc(tp, cp, h);
     return `<tr><td><b>${esc(symOf(id))}</b></td><td>${k.rows.map(r => `${r.pct}% @ ${fmtPrice(r.price)}`).join(" · ") || "—"}</td><td class="r num">${k.keep}%</td><td class="r num">${h ? fmtUsd(k.total, { compact: k.total >= 1e6 }) : "—"}</td><td>${h?.cost ? (k.initialsAt != null ? '<span class="good">yes</span>' : '<span class="bad">no</span>') : "—"}</td></tr>`;
   }).join("");
-  return `<div class="card" style="margin-top:14px"><h2>Exit plan <span class="tag ${st.state === "committed" ? "buy" : st.state === "edited" ? "req" : "flag"}" style="margin-left:6px">${esc(st.label)}</span></h2>
+  return `<div class="card" style="margin-top:16px"><h2>Exit plan <span class="tag ${st.state === "committed" ? "buy" : st.state === "edited" ? "req" : "flag"}" style="margin-left:6px">${esc(st.label)}</span></h2>
     <div class="secondary" style="margin-bottom:8px">Money goal: <b>${ep.goal ? fmtUsd(ep.goal) : "not set"}</b> · rules agreed: ${EXIT_PLEDGES.filter(([k]) => ep.pledges?.[k]).length}/${EXIT_PLEDGES.length}</div>
     <div class="table-wrap"><table><thead><tr><th>Coin</th><th>Steps</th><th class="r">Moonbag</th><th class="r">≈ Cash out</th><th>Initials back</th></tr></thead><tbody>${lines}</tbody></table></div></div>`;
 }
@@ -2343,14 +2549,11 @@ async function viewMemberDetail(v, id) {
       ${p.goal ? `<div class="secondary" style="margin-top:4px">Goal: ${esc(p.goal)}</div>` : ""}</div>
       <button class="btn ${p.review_requested ? "primary" : ""}" id="mark">Mark reviewed</button></div>
     ${p.review_requested ? `<div class="callout"><b>Review requested ${ago(p.review_requested_at)}</b>${p.review_question ? `\n“${esc(p.review_question)}”` : ""}</div>` : ""}
-    ${kpiRow(pf)}
-    <div class="two-col">
-      ${pf.holdings.length ? donutCard("pie-member", "Allocation") : `<div class="card empty"><div class="big">No holdings</div>This member hasn't logged trades yet.</div>`}
-      <div class="card"><h2>Holdings</h2>${holdingsTable(pf)}</div>
-    </div>
+    ${pf.holdings.length ? `${heroCard(pf, "hero-m")}<div class="ov-grid">${donutCard("pie-member", "Allocation")}${perfCard("perf-member")}</div>` : `<div class="card empty" style="margin-bottom:16px"><div class="big">No holdings</div>This member hasn't logged trades yet.</div>`}
+    <div class="card"><div class="card-h"><h2>Holdings</h2></div>${holdingsTable(pf)}</div>
     ${driftCard(p, pf)}
     ${exitCard(p, pf)}
-    <div class="two-col" style="margin-top:14px">
+    <div class="two-col" style="margin-top:16px">
       <div class="card"><h2>Send a suggestion</h2>
         <div class="chips" style="margin-bottom:10px">${TEMPLATES.map(([l], i) => `<button class="chip" data-tpl="${i}">${esc(l)}</button>`).join("")}</div>
         <div class="row">
@@ -2362,8 +2565,8 @@ async function viewMemberDetail(v, id) {
       </div>
       <div class="card"><h2>Thread</h2><div class="thread" id="thread">${threadHtml(msgs, S.me.id, p.id, names)}</div></div>
     </div>
-    <div class="card" style="margin-top:14px"><h2>Trade history (${r.txs.length})</h2>${tradesTable(r.txs, false)}</div>`;
-  if (pf.holdings.length) renderDonut("pie-member", pf.holdings, "Total", pf.totals.value);
+    <div class="card" style="margin-top:16px"><h2>Trade history (${r.txs.length})</h2>${tradesTable(r.txs, false)}</div>`;
+  if (pf.holdings.length) { renderDonut("pie-member", pf.holdings, "Total", pf.totals.value); renderPerf("perf-member", pf.holdings); paintHero(r.txs, "hero-m"); }
   const th = $("#thread"); th.scrollTop = th.scrollHeight;
   v.querySelectorAll("[data-tpl]").forEach(b => b.onclick = () => { const ta = $("#body"); ta.value = (ta.value ? ta.value + "\n\n" : "") + TEMPLATES[+b.dataset.tpl][1]; ta.focus(); });
   const markReviewed = async () => {
@@ -2414,7 +2617,7 @@ async function viewInsights(v) {
         ${byHolders.slice(0, 25).map(a => `<tr><td><a href="${coinLink(a.coin_id)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${coinCell(a)}</a></td><td class="r num">${a.holders} <span class="muted">(${(a.holders / rows.length * 100).toFixed(0)}%)</span></td><td class="r num">${(a.allocSum / a.holders).toFixed(1)}%</td><td class="r num">${fmtUsd(a.value, { compact: true })}</td><td class="r num ${signCls(a.value - a.cost)}">${a.cost ? fmtPct((a.value - a.cost) / a.cost * 100) : "—"}</td><td class="r num hide-sm ${signCls(a.change24)}">${fmtPct(a.change24)}</td></tr>`).join("")}</tbody></table></div>` : ""}
       </div>
     </div>
-    <div class="card" style="margin-top:14px"><h2>Concentration risk (one coin ≥ 50% of portfolio)</h2>
+    <div class="card" style="margin-top:16px"><h2>Concentration risk (one coin ≥ 50% of portfolio)</h2>
       ${conc.length ? `<div class="table-wrap"><table><thead><tr><th>Member</th><th>Coin</th><th class="r">Weight</th><th class="r">Portfolio value</th><th class="hide-sm">Last reviewed</th></tr></thead><tbody>
       ${conc.map(r => `<tr class="click" data-id="${esc(r.p.id)}"><td>${esc(memberName(r.p))}</td><td>${esc((r.top.symbol || "").toUpperCase())}</td><td class="r num bad">${r.top.alloc.toFixed(1)}%</td><td class="r num">${fmtUsd(r.pf.totals.value)}</td><td class="hide-sm secondary">${ago(r.p.last_reviewed_at)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">No concentrated portfolios right now.</div>`}
     </div>`;
@@ -2445,7 +2648,7 @@ function renderAuth(mode = "signin", msg = "") {
       <button class="btn primary" id="a-go" style="width:100%">${mode === "signup" ? "Create account" : "Sign in"}</button>
       ${mode === "signin" ? `<div style="text-align:center;margin-top:12px"><button class="link-btn" id="a-forgot">Forgot password?</button></div>` : ""}`}
     </div>
-    <p class="muted" style="text-align:center;font-size:12px;margin-top:14px">Your portfolio is private: only you and ${esc(CONFIG.REVIEWER_NAME)} can see it.</p>
+    <p class="muted" style="text-align:center;font-size:12px;margin-top:16px">Your portfolio is private: only you and ${esc(CONFIG.REVIEWER_NAME)} can see it.</p>
   </div></div>`;
   document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => renderAuth(b.dataset.m));
   const err = (m) => $("#a-err").textContent = m;
