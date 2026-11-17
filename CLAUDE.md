@@ -3,54 +3,37 @@
 Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dkay reviews each portfolio and leaves feedback. Plain HTML/JS, no build step. Hosted on GitHub Pages (pushing to `main` = deploying). Backend: Supabase project `cc-portfolio`. Opens inside Telegram as a Mini App via @CCPortfolioManagerBot.
 
 ## Files
-- `index.html`: shell only (CDN libraries + links to the two files below).
+- `index.html`: shell only (CDN libraries + links to the CSS and the JS files below).
 - `css/app.css`: all styles (~25 KB).
-- `js/app.js`: all app logic (~245 KB, ~3,000 lines). **Never read it whole.**
+- `js/*.js`: app logic, split into 10 plain `<script>` files (not modules), each under ~37 KB. See the map below. Open only the file you need.
 - `supabase/functions/*`: backups of the deployed Edge Functions (see their README).
 - `supabase/*.sql`: migrations that have already been applied.
 
 ## How to work efficiently (read this first)
-1. Find the section in the map below, `grep -n` for the exact function, then `Read` only that range (offset/limit). Don't read whole files and don't scan the repo.
-2. Line numbers drift. Search for the section header (e.g. `grep -n "MEMBER: TRADES" js/app.js`) instead of trusting them.
+1. Find the file and section in the map below, `grep -n` for the exact function, then `Read` only that range (offset/limit). Don't scan the repo.
+2. Line numbers drift. Search for the section header (e.g. `grep -n "MEMBER: TRADES" js/*.js`) instead of trusting them.
 3. Make targeted `Edit`s. Don't rewrite big blocks.
-4. Before committing: `node --check js/app.js`.
-5. After changing `css/app.css` or `js/app.js`, bump `?v=` in `index.html` to today's date (YYYYMMDD). Otherwise Telegram and browsers keep serving the cached old version.
-6. When adding a new section, use the same `/* ===== NAME ===== */` header style and add it to the map below.
+4. Before committing: `for f in js/*.js; do node --check $f; done`.
+5. After changing `css/app.css` or any `js/*.js`, bump `?v=` on that file's tag in `index.html` to today's date (YYYYMMDD). Otherwise Telegram and browsers keep serving the cached old version.
+6. When adding a new section, use the same `/* ===== NAME ===== */` header style and add it to the map below. Load order matters: files share one global scope, but function declarations only hoist within their own file, so top-level code that runs immediately may only call things from the same or an earlier file. `boot()` runs last, from `boot.js`. A new file needs its own `<script>` tag in `index.html`, in the right place.
 7. Debug by looking, not guessing: print or query the real values first (console output, a Supabase SQL query, the function logs), then fix.
-8. No test suites. Verification is `node --check js/app.js` plus checking the changed screen on the live site. Keep every check under a minute.
+8. No test suites. Verification is `node --check` on the changed files plus checking the changed screen on the live site. Keep every check under a minute.
 9. Keep this file short. It should only hold what the code doesn't already make obvious. Update the map when sections move, and cut stale notes.
 10. When you deploy or change an Edge Function, copy the code into `supabase/functions/<name>/index.ts` and update that README.
 
-## js/app.js map (approximate starting lines)
-| Line | Section |
+## JS map (load order = order in index.html; numbers are approximate starting lines)
+| File | Sections |
 |---|---|
-| 1 | CONFIG (Supabase URL/publishable key, REVIEWER_NAME) |
-| 14 | UTILITIES |
-| 93 | ATTACHMENTS (charts, voice notes, videos, PDFs on Dkay's messages) |
-| 170 | COINGECKO |
-| 248 | PORTFOLIO MATH (average cost) |
-| 287 | DATA LAYER (all Supabase reads/writes) |
-| 452 | STATE |
-| 465 | CHARTS / 493 DELTA-STYLE CHARTS |
-| 635 | Live prices: Coinbase (BTC/ETH) + MEXC via `prices` function, CoinGecko fallback |
-| 684 | Chart helpers (price tag, axes, tooltips) |
-| 710 | Price charts (BTC, ETH, group coins) |
-| 824 | SHELL (tabs, navigation) |
-| 894 | MEMBER: OVERVIEW |
-| 958 | MEMBER: TRADES, trade modal (1055), screenshot import (1155), CSV import (1286) |
-| 1599 | FEEDBACK THREAD |
-| 1653 | PROJECTIONS |
-| 1782 | MEMBER: PROFILE |
-| 1816 | MODEL PORTFOLIO (Dkay's target mix) |
-| 1923 | MARKET ALERTS / 1952 GROUP TOTAL |
-| 1964 | MEMBER: REBALANCE (add-only) |
-| 2062 | ADMIN: MODEL EDITOR |
-| 2142 | MARKET UPDATES (weekly summary + urgent bids) |
-| 2236 | EXIT PLAN |
-| 2543 | ADMIN: BROADCAST |
-| 2625 | ADMIN DATA / 2647 REVIEW QUEUE / 2706 MEMBER DETAIL / 2854 GROUP INSIGHTS |
-| 2891 | AUTH |
-| 2943 | BOOT / 2975 TELEGRAM MINI APP / 2993 MOBILE KEYBOARD |
+| `core.js` | CONFIG 1 (Supabase URL/publishable key, REVIEWER_NAME), UTILITIES 14, ATTACHMENTS 93 (charts, voice notes, videos, PDFs on Dkay's messages), COINGECKO 170, PORTFOLIO MATH 248 (average cost), DATA LAYER 287 (all Supabase reads/writes), STATE 452 |
+| `charts.js` | CHARTS 1, DELTA-STYLE CHARTS 29, live prices 171 (Coinbase BTC/ETH + MEXC via `prices` function, CoinGecko fallback), chart helpers 220 (price tag, axes, tooltips), price charts 246 (BTC, ETH, group coins) |
+| `shell.js` | SHELL 1 (tabs, navigation), MEMBER: OVERVIEW 71 |
+| `trades.js` | MEMBER: TRADES 1, trade modal 98 |
+| `trade-import.js` | Screenshot import 1, CSV import 132 |
+| `member.js` | FEEDBACK THREAD 1, PROJECTIONS 55, MEMBER: PROFILE 184, MODEL PORTFOLIO 218 (Dkay's target mix), MARKET ALERTS 325, GROUP TOTAL 354, MEMBER: REBALANCE 366 (add-only) |
+| `market.js` | ADMIN: MODEL EDITOR 1, MARKET UPDATES 81 (weekly summary + urgent bids) |
+| `exit-plan.js` | EXIT PLAN 1 |
+| `admin.js` | ADMIN: BROADCAST 1, ADMIN DATA 83, REVIEW QUEUE 105, MEMBER DETAIL 164, GROUP INSIGHTS 312 |
+| `boot.js` | AUTH 1, BOOT 53 (calls `boot()` at the end), TELEGRAM MINI APP 85, MOBILE KEYBOARD 103 |
 
 css/app.css: THEME 1, LAYOUT 50, CONTROLS 81, TABLES 111, CHART 133, THREAD 144, MODAL/AUTH 166, DELTA-STYLE COMPONENTS 249.
 
