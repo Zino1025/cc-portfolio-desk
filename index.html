@@ -899,7 +899,7 @@ function kpiRow(pf) {
   </div>`;
 }
 function holdingsTable(pf, editable = false) {
-  if (!pf.holdings.length) return `<div class="empty"><div class="big">No holdings yet</div>Add your first buy, or import everything at once from a screenshot of CoinGecko, your exchange or wallet.${editable ? `<div style="margin-top:12px"><button class="btn primary" id="empty-import">📸 Import from screenshot</button></div>` : ""}</div>`;
+  if (!pf.holdings.length) return `<div class="empty"><div class="big">No holdings yet</div>Add your first buy, or import everything at once from a screenshot or CSV file.${editable ? `<div style="margin-top:12px"><button class="btn primary" id="empty-import">⬆ Import screenshot or CSV</button></div>` : ""}</div>`;
   const list = `<div class="hl-list">${pf.holdings.map(h => `<div class="hl-row" ${editable ? `data-coin="${esc(h.coin_id)}"` : ""}>
       <div class="coin">${coinIcon(h)}</div>
       <div style="min-width:0"><div class="nm">${esc((h.symbol || h.coin_id).toUpperCase())} <span class="pill sm ${signCls(h.change24)}">${fmtPct(h.change24)}</span></div><div class="q num">${fmtQty(h.qty)} · ${fmtPrice(h.price)}${h.priceEstimated ? "*" : ""}</div></div>
@@ -929,7 +929,7 @@ async function viewOverview(v) {
   v.innerHTML = `
     ${alertBanner()}
     <div class="page-head"><div><h1>My portfolio</h1><div class="secondary">Prices from CoinGecko${CG.offline ? " (sample, offline)" : ", refreshed every minute"}.</div></div>
-      <div class="head-actions"><button class="btn" id="refresh">↻ Refresh</button><button class="btn" id="import-shot">📸 Import</button><button class="btn primary" id="add">+ Add trade</button></div></div>
+      <div class="head-actions"><button class="btn" id="refresh">↻ Refresh</button><button class="btn" id="import-shot">⬆ Import</button><button class="btn primary" id="add">+ Add trade</button></div></div>
     ${has ? heroCard(pf) : ""}
     ${has ? `<div class="quick">
       <a class="card" href="#rebalance"><span class="ic">⚖️</span><div><div class="t">Rebalance</div><div class="d">vs ${esc(CONFIG.REVIEWER_NAME)}'s model</div></div><span class="go">›</span></a>
@@ -977,7 +977,7 @@ async function viewTrades(v) {
   v.innerHTML = `
     <div class="page-head"><div><h1>Trades</h1><div class="secondary">${S.txs.length} trade${S.txs.length === 1 ? "" : "s"} logged. Tap <b>Edit</b> on any trade to fix its price, amount or time.</div>
       ${S.tradeFilter ? `<div style="margin-top:8px"><span class="tag">${esc((S.txs.find(t => t.coin_id === S.tradeFilter)?.symbol || S.tradeFilter).toUpperCase())} only</span> <button class="link-btn" id="clear-filter">Show all trades</button></div>` : ""}</div>
-      <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end"><button class="btn" id="csv">Export CSV</button><button class="btn" id="import-shot">📸 Import screenshot</button><button class="btn primary" id="add">+ Add trade</button></div></div>
+      <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end"><button class="btn" id="csv">Export CSV</button><button class="btn" id="import-shot">⬆ Import</button><button class="btn primary" id="add">+ Add trade</button></div></div>
     <div class="card">${tradesTable(S.txs, true)}</div>`;
   $("#add").onclick = () => openTradeModal();
   $("#import-shot").onclick = openImportModal;
@@ -1236,9 +1236,91 @@ async function convertPaidTrades(rows) {
   }
 }
 
+/* ---------- CSV import ---------- */
+// Parsed in the browser, then goes through the same coin matching and confirm step as screenshots.
+// Accepts our own "Export CSV" file, CoinGecko/exchange exports, or a simple sheet: coin, quantity, buy price, date.
+function parseCsvText(text) {
+  text = String(text || "").replace(/^﻿/, "");
+  const first = text.split(/\r?\n/).find(l => l.trim()) || "";
+  const delim = [",", ";", "\t"].map(d => [d, first.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+  const rows = []; let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; }
+    else if (ch === '"') q = true;
+    else if (ch === delim) { row.push(cell); cell = ""; }
+    else if (ch === "\n" || ch === "\r") { if (ch === "\r" && text[i + 1] === "\n") i++; row.push(cell); rows.push(row); row = []; cell = ""; }
+    else cell += ch;
+  }
+  if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+  return rows.map(r => r.map(c => c.trim())).filter(r => r.some(c => c));
+}
+const CSV_COLS = {
+  coin_id: ["coinid", "coingeckoid", "id", "apiid"],
+  symbol: ["symbol", "ticker", "asset", "token", "currency"],
+  name: ["name", "coinname", "assetname", "tokenname"],
+  coin: ["coin", "crypto", "cryptocurrency"],
+  quantity: ["quantity", "qty", "amount", "holdings", "balance", "units", "coins", "size"],
+  price: ["priceusd", "price", "buyprice", "avgbuyprice", "averagebuyprice", "avgprice", "averageprice", "costpercoin", "pricepercoin", "entryprice", "entry", "avgcost"],
+  total: ["totalusd", "total", "cost", "totalcost", "costbasis", "invested", "totalspent", "spent"],
+  value: ["value", "valueusd", "currentvalue"],
+  date: ["executedat", "date", "datetime", "time", "timestamp", "dateutc", "buydate", "purchasedate", "bought"],
+  side: ["side", "type", "action", "transactiontype"],
+  fee: ["feeusd", "fee", "fees"],
+  exchange: ["exchange", "wallet", "platform"],
+  note: ["note", "notes", "memo"],
+};
+function csvDate(s) {
+  s = String(s || "").trim(); if (!s) return null;
+  let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
+  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+  if (m) {
+    let [a, b, y] = [+m[1], +m[2], m[3].length === 2 ? "20" + m[3] : m[3]];
+    const [mo, d] = a > 12 ? [b, a] : [a, b];   // 25/03/2024 → day first; otherwise month first
+    return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+  const t = Date.parse(s); if (Number.isNaN(t)) return null;
+  const x = new Date(t); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+}
+function csvToImport(text) {
+  const grid = parseCsvText(text);
+  if (grid.length < 2) throw new Error("That CSV looks empty. It needs a header row and at least one coin.");
+  const head = grid[0].map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ""));
+  const col = {}; for (const [k, names] of Object.entries(CSV_COLS)) { const i = names.map(n => head.indexOf(n)).find(i => i >= 0); if (i != null) col[k] = i; }
+  if (col.quantity == null) throw new Error("Couldn't find a quantity column. Name it \"quantity\" (or use the template).");
+  if (col.coin_id == null && col.symbol == null && col.name == null && col.coin == null) throw new Error("Couldn't find a coin column. Name it \"coin\" (ticker or name), or use the template.");
+  const get = (r, k) => col[k] != null ? (r[col[k]] ?? "").trim() : "";
+  const n = (v) => { const x = dec(v); return v !== "" && Number.isFinite(x) ? Math.abs(x) : null; };
+  const warnings = []; let skipped = 0;
+  const items = grid.slice(1).map(r => {
+    let symbol = get(r, "symbol"), name = get(r, "name");
+    const coin = get(r, "coin");
+    if (coin) { if (/^\$?[A-Z0-9.]{1,10}$/.test(coin) && !symbol) symbol = coin.replace(/^\$/, ""); else if (!name) name = coin; }
+    const quantity = n(get(r, "quantity")), total = n(get(r, "total"));
+    let price = n(get(r, "price")); if (price == null && total != null && quantity) price = total / quantity;
+    const sideRaw = get(r, "side");
+    return { name, symbol: symbol.toUpperCase(), coingecko_id_guess: get(r, "coin_id").toLowerCase() || null, quantity, price, value: n(get(r, "value")),
+      date: csvDate(get(r, "date")), side: /sell/i.test(sideRaw) ? "sell" : "buy", fee: n(get(r, "fee")) || 0, exchange: get(r, "exchange") || null, note: get(r, "note") || null };
+  }).filter(x => { const ok = (x.name || x.symbol || x.coingecko_id_guess) && x.quantity > 0; if (!ok) skipped++; return ok; });
+  if (skipped) warnings.push(`${skipped} row${skipped === 1 ? " was" : "s were"} skipped (no coin or no quantity).`);
+  if (!items.length) throw new Error("No coins with a quantity found in that CSV.");
+  const dated = items.filter(x => x.date).length;
+  if (col.date != null && dated >= items.length * 0.8) {
+    return { source_app: "CSV", warnings, trades: items.map(x => ({ ...x, price_usd: x.price, total_usd: null, paid: null })) };
+  }
+  return { source_app: "CSV", warnings, holdings: items.map(x => ({ ...x, avg_buy_price: x.price, current_price: null })) };
+}
+function downloadCsvTemplate() {
+  const csv = "coin,quantity,buy_price,date\nBTC,0.05,62000,2024-03-10\nPAAL,100000,0.12,2024-05-02\n";
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  a.download = "cc-portfolio-template.csv"; a.click();
+}
+
 function openImportModal() {
   const ov = document.createElement("div"); ov.className = "overlay";
-  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="max-width:560px"><h2>Import from screenshot <button class="x" aria-label="Close">×</button></h2><div id="imp-body"></div></div>`;
+  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="max-width:560px"><h2>Import coins <button class="x" aria-label="Close">×</button></h2><div id="imp-body"></div></div>`;
   document.body.appendChild(ov);
   let busy = false;
   const close = () => { if (!busy || confirm("Stop the import?")) ov.remove(); };
@@ -1273,9 +1355,36 @@ function openImportModal() {
         <li>Buy prices come through if the screenshot shows them (CoinGecko does).</li>
       </ul>
       <label class="btn primary" style="display:flex;justify-content:center;cursor:pointer">📸 Choose screenshots<input type="file" id="imp-file" accept="image/*" multiple style="display:none"></label>
-      <div class="err" id="imp-err">${esc(msg)}</div>
-      <div class="hint">Screenshots are only used to read your holdings. They aren't stored.</div>`;
+      <div class="hint">Screenshots are only used to read your holdings. They aren't stored.</div>
+      <div style="display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:var(--text-muted);font-size:12px"><span style="flex:1;border-top:1px solid var(--grid)"></span>or<span style="flex:1;border-top:1px solid var(--grid)"></span></div>
+      <label class="btn" style="display:flex;justify-content:center;cursor:pointer">📄 Upload a CSV file<input type="file" id="imp-csv" accept=".csv,text/csv,.txt,text/plain" style="display:none"></label>
+      <div class="hint">Columns: coin, quantity, buy price, date (optional). Exports from CoinGecko, exchanges and this app work too. <button class="link-btn" type="button" id="imp-tpl" style="font-size:12px">Download template</button></div>
+      <div class="err" id="imp-err">${esc(msg)}</div>`;
     $("#imp-file", ov).onchange = (e) => { const files = [...e.target.files]; if (files.length) run(files); };
+    $("#imp-csv", ov).onchange = (e) => { const f = e.target.files[0]; if (f) runCsv(f); };
+    $("#imp-tpl", ov).onclick = downloadCsvTemplate;
+  }
+
+  async function runCsv(file) {
+    if (file.size > 2e6) return stepPick("That CSV is too big (max 2 MB).");
+    busy = true;
+    body.innerHTML = `<div class="spinner"></div><p class="secondary" style="text-align:center">Reading CSV…</p>`;
+    try { result = csvToImport(await file.text()); await prepareRows(); }
+    catch (e) { busy = false; stepPick(e.message || "Couldn't read that CSV."); }
+  }
+  async function prepareRows() {
+    const status = (t) => body.innerHTML = `<div class="spinner"></div><p class="secondary" style="text-align:center">${t}</p>`;
+    mode = (result.trades || []).length ? "trades" : "holdings";
+    rows = mode === "trades"
+      ? result.trades.map(t => ({ name: t.name, symbol: t.symbol, quantity: t.quantity, avg_buy_price: t.price_usd, total_usd: t.total_usd, current_price: null, coingecko_id_guess: t.coingecko_id_guess, side: t.side, date: t.date, paid: t.paid || null, fee: t.fee, exchange: t.exchange, note: t.note, include: true }))
+      : (result.holdings || []).map(h => ({ ...h, include: true }));
+    if (!rows.length) throw new Error((result.warnings || [])[0] || "No holdings found in that screenshot. Try one that shows your coin list with amounts.");
+    status("Matching coins on CoinGecko…");
+    await matchImportedCoins(rows, (d, t) => { const p = body.querySelector("p"); if (p) p.textContent = `Matching coins on CoinGecko… ${d}/${t}`; });
+    for (const r of rows) { if (mode === "trades") applyDup(r); else applyHeld(r); if (!r.quantity) r.include = false; }
+    const paidCurs = [...new Set(rows.filter(r => r.paid && r.avg_buy_price == null).map(r => r.paid.currency))];
+    if (paidCurs.length) { status(`Converting ${paidCurs.join(", ")} amounts to USD…`); await convertPaidTrades(rows); }
+    busy = false; stepConfirm();
   }
 
   async function run(files) {
@@ -1289,30 +1398,21 @@ function openImportModal() {
       if (slices.length > IMPORT_MAX_SLICES) throw new Error("Those screenshots are very long. Try fewer at a time (or crop them).");
       status("Reading your holdings… (10–20 seconds)");
       result = await api.parseScreenshots(slices, /tx|trade|history/i.test(files[0]?.name || "") ? "trades" : "");
-      mode = (result.trades || []).length ? "trades" : "holdings";
-      rows = mode === "trades"
-        ? result.trades.map(t => ({ name: t.name, symbol: t.symbol, quantity: t.quantity, avg_buy_price: t.price_usd, total_usd: t.total_usd, current_price: null, coingecko_id_guess: t.coingecko_id_guess, side: t.side, date: t.date, paid: t.paid || null, include: true }))
-        : (result.holdings || []).map(h => ({ ...h, include: true }));
-      if (!rows.length) throw new Error((result.warnings || [])[0] || "No holdings found in that screenshot. Try one that shows your coin list with amounts.");
-      status("Matching coins on CoinGecko…");
-      await matchImportedCoins(rows, (d, t) => { const p = body.querySelector("p"); if (p) p.textContent = `Matching coins on CoinGecko… ${d}/${t}`; });
-      for (const r of rows) { if (mode === "trades") applyDup(r); else applyHeld(r); if (!r.quantity) r.include = false; }
-      const paidCurs = [...new Set(rows.filter(r => r.paid && r.avg_buy_price == null).map(r => r.paid.currency))];
-      if (paidCurs.length) { status(`Converting ${paidCurs.join(", ")} amounts to USD…`); await convertPaidTrades(rows); }
-      busy = false; stepConfirm();
+      await prepareRows();
     } catch (e) { busy = false; stepPick(e.message || "Something went wrong. Try again."); }
   }
 
   function stepConfirm() {
-    const src = result.source_app && !/unknown/i.test(result.source_app) ? result.source_app : "";
+    const isCsv = result.source_app === "CSV";
+    const src = !isCsv && result.source_app && !/unknown/i.test(result.source_app) ? result.source_app : "";
     const nonUsd = result.currency && !/^usd$/i.test(result.currency);
     const warns = [...(result.warnings || [])];
     if (nonUsd) warns.unshift(`Prices in this screenshot look like ${result.currency}, not USD. Buy prices were left out, so enter them in USD.`);
     if (nonUsd) rows.forEach(r => { r.avg_buy_price = null; });
     body.innerHTML = `
       <p class="secondary" style="margin-top:0">${mode === "trades"
-        ? `Found <b>${rows.length}</b> transaction${rows.length === 1 ? "" : "s"}${src ? ` in your ${esc(src)} screenshot` : ""}. Each one is saved as its own trade with its date. Check them, then import.`
-        : `Found <b>${rows.length}</b> coin${rows.length === 1 ? "" : "s"}${src ? ` in your ${esc(src)} screenshot` : ""}. Check each one, fix anything that's off, then import.`}</p>
+        ? `Found <b>${rows.length}</b> transaction${rows.length === 1 ? "" : "s"}${isCsv ? " in your CSV" : src ? ` in your ${esc(src)} screenshot` : ""}. Each one is saved as its own trade with its date. Check them, then import.`
+        : `Found <b>${rows.length}</b> coin${rows.length === 1 ? "" : "s"}${isCsv ? " in your CSV" : src ? ` in your ${esc(src)} screenshot` : ""}. Check each one, fix anything that's off, then import.`}</p>
       ${warns.length ? `<div class="card" style="padding:10px 12px;margin-bottom:12px;font-size:13px">⚠️ ${warns.map(esc).join("<br>⚠️ ")}</div>` : ""}
       <div id="imp-rows"></div>
       <div class="row" style="margin-top:6px">
@@ -1321,13 +1421,14 @@ function openImportModal() {
       </div>
       ${mode === "trades" ? "" : `<div class="hint" style="margin-top:-6px">Every imported coin gets this date. You can fix individual dates later under Trades.</div>`}
       <div class="err" id="imp-err"></div>
-      <div class="row" style="justify-content:space-between;align-items:center"><button class="link-btn" id="imp-again" type="button">Use different screenshots</button>
+      <div class="row" style="justify-content:space-between;align-items:center"><button class="link-btn" id="imp-again" type="button">${isCsv ? "Use a different file" : "Use different screenshots"}</button>
         <button class="btn primary" id="imp-save" style="flex:none"></button></div>`;
     paintRows();
     $("#imp-again", ov).onclick = () => stepPick();
     $("#imp-save", ov).onclick = save;
   }
 
+  const isCsvR = () => result?.source_app === "CSV";
   function paintRows() {
     const list = $("#imp-rows", ov);
     list.innerHTML = rows.map((r, i) => {
@@ -1361,13 +1462,13 @@ function openImportModal() {
             </div>
           </div></div>`;
       }
-      const priceHint = r.avg_buy_price == null ? `<div class="hint">Not in screenshot. Leave empty to use today's price.</div>` : "";
+      const priceHint = r.avg_buy_price == null ? `<div class="hint">Not in ${isCsvR() ? "file" : "screenshot"}. Leave empty to use today's price.</div>` : "";
       return `<div class="card" style="padding:10px 12px;margin-bottom:10px;${r.include ? "" : "opacity:.6"}">
         <div style="display:flex;gap:10px;align-items:flex-start">
           <input type="checkbox" data-inc="${i}" ${r.include ? "checked" : ""} style="width:auto;margin-top:10px" aria-label="Import this coin">
           <div style="flex:1;min-width:0">
             ${coin}
-            <div class="muted" style="font-size:12px;margin:4px 0 6px">From screenshot: ${esc(shot)}${r.value ? ` · ${fmtUsd(r.value)}` : ""}</div>
+            <div class="muted" style="font-size:12px;margin:4px 0 6px">${isCsvR() ? "From CSV" : "From screenshot"}: ${esc(shot)}${r.value ? ` · ${fmtUsd(r.value)}` : ""}</div>
             ${flag}
             <div class="row" style="margin-top:6px">
               <label class="field" style="margin-bottom:0"><span>Quantity</span><input type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-qty="${i}" value="${r.quantity != null ? esc(+Number(r.quantity).toPrecision(10)) : ""}" placeholder="0.00">${r.quantity_estimated ? `<div class="hint">Worked out from value ÷ price. Check it.</div>` : ""}</label>
@@ -1424,9 +1525,10 @@ function openImportModal() {
         if (p == null) return err.textContent = `Enter the price for the ${label} ${r.side} on ${r.date}.`;
       }
       if (p == null) { p = CG.info(r.match.id)?.price; usedToday = true; if (!(p > 0)) return err.textContent = `No live price for ${label} right now. Enter its buy price.`; }
-      out.push({ coin_id: r.match.id, symbol: r.match.symbol, name: r.match.name, side: mode === "trades" ? r.side : "buy", quantity: q, price_usd: p, fee_usd: 0,
-        executed_at: at.toISOString(), exchange: $("#imp-exch", ov).value.trim() || null,
-        note: `Imported from ${result.source_app && !/unknown/i.test(result.source_app) ? result.source_app + " " : ""}screenshot${usedToday ? " (buy price not shown; used price on import day)" : ""}` });
+      out.push({ coin_id: r.match.id, symbol: r.match.symbol, name: r.match.name, side: mode === "trades" ? r.side : "buy", quantity: q, price_usd: p, fee_usd: num(r.fee),
+        executed_at: at.toISOString(), exchange: r.exchange || $("#imp-exch", ov).value.trim() || null,
+        note: r.note || (isCsvR() ? `Imported from CSV${usedToday ? " (no buy price; used price on import day)" : ""}`
+          : `Imported from ${result.source_app && !/unknown/i.test(result.source_app) ? result.source_app + " " : ""}screenshot${usedToday ? " (buy price not shown; used price on import day)" : ""}`) });
     }
     const btn = $("#imp-save", ov); btn.disabled = true; btn.textContent = "Importing…";
     try {
@@ -1591,7 +1693,7 @@ function paintProj() {
   if (pieRows.length) renderDonut("pie-proj", pieRows, "Projected", T.proj);
   const tbl = $("#pj-table");
   if (!rows.length) { tbl.innerHTML = `<div class="empty">Tap <b>+ Add coin</b> to start${S.txs.length ? ", or <b>Load my portfolio</b>" : ""}.</div>`; return; }
-  tbl.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Coin</th><th>Amount</th><th class="r">Price</th><th>Target</th><th>×</th><th class="r">Projected</th><th class="r">Profit</th><th></th></tr></thead><tbody>
+  tbl.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Coin</th><th>Amount</th><th class="r">Price</th><th>Target</th><th>Multiple</th><th class="r">Projected</th><th class="r">Profit</th><th></th></tr></thead><tbody>
     ${rows.map((r, i) => { const c = calcs[i]; return `<tr data-row="${esc(r.id)}">
       <td data-l="Coin">${coinCell(r)}</td>
       <td data-l="Amount">${r.own ? `<div class="num">${fmtQty(c.qty)}</div><div class="muted" style="font-size:12px">paid ${fmtUsd(c.cost)}</div>`
@@ -1600,12 +1702,12 @@ function paintProj() {
       <td class="r num" data-l="Price">${fmtPrice(c.now)}<div class="muted" style="font-size:12px">${fmtUsd(c.valueNow)}</div></td>
       <td data-l="Target"><input type="text" enterkeyhint="done" inputmode="decimal" data-f="target" value="${esc(r.target !== "" ? r.target : (r.mult !== "" ? +c.target.toPrecision(6) : ""))}" placeholder="${esc(fmtPrice(c.now))}" style="width:115px">
         ${c.mcapAtTarget ? `<div class="muted" style="font-size:11px">MC ${fmtUsd(c.mcapAtTarget, { compact: true })}</div>` : ""}</td>
-      <td data-l="×"><input type="text" enterkeyhint="done" inputmode="decimal" data-f="mult" value="${esc(r.mult !== "" ? r.mult : (r.target !== "" && c.now > 0 ? +c.mult.toFixed(2) : ""))}" placeholder="1" style="width:64px"></td>
+      <td data-l="Multiple"><input type="text" enterkeyhint="done" inputmode="decimal" data-f="mult" value="${esc(r.mult !== "" ? r.mult : (r.target !== "" && c.now > 0 ? +c.mult.toFixed(2) : ""))}" placeholder="1" style="width:64px"></td>
       <td class="r num" data-l="Projected">${fmtUsd(c.valueProj)}</td>
       <td class="r num ${signCls(c.profit)}" data-l="Profit">${fmtUsd(c.profit)}<div style="font-size:12px">${c.cost > 0 ? fmtPct(c.roi) : ""}</div></td>
       <td class="pj-rm"><button class="link-btn" data-rm="${esc(r.id)}" style="color:var(--text-muted)" aria-label="Remove">✕</button></td>
     </tr>`; }).join("")}</tbody></table></div>
-    <div class="hint">Target and × update each other. MC = market cap at target.</div>`;
+    <div class="hint">Target and Multiple update each other. MC = market cap at target.</div>`;
   const commit = debounce(() => paintProjKeepFocus(), 600);
   tbl.querySelectorAll("input[data-f]").forEach(inp => inp.oninput = () => {
     const r = rows.find(x => x.id === inp.closest("tr").dataset.row), f = inp.dataset.f;
