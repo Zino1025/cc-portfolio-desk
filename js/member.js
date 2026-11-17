@@ -26,7 +26,7 @@ async function viewFeedback(v) {
       </div>
       <div class="card"><h2>Messages</h2>
         <div class="thread" id="thread">${threadHtml(S.msgs, S.me.id, S.me.id)}</div>
-        <div class="composer"><textarea id="reply" maxlength="4000" placeholder="Reply or ask a follow-up…"></textarea><div style="text-align:right"><button class="btn primary" id="send">Send</button></div></div>
+        <div class="composer"><textarea id="reply" maxlength="4000" placeholder="Reply or ask a follow-up…"></textarea>${ATT.pickerHtml("att-reply")}<div style="text-align:right"><button class="btn primary" id="send">Send</button></div></div>
       </div>
     </div>`;
   const th = $("#thread"); th.scrollTop = th.scrollHeight;
@@ -38,10 +38,17 @@ async function viewFeedback(v) {
     toast("Review requested"); render();
   });
   $("#cancel-req") && ($("#cancel-req").onclick = async () => { S.me = await api.updateProfile(S.me.id, { review_requested: false }); render(); });
+  ATT.bind("att-reply");
   $("#send").onclick = async () => {
-    const body = $("#reply").value.trim(); if (!body) return;
-    await api.addMessage({ member_id: S.me.id, kind: "reply", body });
-    render();
+    const body = $("#reply").value.trim(), btn = $("#send");
+    if (!body && !ATT.files("att-reply").length) return $("#reply").focus();
+    btn.disabled = true;
+    try {
+      const attachments = await ATT.upload("att-reply", `msg/${S.me.id}`, (i, n) => { btn.textContent = `Uploading ${i}/${n}…`; });
+      btn.textContent = "Sending…";
+      await api.addMessage({ member_id: S.me.id, kind: "reply", body, ...(attachments ? { attachments } : {}) });
+      render();
+    } catch (e) { toast(e.message || "Couldn't send"); btn.disabled = false; btn.textContent = "Send"; }
   };
   bindMsgDelete(v, () => render());
 }

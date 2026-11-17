@@ -19,7 +19,18 @@ const COIN_ID_RENAMES: Record<string, string> = { "solidus-ai-tech": "solidus-ai
 
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const cut = (s: string, n = 300) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
-const attNote = (a: unknown) => (Array.isArray(a) && a.length ? `\n\n📎 ${a.length} attachment${a.length === 1 ? "" : "s"} (chart, voice note or video): open the Desk to view.` : "");
+// Label attachments by kind, e.g. "🎙️ Voice note attached · 📷 2 photos attached".
+const attNote = (a: unknown) => {
+  if (!Array.isArray(a) || !a.length) return "";
+  const kinds: [RegExp, string, string, string][] = [
+    [/^audio/, "🎙️", "Voice note", "voice notes"], [/^video/, "🎬", "Video", "videos"],
+    [/^image/, "📷", "Photo", "photos"], [/pdf/, "📄", "PDF", "PDFs"]];
+  const parts = kinds.map(([re, ic, one, many]) => {
+    const n = a.filter((x: any) => re.test(String(x?.type ?? ""))).length;
+    return n ? `${ic} ${n === 1 ? one : n + " " + many} attached` : "";
+  }).filter(Boolean);
+  return parts.length ? `\n\n${parts.join(" · ")}` : `\n\n📎 File attached`;
+};
 const nameOf = (p: any) => p?.display_name || (p?.telegram_handle ? "@" + p.telegram_handle : "A member");
 
 async function send(chatId: number | string, text: string, go: string) {

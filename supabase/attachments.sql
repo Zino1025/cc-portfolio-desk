@@ -2,7 +2,7 @@
 -- Files live in a PRIVATE storage bucket; the app shows them through short-lived signed links.
 --   updates/<uuid>/<file>          -> any signed-in member can open (updates are for everyone)
 --   msg/<member_id>/<uuid>/<file>  -> only that member (and admins) can open
--- Only admins can upload or delete.
+-- Admins can upload anywhere; members can upload into their own msg/<their id>/ folder. Only admins delete.
 
 alter table public.messages add column if not exists attachments jsonb;
 alter table public.updates  add column if not exists attachments jsonb;
@@ -36,3 +36,7 @@ create policy "attachments read" on storage.objects for select to authenticated
     or (storage.foldername(name))[1] = 'updates'
     or ((storage.foldername(name))[1] = 'msg' and (storage.foldername(name))[2] = auth.uid()::text)
   ));
+
+drop policy if exists "attachments member upload" on storage.objects;
+create policy "attachments member upload" on storage.objects for insert to authenticated
+  with check (bucket_id = 'attachments' and (storage.foldername(name))[1] = 'msg' and (storage.foldername(name))[2] = (select auth.uid())::text);

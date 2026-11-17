@@ -8,4 +8,4 @@
 | `tg-notify` | off (called by database triggers) | Telegram messages for feedback, review requests, updates, price checks | `TELEGRAM_BOT_TOKEN` |
 
 Secret values live in Supabase → Edge Functions → Secrets, never in this repo.
-Backed up 2026-11-17 from the live versions (prices v2, import-screenshot v6, tg-link v4, tg-notify v10).
+Backed up 2026-11-17 from the live versions (prices v2, import-screenshot v6, tg-link v4, tg-notify v11).
