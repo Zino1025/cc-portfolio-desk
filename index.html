@@ -2666,9 +2666,10 @@ function memberRows(includeAdmins = false) {
 async function viewMembers(v) {
   v.innerHTML = `<div class="spinner"></div>`;
   await loadAdmin();
-  const all = memberRows();
+  const all = memberRows(true);   // admins (Dkay) are listed alongside members
+  const isStale = (r) => r.p.role !== "admin" && (!r.p.last_reviewed_at || Date.now() - new Date(r.p.last_reviewed_at) > 30 * 86400000);
   const total = all.reduce((s, r) => s + r.pf.totals.value, 0);
-  const stale = all.filter(r => !r.p.last_reviewed_at || Date.now() - new Date(r.p.last_reviewed_at) > 30 * 86400000).length;
+  const stale = all.filter(isStale).length;
   v.innerHTML = `
     <div class="page-head"><div><h1>Review queue</h1><div class="secondary">Every member's portfolio in one place. Open requests are listed first.</div></div><div class="row" style="flex:none"><button class="btn" id="reload">Reload</button><button class="btn primary" id="bcast">📣 Broadcast</button></div></div>
     <div class="kpis">
@@ -2691,7 +2692,7 @@ async function viewMembers(v) {
     const f = S.memberFilter;
     if (f === "requested") rows = rows.filter(r => r.p.review_requested);
     if (f === "unanswered") rows = rows.filter(r => r.newFromMember);
-    if (f === "stale") rows = rows.filter(r => !r.p.last_reviewed_at || Date.now() - new Date(r.p.last_reviewed_at) > 30 * 86400000);
+    if (f === "stale") rows = rows.filter(isStale);
     if (f === "concentrated") rows = rows.filter(r => r.concentrated);
     const s = S.memberSort;
     rows.sort((a, b) =>
@@ -2701,13 +2702,13 @@ async function viewMembers(v) {
       (b.p.review_requested - a.p.review_requested) || (b.newFromMember - a.newFromMember) || String(a.p.review_requested_at).localeCompare(String(b.p.review_requested_at)) || b.pf.totals.value - a.pf.totals.value);
     $("#mtable").innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>Member</th><th>Status</th><th class="r">Value</th><th class="r">P&amp;L</th><th class="hide-sm">Top holding</th><th class="r hide-sm">Coins</th><th class="hide-sm">Last reviewed</th><th class="hide-sm">Activity</th></tr></thead><tbody>
       ${rows.map(r => `<tr class="click" data-id="${esc(r.p.id)}">
-        <td><div style="font-weight:600">${esc(memberName(r.p))}${r.p.role === "admin" ? ' <span class="tag">reviewer</span>' : ""}</div><div class="muted" style="font-size:12px">${r.p.telegram_handle ? "@" + esc(r.p.telegram_handle.replace(/^@/, "")) : ""}${r.p.risk_level ? " · " + esc(r.p.risk_level) + " risk" : ""}</div></td>
+        <td><div style="font-weight:600">${esc(memberName(r.p))}${r.p.role === "admin" ? ` <span class="tag">${r.p.id === S.me.id ? "you" : "admin"}</span>` : ""}</div><div class="muted" style="font-size:12px">${r.p.telegram_handle ? "@" + esc(r.p.telegram_handle.replace(/^@/, "")) : ""}${r.p.risk_level ? " · " + esc(r.p.risk_level) + " risk" : ""}</div></td>
         <td>${r.p.review_requested ? `<span class="tag req">Review requested ${ago(r.p.review_requested_at)}</span>` : ""}${r.newFromMember ? ` <span class="tag">${r.newFromMember} new msg</span>` : ""}${r.concentrated ? ` <span class="tag flag">${r.top.alloc.toFixed(0)}% in ${esc((r.top.symbol || "").toUpperCase())}</span>` : ""}${r.pf.holdings.length && exitStatus(r.p).state !== "committed" ? ` <span class="tag">no exit plan</span>` : ""}</td>
         <td class="r num">${fmtUsd(r.pf.totals.value)}</td>
         <td class="r num ${signCls(r.pf.totals.pnl)}">${r.pf.totals.cost ? fmtPct(r.pf.totals.pnlPct) : "—"}</td>
         <td class="hide-sm">${r.top ? `${esc((r.top.symbol || "").toUpperCase())} <span class="muted">${r.top.alloc.toFixed(0)}%</span>` : '<span class="muted">—</span>'}</td>
         <td class="r num hide-sm">${r.pf.holdings.length}</td>
-        <td class="hide-sm secondary">${ago(r.p.last_reviewed_at)}</td>
+        <td class="hide-sm secondary">${r.p.role === "admin" ? "—" : ago(r.p.last_reviewed_at)}</td>
         <td class="hide-sm secondary">${ago(r.lastActivity)}</td>
       </tr>`).join("")}</tbody></table></div>` : `<div class="empty"><div class="big">Nobody matches</div>Try a different filter.</div>`;
     $("#mtable").querySelectorAll("tr[data-id]").forEach(tr => tr.onclick = () => { location.hash = "member-" + tr.dataset.id; });
@@ -2817,7 +2818,7 @@ function removeMemberModal(p) {
 async function viewInsights(v) {
   v.innerHTML = `<div class="spinner"></div>`;
   await loadAdmin();
-  const rows = memberRows().filter(r => r.pf.holdings.length);
+  const rows = memberRows(true).filter(r => r.pf.holdings.length);
   const agg = {};
   for (const r of rows) for (const h of r.pf.holdings) {
     const a = agg[h.coin_id] ||= { coin_id: h.coin_id, symbol: h.symbol, name: h.name, image: h.image, value: 0, holders: 0, allocSum: 0, cost: 0, change24: h.change24 };
