@@ -101,7 +101,7 @@ h2 { font-size:16px; font-weight:650; margin:0 0 16px; letter-spacing:-0.01em; }
 label.field { display:block; font-size:13px; color:var(--text-secondary); margin-bottom:12px; }
 label.field > span, .field-div span:first-child, .field-div label span { display:block; margin-bottom:5px; }
 .field-div { font-size:13px; color:var(--text-secondary); margin-bottom:12px; }
-input[type=text], input[type=email], input[type=password], input[type=number], input[type=datetime-local], input[type=search], select, textarea {
+input[type=text], input[type=email], input[type=password], input[type=number], input[type=datetime-local], input[type=date], input[type=search], select, textarea {
   width:100%; padding:10px 13px; border-radius:12px; border:1px solid var(--border); background:var(--surface-2); outline:none;
 }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); }
@@ -393,6 +393,8 @@ function fmtDate(d, withTime = true) {
   const dt = new Date(d);
   return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) + (withTime ? " · " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "");
 }
+function fmtJoined(d) { if (!d) return ""; const t = new Date(d + "T12:00:00"); if (isNaN(t)) return ""; const m = Math.floor((Date.now() - t) / (30.44 * 86400000)); return t.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + (m >= 1 ? ` (${m >= 12 ? Math.floor(m / 12) + "y " + (m % 12 ? (m % 12) + "mo" : "") : m + "mo"} in CC)`.replace(" )", ")") : ""); }
+const todayISO = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 function ago(d) {
   if (!d) return "never";
   const s = (Date.now() - new Date(d).getTime()) / 1000;
@@ -1828,6 +1830,7 @@ async function viewProfile(v) {
       <label class="field"><span>Telegram handle</span><input type="text" enterkeyhint="done" id="p-tg" maxlength="40" value="${esc(p.telegram_handle || "")}" placeholder="@yourhandle"></label>
       ${api.demo ? "" : `<div class="secondary" style="font-size:13px;margin:-4px 0 12px">${p.telegram_chat_id ? "🔔 Telegram notifications are on: the CC bot will message you about reviews and feedback." : "🔕 Telegram notifications are off. Open this app once from the CC bot in Telegram to turn them on."}</div>`}
       <label class="field"><span>Risk appetite</span><select id="p-risk">${["", "low", "medium", "high", "degen"].map(r => `<option value="${r}" ${p.risk_level === r || (!p.risk_level && !r) ? "selected" : ""}>${r ? r[0].toUpperCase() + r.slice(1) : "Choose…"}</option>`).join("")}</select></label>
+      <label class="field"><span>Date you joined ${esc(CONFIG.GROUP_NAME)} <span class="muted">(optional)</span></span><input type="date" id="p-joined" max="${todayISO()}" value="${esc(p.cc_joined_on || "")}"></label>
       <label class="field"><span>Goal &amp; time horizon</span><textarea id="p-goal" maxlength="500" placeholder="e.g. Long-term hold, 2 years, want to 3x">${esc(p.goal || "")}</textarea></label>
       <div class="err" id="p-err"></div>
       <button class="btn primary" id="p-save">Save profile</button>
@@ -1839,7 +1842,9 @@ async function viewProfile(v) {
     </div>`;
   $("#p-save").onclick = async () => {
     try {
-      S.me = await api.updateProfile(p.id, { display_name: $("#p-name").value.trim() || null, telegram_handle: $("#p-tg").value.trim().replace(/^@/, "") || null, risk_level: $("#p-risk").value || null, goal: $("#p-goal").value.trim() || null });
+      const patch = { display_name: $("#p-name").value.trim() || null, telegram_handle: $("#p-tg").value.trim().replace(/^@/, "") || null, risk_level: $("#p-risk").value || null, goal: $("#p-goal").value.trim() || null, cc_joined_on: $("#p-joined").value || null };
+      try { S.me = await api.updateProfile(p.id, patch); }
+      catch (e) { if (!/cc_joined_on/.test(e.message || "")) throw e; delete patch.cc_joined_on; S.me = await api.updateProfile(p.id, patch); }   // column not added yet
       toast("Profile saved"); render();
     } catch (e) { $("#p-err").textContent = e.message; }
   };
@@ -2751,7 +2756,7 @@ async function viewMemberDetail(v, id) {
   v.innerHTML = `
     <div style="margin-bottom:10px"><a href="#members" style="text-decoration:none">← Review queue</a></div>
     <div class="page-head"><div><h1>${esc(memberName(p))}</h1>
-      <div class="secondary">${handleLink(p.telegram_handle)}${p.risk_level ? ` · ${esc(p.risk_level)} risk` : ""} · last reviewed ${ago(p.last_reviewed_at)}</div>
+      <div class="secondary">${handleLink(p.telegram_handle)}${p.risk_level ? ` · ${esc(p.risk_level)} risk` : ""}${p.cc_joined_on ? ` · in ${esc(CONFIG.GROUP_NAME)} since ${fmtJoined(p.cc_joined_on).split(" (")[0]}` : ""} · last reviewed ${ago(p.last_reviewed_at)}</div>
       ${p.goal ? `<div class="secondary" style="margin-top:4px">Goal: ${esc(p.goal)}</div>` : ""}</div>
       <button class="btn ${p.review_requested ? "primary" : ""}" id="mark">Mark reviewed</button></div>
     ${p.review_requested ? `<div class="callout"><b>Review requested ${ago(p.review_requested_at)}</b>${p.review_question ? `\n“${esc(p.review_question)}”` : ""}</div>` : ""}
@@ -2772,7 +2777,11 @@ async function viewMemberDetail(v, id) {
       <div class="card"><h2>Thread</h2><div class="thread" id="thread">${threadHtml(msgs, S.me.id, p.id, names)}</div></div>
     </div>
     <div class="card" style="margin-top:16px" id="notes-card"><div class="card-h"><h2>📝 Member profile</h2><span class="muted" style="font-size:12px">Private · only admins see this</span></div>
-      <div class="secondary" style="font-size:13px;margin:-4px 0 10px">${r.txs.length} trade${r.txs.length === 1 ? "" : "s"} logged${r.txs.length ? ` · first ${ago(r.txs[0].executed_at)} · latest ${ago(r.txs.at(-1).executed_at)}` : ""} · joined ${ago(p.created_at)}</div>
+      <div class="secondary" style="font-size:13px;margin:-4px 0 10px">${r.txs.length} trade${r.txs.length === 1 ? "" : "s"} logged${r.txs.length ? ` · first ${ago(r.txs[0].executed_at)} · latest ${ago(r.txs.at(-1).executed_at)}` : ""} · signed up to the desk ${ago(p.created_at)}</div>
+      <div class="row" style="align-items:flex-end;margin-bottom:6px">
+        <label class="field" style="margin-bottom:0"><span>Joined ${esc(CONFIG.GROUP_NAME)} <span class="muted">(optional)</span></span><input type="date" id="cc-joined" max="${todayISO()}" value="${esc(p.cc_joined_on || "")}"></label>
+        <button class="btn" id="cc-joined-save" style="flex:none">Save date</button></div>
+      <div class="secondary" id="cc-joined-label" style="font-size:13px;margin-bottom:12px">${p.cc_joined_on ? "In " + esc(CONFIG.GROUP_NAME) + " since " + fmtJoined(p.cc_joined_on) : "No join date set yet."}</div>
       <label class="field"><span>Add a note about ${esc(memberName(p))}</span><textarea id="note-body" rows="3" maxlength="4000" placeholder="e.g. Prefers to DCA weekly. Sold TET in panic last dip, check in when it drops again."></textarea></label>
       <div class="row" style="justify-content:flex-end;margin-bottom:10px"><button class="btn primary" id="note-add" style="flex:none">Save note</button></div>
       <div id="notes-list"><div class="muted">Loading notes…</div></div></div>
@@ -2782,6 +2791,16 @@ async function viewMemberDetail(v, id) {
       <button class="btn" id="remove-member" style="color:var(--bad)">Remove ${esc(memberName(p))}</button></div>` : ""}`;
   $("#remove-member") && ($("#remove-member").onclick = () => removeMemberModal(p));
   bindMemberNotes(p, names);
+  $("#cc-joined-save").onclick = async () => {
+    const val = $("#cc-joined").value || null;
+    try {
+      const up = await api.updateProfile(p.id, { cc_joined_on: val });
+      Object.assign(S.admin.profiles.find(x => x.id === p.id), up); Object.assign(p, up);
+      if (p.id === S.me.id) S.me = up;
+      $("#cc-joined-label").innerHTML = val ? "In " + esc(CONFIG.GROUP_NAME) + " since " + fmtJoined(val) : "No join date set yet.";
+      toast(val ? "Join date saved" : "Join date cleared");
+    } catch (e) { toast(/cc_joined_on/.test(e.message || "") ? "Run supabase/cc_joined_on.sql in Supabase first" : "Couldn't save: " + (e.message || e)); }
+  };
   if (pf.holdings.length) { renderDonut("pie-member", pf.holdings, "Total", pf.totals.value); renderPerf("perf-member", pf.holdings); paintHero(r.txs, "hero-m"); }
   const th = $("#thread"); th.scrollTop = th.scrollHeight;
   v.querySelectorAll("[data-tpl]").forEach(b => b.onclick = () => { const ta = $("#body"); ta.value = (ta.value ? ta.value + "\n\n" : "") + TEMPLATES[+b.dataset.tpl][1]; ta.focus(); });
