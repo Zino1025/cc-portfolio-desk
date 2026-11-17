@@ -18,7 +18,7 @@ async function viewFeedback(v) {
     <div class="two-col">
       <div class="card">
         <h2>Portfolio review</h2>
-        ${req ? `<div class="callout">⏳ Review requested ${ago(S.me.review_requested_at)}${S.me.review_question ? `:\n“${esc(S.me.review_question)}”` : ""}</div>
+        ${req ? `<div class="callout">Review requested ${ago(S.me.review_requested_at)}${S.me.review_question ? `:\n“${esc(S.me.review_question)}”` : ""}</div>
                  <button class="btn" id="cancel-req">Cancel request</button>`
               : `<p class="secondary" style="margin-top:0">${S.me.last_reviewed_at ? `Last reviewed ${ago(S.me.last_reviewed_at)}.` : "Not reviewed yet."}</p>
                  <label class="field"><span>What do you want feedback on?</span><textarea id="req-q" maxlength="1000" placeholder="e.g. Am I too heavy on one coin? Should I take profit on X?"></textarea></label>

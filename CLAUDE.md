@@ -45,6 +45,14 @@ css/app.css: THEME 1 (tokens), LAYOUT 73, CONTROLS 104, TABLES 135, CHART 157, T
 - Buttons: never flat fills. Text buttons = `.btn` / `.btn.primary`. Icon buttons = `.icon-btn` (38 `.sm`, 40, 46 `.lg`) with an `ICON` svg and an `aria-label`. No emoji in buttons.
 - Old token names (`--text-primary`, `--text-secondary`, `--grid`, `--shadow`…) still work but don't use them in new code.
 
+## Design review (after every feature, before pushing)
+Build first, then check the new screen fits the rest of the app:
+- Same components and tokens as existing screens (no one-off styles, borders or flat fills).
+- No subtitles under page titles, no hints for obvious actions, no captions that just restate a label. Keep only text that changes what the user does (warnings, errors, real numbers).
+- Touch targets ≥44px on phones; inputs stay 16px (no iOS zoom).
+- 2–4 short choices = segmented buttons (`select.as-seg`), not a dropdown.
+- Look at it at 390px wide before pushing.
+
 ## Product rules
 - The name is spelled "Dkay", never "DKay".
 - Coins are shown by ticker only (TET, ACN, PAAL, VELO, OTK…), not full names.

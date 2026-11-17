@@ -209,7 +209,7 @@ async function viewMemberDetail(v, id) {
       <label class="field"><span>Add a note about ${esc(memberName(p))}</span><textarea id="note-body" rows="3" maxlength="4000" placeholder="e.g. Prefers to DCA weekly. Sold TET in panic last dip, check in when it drops again."></textarea></label>
       <div class="row" style="justify-content:flex-end;margin-bottom:10px"><button class="btn primary" id="note-add" style="flex:none">Save note</button></div>
       <div id="notes-list"><div class="muted">Loading notes…</div></div></div>
-    ${p.role !== "admin" && p.id !== S.me.id ? `<div class="card" style="margin-top:16px;border:1px solid color-mix(in srgb, var(--bad) 35%, transparent)">
+    ${p.role !== "admin" && p.id !== S.me.id ? `<div class="card" style="margin-top:16px;background:color-mix(in srgb, var(--bad) 7%, var(--surface-1))">
       <h2>Remove member</h2>
       <p class="secondary" style="margin-top:0;font-size:13px">Deletes ${esc(memberName(p))}'s account, trades, exit plan and messages. They lose access to the app. This can't be undone.</p>
       <button class="btn" id="remove-member" style="color:var(--bad)">Remove ${esc(memberName(p))}</button></div>` : ""}`;
@@ -258,7 +258,7 @@ async function bindMemberNotes(p, names) {
   const list = $("#notes-list"); if (!list) return;
   let notes = [];
   const paint = () => {
-    list.innerHTML = notes.length ? notes.map(n => `<div class="note-item" style="border-top:1px solid var(--border);padding:10px 0">
+    list.innerHTML = notes.length ? notes.map(n => `<div class="note-item" style="border-top:1px solid var(--track);padding:10px 0">
       <div style="white-space:pre-wrap">${esc(n.body)}</div>
       <div class="muted" style="font-size:12px;margin-top:4px;display:flex;gap:10px;align-items:center">${esc(names[n.author_id] || CONFIG.REVIEWER_NAME)} · ${ago(n.created_at)}
         <button class="btn" data-del-note="${esc(n.id)}" style="flex:none;margin-left:auto;padding:2px 10px;font-size:12px">Delete</button></div></div>`).join("")
@@ -289,7 +289,7 @@ function removeMemberModal(p) {
     <p class="secondary">Their account, trades, exit plan and messages are deleted for good, and they can't open the app anymore. They could sign up again later as a new member.</p>
     <label class="field"><span>Type <b>REMOVE</b> to confirm</span><input type="text" id="rm-confirm" autocomplete="off" autocapitalize="characters" enterkeyhint="done"></label>
     <div class="err" id="rm-err"></div>
-    <div class="row" style="justify-content:flex-end"><button class="btn" id="rm-no" style="flex:none">Cancel</button><button class="btn primary" id="rm-yes" style="flex:none;background:var(--bad);border-color:var(--bad)" disabled>Remove</button></div></div>`;
+    <div class="row" style="justify-content:flex-end"><button class="btn" id="rm-no" style="flex:none">Cancel</button><button class="btn danger" id="rm-yes" style="flex:none" disabled>Remove</button></div></div>`;
   document.body.appendChild(ov);
   const inp = $("#rm-confirm", ov), yes = $("#rm-yes", ov);
   inp.oninput = () => { yes.disabled = inp.value.trim().toUpperCase() !== "REMOVE"; };
