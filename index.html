@@ -283,6 +283,7 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
   #pj-table td { display:block; border:none; padding:0; white-space:normal; text-align:left; }
   #pj-table td[data-l]::before { content:attr(data-l); display:block; font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
   #pj-table td[data-l="Coin"] { grid-column:1 / -1; padding-right:28px; }
+  #pj-table td[data-l="Coin"]::before { display:none; }
   #pj-table td input { width:100% !important; }
   #pj-table .pj-rm { position:absolute; top:12px; right:0; }
   .top-inner { flex-wrap:wrap; }
@@ -385,7 +386,9 @@ function coinIcon(c) {
 }
 function coinCell(c) {
   const img = c.image ? `<img src="${esc(c.image)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'${esc((c.symbol||'?').slice(0,3).toUpperCase())}'}))">` : `<span class="ph">${esc((c.symbol || "?").slice(0, 3).toUpperCase())}</span>`;
-  return `<div class="coin">${img}<div><div>${esc(c.name || c.coin_id)}</div><div class="sym">${esc(c.symbol || "")}</div></div></div>`;
+  const name = c.name || c.coin_id || "", sym = c.symbol || "";
+  const dupSym = !sym || name.toLowerCase().split(/\s+/).includes(sym.toLowerCase());
+  return `<div class="coin">${img}<div><div>${esc(name)}</div>${dupSym ? "" : `<div class="sym">${esc(sym)}</div>`}</div></div>`;
 }
 
 /* ===================== COINGECKO ===================== */
@@ -1588,21 +1591,21 @@ function paintProj() {
   if (pieRows.length) renderDonut("pie-proj", pieRows, "Projected", T.proj);
   const tbl = $("#pj-table");
   if (!rows.length) { tbl.innerHTML = `<div class="empty">Tap <b>+ Add coin</b> to start${S.txs.length ? ", or <b>Load my portfolio</b>" : ""}.</div>`; return; }
-  tbl.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Coin</th><th>Amount</th><th class="r">Price now</th><th>Target price</th><th>×</th><th class="r">Projected value</th><th class="r">Profit</th><th></th></tr></thead><tbody>
+  tbl.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Coin</th><th>Amount</th><th class="r">Price</th><th>Target</th><th>×</th><th class="r">Projected</th><th class="r">Profit</th><th></th></tr></thead><tbody>
     ${rows.map((r, i) => { const c = calcs[i]; return `<tr data-row="${esc(r.id)}">
       <td data-l="Coin">${coinCell(r)}</td>
       <td data-l="Amount">${r.own ? `<div class="num">${fmtQty(c.qty)}</div><div class="muted" style="font-size:12px">paid ${fmtUsd(c.cost)}</div>`
         : `<input type="text" enterkeyhint="done" inputmode="decimal" data-f="invest" value="${esc(r.invest)}" placeholder="$ to invest" style="width:110px"><div class="muted" style="font-size:12px">${c.qty ? "= " + fmtQty(c.qty) + " coins" : "USD"}</div>
            <input type="text" enterkeyhint="done" inputmode="decimal" data-f="entry" value="${esc(r.entry)}" placeholder="buy at ${esc(fmtPrice(c.now))}" style="width:110px;margin-top:4px">`}</td>
-      <td class="r num" data-l="Price now">${fmtPrice(c.now)}<div class="muted" style="font-size:12px">${fmtUsd(c.valueNow)}</div></td>
-      <td data-l="Target price"><input type="text" enterkeyhint="done" inputmode="decimal" data-f="target" value="${esc(r.target !== "" ? r.target : (r.mult !== "" ? +c.target.toPrecision(6) : ""))}" placeholder="${esc(fmtPrice(c.now))}" style="width:115px">
-        ${c.mcapAtTarget ? `<div class="muted" style="font-size:11px">MC at target ${fmtUsd(c.mcapAtTarget, { compact: true })}</div>` : ""}</td>
-      <td data-l="Multiple ×"><input type="text" enterkeyhint="done" inputmode="decimal" data-f="mult" value="${esc(r.mult !== "" ? r.mult : (r.target !== "" && c.now > 0 ? +c.mult.toFixed(2) : ""))}" placeholder="1" style="width:64px"></td>
-      <td class="r num" data-l="Projected value">${fmtUsd(c.valueProj)}</td>
+      <td class="r num" data-l="Price">${fmtPrice(c.now)}<div class="muted" style="font-size:12px">${fmtUsd(c.valueNow)}</div></td>
+      <td data-l="Target"><input type="text" enterkeyhint="done" inputmode="decimal" data-f="target" value="${esc(r.target !== "" ? r.target : (r.mult !== "" ? +c.target.toPrecision(6) : ""))}" placeholder="${esc(fmtPrice(c.now))}" style="width:115px">
+        ${c.mcapAtTarget ? `<div class="muted" style="font-size:11px">MC ${fmtUsd(c.mcapAtTarget, { compact: true })}</div>` : ""}</td>
+      <td data-l="×"><input type="text" enterkeyhint="done" inputmode="decimal" data-f="mult" value="${esc(r.mult !== "" ? r.mult : (r.target !== "" && c.now > 0 ? +c.mult.toFixed(2) : ""))}" placeholder="1" style="width:64px"></td>
+      <td class="r num" data-l="Projected">${fmtUsd(c.valueProj)}</td>
       <td class="r num ${signCls(c.profit)}" data-l="Profit">${fmtUsd(c.profit)}<div style="font-size:12px">${c.cost > 0 ? fmtPct(c.roi) : ""}</div></td>
       <td class="pj-rm"><button class="link-btn" data-rm="${esc(r.id)}" style="color:var(--text-muted)" aria-label="Remove">✕</button></td>
     </tr>`; }).join("")}</tbody></table></div>
-    <div class="hint">"Target price" and "×" are linked: type either one. MC = the market cap the coin would need at that price, a quick reality check.</div>`;
+    <div class="hint">Target and × update each other. MC = market cap at target.</div>`;
   const commit = debounce(() => paintProjKeepFocus(), 600);
   tbl.querySelectorAll("input[data-f]").forEach(inp => inp.oninput = () => {
     const r = rows.find(x => x.id === inp.closest("tr").dataset.row), f = inp.dataset.f;
