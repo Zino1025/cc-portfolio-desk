@@ -417,21 +417,21 @@ function coinIcon(c) {
   const ab = esc((c.symbol || "?").slice(0, 3).toUpperCase());
   return c.image ? `<img src="${esc(c.image)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'${ab}'}))">` : `<span class="ph">${ab}</span>`;
 }
-function coinCell(c) {
+/** Coins are shown by ticker (TET, ACN, PAAL…). showName adds the full name underneath, only where it helps tell coins apart (search results). */
+function coinCell(c, showName = false) {
   const img = c.image ? `<img src="${esc(c.image)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'${esc((c.symbol||'?').slice(0,3).toUpperCase())}'}))">` : `<span class="ph">${esc((c.symbol || "?").slice(0, 3).toUpperCase())}</span>`;
-  const name = c.name || c.coin_id || "", sym = c.symbol || "";
-  const dupSym = !sym || name.toLowerCase().split(/[^a-z0-9]+/).includes(sym.toLowerCase());
-  return `<div class="coin">${img}<div><div>${esc(name)}</div>${dupSym ? "" : `<div class="sym">${esc(sym)}</div>`}</div></div>`;
+  const sym = String(c.symbol || "").toUpperCase(), name = c.name || c.coin_id || "";
+  const main = sym || name, sub = showName && sym && name && name.toUpperCase() !== sym ? name : "";
+  return `<div class="coin">${img}<div><div style="font-weight:600">${esc(main)}</div>${sub ? `<div class="sym" style="text-transform:none">${esc(sub)}</div>` : ""}</div></div>`;
 }
 
 /** "Tectum (TET)", but just "PAAL AI" / "Velo" when the name already says the ticker. */
+/** Ticker only: "TET", "PAAL". Falls back to the name when there's no ticker; "Tectum (TET)" → "TET". */
 function nameSym(name, sym) {
-  name = String(name || "").trim(); sym = String(sym || "").trim().toUpperCase();
-  if (!name) return sym; if (!sym) return name;
-  const m = name.match(/^(.*?)\s*\(([^)]+)\)$/); if (m) return nameSym(m[1], m[2]);   // already "Name (SYM)"
-  return name.toLowerCase().split(/[^a-z0-9]+/).includes(sym.toLowerCase()) || name.toUpperCase() === sym ? name : `${name} (${sym})`;
+  sym = String(sym || "").trim().toUpperCase(); if (sym) return sym;
+  name = String(name || "").trim(); const m = name.match(/\(([^)]+)\)\s*$/); return m ? m[1].toUpperCase() : name;
 }
-function coinLabel(id, label) { return label ? nameSym(label) : nameSym(CG.info(id)?.name || SAMPLE_PRICES[id]?.name, symOf(id)); }
+function coinLabel(id) { return symOf(id); }
 
 /* ===================== COINGECKO ===================== */
 const CG = {
@@ -439,10 +439,20 @@ const CG = {
   cache: {},          // id -> { price, change24, mcap, image, symbol, name, at }
   offline: false,
   headers() { return CONFIG.COINGECKO_DEMO_KEY ? { "x-cg-demo-api-key": CONFIG.COINGECKO_DEMO_KEY } : {}; },
-  async get(path) {
+  async get(path, retry = 1) {
     const r = await fetch(this.base + path, { headers: this.headers() });
+    if (r.status === 429 && retry > 0) { await new Promise(res => setTimeout(res, 2500)); return this.get(path, retry - 1); }   // free plan rate limit: wait and try once more
     if (!r.ok) throw new Error("CoinGecko " + r.status);
     return r.json();
+  },
+  /** Fresh spot price for one coin (cheap endpoint), used by the live price charts. */
+  async live(id) {
+    const d = await this.get(`/simple/price?ids=${encodeURIComponent(id)}&vs_currencies=usd&include_24hr_change=true`);
+    const r = d && d[id]; if (!r || !Number.isFinite(r.usd)) throw new Error("no price");
+    const c = this.cache[id] || {};
+    this.cache[id] = { ...c, price: r.usd, change24: r.usd_24h_change ?? c.change24, at: Date.now(), sample: false, liveAt: Date.now() };
+    this.offline = false;
+    return this.cache[id];
   },
   /** Make sure we have fresh market data for these coin ids (batched). */
   async ensure(ids, maxAgeMs = 60000) {
@@ -729,7 +739,7 @@ function renderDonut(canvasId, holdings, totalLabel, totalValue) {
     options: {
       cutout: "74%", layout: { padding: 4 }, maintainAspectRatio: false, animation: { duration: 300 },
       plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
-        callbacks: { title: (it) => slices[it[0].dataIndex].name || slices[it[0].dataIndex].label, label: (it) => `${fmtUsd(slices[it.dataIndex].value)} · ${slices[it.dataIndex].alloc.toFixed(1)}%` } } },
+        callbacks: { title: (it) => slices[it[0].dataIndex].label, label: (it) => `${fmtUsd(slices[it.dataIndex].value)} · ${slices[it.dataIndex].alloc.toFixed(1)}%` } } },
     },
   });
   const center = el.parentElement.querySelector(".chart-center");
@@ -819,6 +829,7 @@ async function paintHero(txs, chartId = "hero") {
   });
   if (!S.charts[chartId]) box.innerHTML = `<div class="note">Loading chart…</div>`;
   const pts = await portfolioHistory(txs, days).catch(() => null);
+  if (pts && pts.length) { const live = computePortfolio(txs).totals.value; if (live > 0) pts[pts.length - 1] = { ...pts[pts.length - 1], t: Date.now(), value: live }; }   // end on the live value shown above
   if (tok !== S.heroTok || !document.body.contains(box)) return;
   if (S.charts[chartId]) { S.charts[chartId].destroy(); delete S.charts[chartId]; }
   const per = document.getElementById(chartId + "-period");
@@ -833,70 +844,123 @@ async function paintHero(txs, chartId = "hero") {
   const key = document.getElementById(chartId + "-key"); if (key) key.style.background = col;
   const fmtT = (t) => new Date(t).toLocaleString(undefined, days <= 7 ? { month: "short", day: "numeric", hour: "numeric" } : { month: "short", day: "numeric", year: days > 90 ? "2-digit" : undefined });
   S.charts[chartId] = new Chart(document.getElementById(chartId + "-cv"), {
-    type: "line",
+    type: "line", plugins: [lastTagPlugin],
     data: { labels: pts.map(p => p.t), datasets: [
       { data: pts.map(p => p.value), borderColor: col, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: col, tension: 0.35, fill: true,
         backgroundColor: (c) => { const ca = c.chart.chartArea; if (!ca) return "transparent"; const g = c.chart.ctx.createLinearGradient(0, ca.top, 0, ca.bottom); g.addColorStop(0, rgba(col, 0.32)); g.addColorStop(1, rgba(col, 0)); return g; } },
       { data: pts.map(p => p.invested), borderColor: muted, borderWidth: 1.5, borderDash: [4, 3], pointRadius: 0, pointHoverRadius: 0, tension: 0, fill: false, stepped: true },
     ] },
     options: {
-      maintainAspectRatio: false, animation: { duration: 400 }, interaction: { mode: "index", intersect: false },
-      layout: { padding: { left: 6, right: 6 } },
-      scales: { x: { display: false }, y: { display: false, grace: "8%" } },
-      plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
+      maintainAspectRatio: false, animation: { duration: 400 }, interaction: { mode: "index", intersect: false }, events: TAP_EVENTS,
+      layout: { padding: { left: 2, right: 2, top: 8 } },
+      scales: readableScales(pts.map(p => p.t), days, compactUsd),
+      plugins: { legend: { display: false }, lastTag: { color: col, text: (v) => fmtUsd(v, { compact: true }) }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
         callbacks: { title: (it) => fmtT(pts[it[0].dataIndex].t), label: (it) => (it.datasetIndex ? "Invested " : "Value ") + fmtUsd(it.raw) } } },
     },
   });
 }
-/* ---------- Price charts: BTC, ETH and the group's coins ---------- */
+/* ---------- Chart helpers: price tag on the last point, readable axes, tap tooltips ---------- */
+const lastTagPlugin = {
+  id: "lastTag",
+  afterDatasetsDraw(chart, args, o) {
+    const meta = chart.getDatasetMeta(0), pt = meta && meta.data[meta.data.length - 1]; if (!pt || !o || !o.text) return;
+    const { ctx, chartArea: ca } = chart, text = o.text(chart.data.datasets[0].data[meta.data.length - 1]);
+    ctx.save(); ctx.font = "700 12px system-ui, -apple-system, sans-serif";
+    const w = ctx.measureText(text).width + 14, h = 22, x = Math.min(ca.right - w, pt.x - w / 2 > ca.left ? ca.right - w : ca.left), y = Math.max(ca.top, Math.min(ca.bottom - h, pt.y - h / 2));
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2); ctx.fillStyle = o.color; ctx.fill();
+    ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y - h - 6 > ca.top ? y - h - 6 : y + 10, w, h, 11); else ctx.rect(x, y - h - 6 > ca.top ? y - h - 6 : y + 10, w, h);
+    ctx.fillStyle = o.color; ctx.fill();
+    ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(text, x + 7, (y - h - 6 > ca.top ? y - h - 6 : y + 10) + h / 2);
+    ctx.restore();
+  },
+};
+const compactUsd = (v) => Math.abs(v) >= 1000 ? "$" + new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: Math.abs(v) >= 1e5 ? 0 : 1 }).format(v) : fmtPrice(v);
+function readableScales(times, days, yFmt) {
+  const fmtX = (t) => new Date(t).toLocaleString(undefined, days <= 1 ? { hour: "numeric", minute: "2-digit" } : days <= 7 ? { weekday: "short" } : days <= 90 ? { month: "short", day: "numeric" } : { month: "short", year: "2-digit" });
+  return {
+    x: { grid: { display: false }, border: { display: false }, ticks: { color: cssVar("--text-muted"), font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 4, callback: (v, i) => fmtX(times[i]) } },
+    y: { position: "right", grace: "8%", grid: { color: cssVar("--grid") }, border: { display: false }, ticks: { color: cssVar("--text-muted"), font: { size: 11 }, maxTicksLimit: 4, callback: yFmt } },
+  };
+}
+const tapTooltip = (title, label) => ({ backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false, callbacks: { title, label } });
+const TAP_EVENTS = ["mousemove", "mouseout", "click", "touchstart", "touchmove"];
+
+/* ---------- Price charts: BTC, ETH and the group's coins (live) ---------- */
 const PRICE_PERIODS = [[1, "24H"], [7, "7D"], [30, "1M"], [90, "3M"], [365, "1Y"]];
 function priceChartCoins() { return [...new Set(["bitcoin", "ethereum", ...modelCoinIds()])]; }
 function priceChartCard() {
   const coins = priceChartCoins();
   if (!coins.includes(S.pcCoin)) S.pcCoin = coins[0];
-  const days = S.pcDays || 30;
+  const days = S.pcDays || 1;
   return `<div class="card hero" id="pc-card">
-    <div class="hero-head"><div><div class="label">Price charts</div>
+    <div class="chips" id="pc-coins">${coins.map(id => `<button class="chip ${id === S.pcCoin ? "on" : ""}" data-c="${esc(id)}">${esc(symOf(id))}</button>`).join("")}</div>
+    <div class="hero-head" style="margin-top:14px"><div><div class="label"><b id="pc-sym" style="color:var(--text-primary)">${esc(symOf(S.pcCoin))}</b> · <span id="pc-live">loading live price…</span></div>
       <div class="big num" id="pc-price">—</div>
       <div class="chg" id="pc-chg"></div></div>
       <div class="periods" id="pc-periods">${PRICE_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
-    <div class="chips" id="pc-coins" style="margin-top:12px">${coins.map(id => `<button class="chip ${id === S.pcCoin ? "on" : ""}" data-c="${esc(id)}">${esc(symOf(id))}</button>`).join("")}</div>
-    <div class="hero-chart" id="pc-chart"></div>
-    <div class="hero-key"><span id="pc-name"></span><span style="margin-left:auto" class="num" id="pc-range"></span></div>
+    <div class="hero-chart" id="pc-chart" style="height:240px"></div>
+    <div class="hero-key"><span class="num" id="pc-range"></span><a style="margin-left:auto;color:var(--text-muted)" id="pc-cg" target="_blank" rel="noopener">CoinGecko ↗</a></div>
+    <div class="hint" style="margin-top:6px">Tap or drag on the chart to see the price at any point. Live price refreshes every 30 seconds.</div>
   </div>`;
+}
+function pcHeader() {
+  const id = S.pcCoin, info = CG.info(id) || {}, el = document.getElementById("pc-price"); if (!el) return;
+  const live = info.price != null && !info.sample;
+  el.textContent = live ? fmtPrice(info.price) : "—";
+  $("#pc-sym").textContent = symOf(id);
+  const ago = info.liveAt || info.at; const secs = ago ? Math.max(0, Math.round((Date.now() - ago) / 1000)) : null;
+  $("#pc-live").innerHTML = live ? `<span style="color:var(--good)">● Live</span> · ${secs < 60 ? "updated " + secs + "s ago" : "updated " + Math.round(secs / 60) + "m ago"}` : `<span class="bad">Live price unavailable</span> · CoinGecko is busy, retrying`;
+  const ch = info.change24;
+  const per = S.pcPeriodChg;
+  $("#pc-chg").innerHTML = (live && ch != null ? `<span class="pill ${signCls(ch)}">${arrow(ch)} ${fmtPct(ch)}</span><span>24h</span>` : "") +
+    (per && (S.pcDays || 1) !== 1 ? `<span class="pill ${signCls(per.chg)}" style="margin-left:6px">${arrow(per.chg)} ${fmtPct(per.chg)}</span><span>${per.label}</span>` : "");
+}
+async function pcTick() {
+  const id = S.pcCoin; if (!document.getElementById("pc-card") || document.hidden) return;
+  try { await CG.live(id); } catch (e) {}
+  if (id !== S.pcCoin) return;
+  const c = S.charts.pc, info = CG.info(id);
+  if (c && info && !info.sample && info.price != null) {   // extend the line with the live price
+    const ds = c.data.datasets[0], last = c.data.labels[c.data.labels.length - 1];
+    if (Date.now() - last > 60000) { c.data.labels.push(Date.now()); ds.data.push(info.price); }
+    else ds.data[ds.data.length - 1] = info.price;
+    c.update("none");
+  }
+  pcHeader();
 }
 async function paintPriceChart() {
   const box = document.getElementById("pc-chart"); if (!box) return;
-  const id = S.pcCoin, days = S.pcDays || 30, tok = (S.pcTok = (S.pcTok || 0) + 1);
+  const id = S.pcCoin, days = S.pcDays || 1, tok = (S.pcTok = (S.pcTok || 0) + 1);
   document.querySelectorAll("#pc-coins [data-c]").forEach(b => { b.classList.toggle("on", b.dataset.c === id); b.onclick = () => { S.pcCoin = b.dataset.c; paintPriceChart(); }; });
   document.querySelectorAll("#pc-periods [data-d]").forEach(b => { b.classList.toggle("on", +b.dataset.d === days); b.onclick = () => { S.pcDays = +b.dataset.d; paintPriceChart(); }; });
-  const info = CG.info(id) || {};
-  $("#pc-price").textContent = info.price != null ? fmtPrice(info.price) : "—";
-  $("#pc-name").innerHTML = `<a href="${coinLink(id)}" target="_blank" rel="noopener" style="color:inherit">${esc(info.name || id)} on CoinGecko ↗</a>`;
+  $("#pc-cg").href = coinLink(id);
+  S.pcPeriodChg = null; pcHeader();
+  clearInterval(S.pcTimer); S.pcTimer = setInterval(pcTick, 30000);
   if (!S.charts.pc) box.innerHTML = `<div class="note">Loading chart…</div>`;
-  let pts = null; try { pts = await CG.chart(id, days); } catch (e) { CG.offline = true; }
+  const [pts] = await Promise.all([CG.chart(id, days).catch(() => null), CG.live(id).catch(() => null)]);
   if (tok !== S.pcTok || !document.body.contains(box)) return;
+  pcHeader();
   if (S.charts.pc) { S.charts.pc.destroy(); delete S.charts.pc; }
-  if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">${CG.offline ? "Price history needs live CoinGecko data. Try again in a minute." : "No price history for this coin yet."}</div>`; $("#pc-chg").innerHTML = ""; $("#pc-range").textContent = ""; return; }
-  const first = pts[0][1], last = info.price ?? pts[pts.length - 1][1], chg = (last - first) / first * 100;
-  $("#pc-price").textContent = fmtPrice(last);
-  const lo = Math.min(...pts.map(p => p[1])), hi = Math.max(...pts.map(p => p[1]));
-  const label = PRICE_PERIODS.find(x => x[0] === days)?.[1] || "";
-  $("#pc-chg").innerHTML = `<span class="pill ${signCls(chg)}">${arrow(chg)} ${fmtPct(chg)}</span><span>${label}</span>`;
+  if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">Couldn't load ${esc(symOf(id))} price history (CoinGecko is busy). Tap the period again in a minute.</div>`; $("#pc-range").textContent = ""; return; }
+  const data = pts.map(p => [p[0], p[1]]), info = CG.info(id);
+  if (info && !info.sample && info.price != null) data.push([Date.now(), info.price]);   // end on the live price
+  const first = data[0][1], last = data[data.length - 1][1], chg = (last - first) / first * 100;
+  const lo = Math.min(...data.map(p => p[1])), hi = Math.max(...data.map(p => p[1]));
+  S.pcPeriodChg = { chg, label: PRICE_PERIODS.find(x => x[0] === days)?.[1] || "" }; pcHeader();
   $("#pc-range").textContent = `Low ${fmtPrice(lo)} · High ${fmtPrice(hi)}`;
   box.innerHTML = `<canvas id="pc-cv" role="img" aria-label="${esc(symOf(id))} price chart"></canvas>`;
-  const col = cssVar(chg < 0 ? "--bad" : "--good");
-  const fmtT = (t) => new Date(t).toLocaleString(undefined, days <= 7 ? { month: "short", day: "numeric", hour: "numeric", minute: days <= 1 ? "2-digit" : undefined } : { month: "short", day: "numeric", year: days > 90 ? "2-digit" : undefined });
+  const col = cssVar(chg < 0 ? "--bad" : "--good"), times = data.map(p => p[0]);
+  const fmtT = (t) => new Date(t).toLocaleString(undefined, days <= 7 ? { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric", year: "numeric" });
   S.charts.pc = new Chart(document.getElementById("pc-cv"), {
-    type: "line",
-    data: { labels: pts.map(p => p[0]), datasets: [{ data: pts.map(p => p[1]), borderColor: col, borderWidth: 2.2, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: col, tension: 0.25, fill: true,
+    type: "line", plugins: [lastTagPlugin],
+    data: { labels: times, datasets: [{ data: data.map(p => p[1]), borderColor: col, borderWidth: 2.2, pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: col, tension: 0.2, fill: true,
       backgroundColor: (c) => { const ca = c.chart.chartArea; if (!ca) return "transparent"; const g = c.chart.ctx.createLinearGradient(0, ca.top, 0, ca.bottom); g.addColorStop(0, rgba(col, 0.3)); g.addColorStop(1, rgba(col, 0)); return g; } }] },
     options: {
-      maintainAspectRatio: false, animation: { duration: 350 }, interaction: { mode: "index", intersect: false },
-      layout: { padding: { left: 6, right: 6 } },
-      scales: { x: { display: false }, y: { position: "right", grace: "6%", grid: { color: cssVar("--grid") }, border: { display: false }, ticks: { color: cssVar("--text-muted"), maxTicksLimit: 4, callback: (v) => v >= 1000 ? "$" + new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(v) : fmtPrice(v) } } },
-      plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
-        callbacks: { title: (it) => fmtT(pts[it[0].dataIndex][0]), label: (it) => fmtPrice(it.raw) } } },
+      maintainAspectRatio: false, animation: { duration: 300 }, interaction: { mode: "index", intersect: false }, events: TAP_EVENTS,
+      layout: { padding: { left: 2, right: 2, top: 8 } },
+      scales: readableScales(times, days, compactUsd),
+      plugins: { legend: { display: false }, lastTag: { color: col, text: (v) => fmtPrice(v) },
+        tooltip: tapTooltip((it) => fmtT(S.charts.pc.data.labels[it[0].dataIndex]), (it) => symOf(id) + " " + fmtPrice(it.raw)) },
     },
   });
 }
@@ -919,7 +983,7 @@ function renderPerf(id, holdings) {
         y: { grid: { display: false }, border: { display: false }, ticks: { color: cssVar("--text-primary"), font: { weight: 600 } } },
       },
       plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
-        callbacks: { title: (it) => hs[it[0].dataIndex].name, label: (it) => `${fmtPct(hs[it.dataIndex].pnlPct)} · ${signed(hs[it.dataIndex].pnl)}` } } },
+        callbacks: { title: (it) => (hs[it[0].dataIndex].symbol || hs[it[0].dataIndex].coin_id).toUpperCase(), label: (it) => `${fmtPct(hs[it.dataIndex].pnlPct)} · ${signed(hs[it.dataIndex].pnl)}` } } },
     },
   });
 }
@@ -978,7 +1042,7 @@ function render() { renderShell(); }
 window.addEventListener("hashchange", () => { if (location.hash !== "#trades") S.tradeFilter = null; S.me && render(); });
 
 async function renderView(route) {
-  Object.values(S.charts).forEach(c => c.destroy()); S.charts = {};
+  Object.values(S.charts).forEach(c => c.destroy()); S.charts = {}; clearInterval(S.pcTimer);
   const v = $("#view");
   if (route === "overview") return viewOverview(v);
   if (route === "trades") return viewTrades(v);
@@ -1216,7 +1280,7 @@ function openTradeModal(existing, presetCoinId) {
       dd.classList.remove("hidden"); dd.innerHTML = `<div class="opt muted">Searching…</div>`;
       const res = await CG.search(s);
       if (!res.length) { dd.innerHTML = `<div class="opt muted">No coins found. Try the ticker or paste the CoinGecko page link.</div>`; return; }
-      dd.innerHTML = res.map((c, i) => `<div class="opt" data-i="${i}">${coinCell({ ...c, coin_id: c.id })}<span class="muted" style="font-size:12px">${c.rank ? "#" + c.rank : ""}</span></div>`).join("");
+      dd.innerHTML = res.map((c, i) => `<div class="opt" data-i="${i}">${coinCell({ ...c, coin_id: c.id }, true)}<span class="muted" style="font-size:12px">${c.rank ? "#" + c.rank : ""}</span></div>`).join("");
       dd.querySelectorAll(".opt[data-i]").forEach(o => o.onclick = () => { coin = res[+o.dataset.i]; paintCoin(); });
     }, 350);
     q.oninput = run;
@@ -1789,7 +1853,7 @@ function openCoinPicker(onPick) {
     dd.classList.remove("hidden"); dd.innerHTML = `<div class="opt muted">Searching…</div>`;
     const res = await CG.search(s);
     if (!res.length) { dd.innerHTML = `<div class="opt muted">No coins found.</div>`; return; }
-    dd.innerHTML = res.map((c, i) => `<div class="opt" data-i="${i}">${coinCell({ ...c, coin_id: c.id })}<span class="muted" style="font-size:12px">${c.rank ? "#" + c.rank : ""}</span></div>`).join("");
+    dd.innerHTML = res.map((c, i) => `<div class="opt" data-i="${i}">${coinCell({ ...c, coin_id: c.id }, true)}<span class="muted" style="font-size:12px">${c.rank ? "#" + c.rank : ""}</span></div>`).join("");
     dd.querySelectorAll(".opt[data-i]").forEach(o => o.onclick = () => { close(); onPick(res[+o.dataset.i]); });
   }, 350);
 }
@@ -2084,7 +2148,7 @@ function planTable(plan, m) {
 }
 function mixSliders(m, mix) {
   const pool = poolSize(m);
-  return m.fixed.map(f => `<div class="bucket"><div class="bucket-head"><b>${esc(coinLabel(f.coin, f.label))}</b><span class="num"><b>${num(f.pct).toFixed(0)}%</b> <span class="muted">fixed</span></span></div></div>`).join("") +
+  return m.fixed.map(f => `<div class="bucket"><div class="bucket-head"><b>${esc(coinLabel(f.coin))}</b><span class="num"><b>${num(f.pct).toFixed(0)}%</b> <span class="muted">fixed</span></span></div></div>`).join("") +
     `<div class="bucket" style="border-bottom:none;padding-bottom:0"><div class="bucket-head"><b>Flexible ${pool}%</b><span class="muted" style="font-size:13px">split it your way</span></div></div>` +
     m.flex.map(f => `<div class="bucket flex">
       <div class="bucket-head"><span>${esc(coinLabel(f.coin))}</span><span class="num"><b id="fx-${esc(f.coin)}">${num(mix[f.coin]).toFixed(1)}%</b> <span class="muted">max ${Math.min(num(f.max) || pool, pool)}%</span></span></div>
@@ -2264,12 +2328,12 @@ async function viewUpdates(v) {
       <div class="muted" style="font-size:12px;margin-top:8px">Posted ${ago(u.created_at)}${u.expires_at ? ` · expires ${fmtDate(u.expires_at, false)}` : ""}${isAdmin() ? ` · <button class="link-btn" data-del-up="${esc(u.id)}">Remove</button>` : ""}</div></div>`; };
   v.innerHTML = `
     <div class="page-head"><div><h1>Market updates</h1><div class="secondary">${esc(CONFIG.REVIEWER_NAME)}'s weekly summary and urgent bids, plus automatic alerts when a model coin drops hard.</div></div><button class="btn" id="reload">Refresh</button></div>
+    ${priceChartCard()}
     <div class="kpis">
       ${g ? groupKpi(g) : ""}
       <div class="card kpi"><div class="label">Your portfolio, 7 days</div><div class="value num ${signCls(my7)}">${fmtUsd(my7)}</div><div class="sub num ${signCls(my7)}">${pf.totals.value - my7 > 0 ? fmtPct(my7 / (pf.totals.value - my7) * 100) : "—"}</div></div>
       <div class="card kpi"><div class="label">Active alerts</div><div class="value num ${urgent.length + drops.length ? "bad" : ""}">${urgent.length + drops.length}</div><div class="sub muted">${urgent.length} urgent bid${urgent.length === 1 ? "" : "s"} · ${drops.length} price drop${drops.length === 1 ? "" : "s"}</div></div>
     </div>
-    ${priceChartCard()}
     <h2 class="section-h">⚡ Urgent bids</h2>
     ${urgent.length || drops.length ? "" : `<div class="card empty" style="padding:20px">No urgent bids right now. You'll see one here (and get a Telegram ping) when ${esc(CONFIG.REVIEWER_NAME)} posts one.</div>`}
     <div class="grid">${urgent.map(bidCard).join("")}
@@ -2281,9 +2345,9 @@ async function viewUpdates(v) {
     <h2 class="section-h">📰 Weekly summary</h2>
     <div class="card">${latest ? `<div class="muted" style="font-size:12px">${fmtDate(latest.created_at, false)} · ${esc(CONFIG.REVIEWER_NAME)}${isAdmin() ? ` · <button class="link-btn" data-del-up="${esc(latest.id)}">Remove</button>` : ""}</div><h2 style="margin:6px 0 8px">${esc(latest.title)}</h2><div style="white-space:pre-wrap">${esc(latest.body || "")}</div>`
       : `<div class="empty" style="padding:16px">No weekly summary posted yet.</div>`}</div>
-    <div class="card" style="margin-top:16px"><h2>Model coins this week</h2>
+    <div class="card" style="margin-top:16px"><h2>Model coins this week <span class="muted" style="font-weight:400;font-size:13px">· tap a coin for its chart</span></h2>
       ${coinRows.length ? `<div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Price</th><th class="r">24h</th><th class="r">7d</th><th class="r hide-sm">Market cap</th></tr></thead><tbody>
-      ${coinRows.map(({ id, i }) => `<tr><td><a href="${coinLink(id)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${coinCell({ coin_id: id, symbol: i.symbol, name: i.name, image: i.image })}</a></td><td class="r num">${fmtPrice(i.price)}</td><td class="r num ${signCls(i.change24)}">${fmtPct(i.change24)}</td><td class="r num ${signCls(i.change7)}">${i.change7 == null ? "—" : fmtPct(i.change7)}</td><td class="r num hide-sm">${i.mcap ? fmtUsd(i.mcap, { compact: true }) : "—"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">No price data.</div>`}</div>
+      ${coinRows.map(({ id, i }) => `<tr data-chart="${esc(id)}" style="cursor:pointer" title="Show ${esc(symOf(id))} chart"><td>${coinCell({ coin_id: id, symbol: i.symbol, name: i.name, image: i.image })}</td><td class="r num">${fmtPrice(i.price)}</td><td class="r num ${signCls(i.change24)}">${fmtPct(i.change24)}</td><td class="r num ${signCls(i.change7)}">${i.change7 == null ? "—" : fmtPct(i.change7)}</td><td class="r num hide-sm">${i.mcap ? fmtUsd(i.mcap, { compact: true }) : "—"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">No price data.</div>`}</div>
     ${weeklies.length > 1 ? `<div class="card" style="margin-top:16px"><h2>Past summaries</h2>${weeklies.slice(1, 12).map(w => `<details class="past"><summary><b>${esc(w.title)}</b> <span class="muted">· ${fmtDate(w.created_at, false)}</span></summary><div style="white-space:pre-wrap;margin-top:6px">${esc(w.body || "")}</div></details>`).join("")}</div>` : ""}
     ${isAdmin() ? `<div class="two-col" style="margin-top:16px">
       <div class="card"><h2>Post an urgent bid</h2>
@@ -2300,6 +2364,7 @@ async function viewUpdates(v) {
         <div class="hint">Everyone linked on Telegram gets a ping with the first lines.</div></div>
     </div>` : ""}`;
   paintPriceChart();
+  v.querySelectorAll("[data-chart]").forEach(tr => tr.onclick = () => { S.pcCoin = tr.dataset.chart; paintPriceChart(); $("#pc-card").scrollIntoView({ behavior: "smooth", block: "start" }); });
   $("#reload").onclick = async () => { await CG.ensure(["bitcoin", "ethereum", ...modelCoinIds(m)], 0); CG.hist = {}; render(); };
   v.querySelectorAll("[data-del-up]").forEach(b => b.onclick = () => confirmModal("Remove this post?", "It disappears for everyone. Telegram messages already sent stay in their chats.", async () => { await api.deleteUpdate(b.dataset.delUp); render(); }));
   if (!isAdmin()) return;
@@ -2593,7 +2658,7 @@ async function viewExit(v) {
     const shown = new Set(coins.map(c => c.id)), shownTps = new Set(coins.map(c => c.tp).filter(Boolean));
     const opts = getTps().filter(t => t.coin && !shown.has(t.coin) && !shownTps.has(t));
     const sel = $("#ex-add-sel"), btn = $("#ex-add-btn");
-    sel.innerHTML = opts.length ? `<option value="">Select a coin</option>` + opts.map(t => `<option value="${esc(t.coin)}" data-sym="${esc(t.sym)}">${esc(t.label ? nameSym(t.label) : t.sym)}${t.main ? "" : " (other)"}</option>`).join("") : `<option value="">All of ${esc(CONFIG.REVIEWER_NAME)}'s target coins are in your plan</option>`;
+    sel.innerHTML = opts.length ? `<option value="">Select a coin</option>` + opts.map(t => `<option value="${esc(t.coin)}" data-sym="${esc(t.sym)}">${esc(t.sym || nameSym(t.label))}${t.main ? "" : " (other)"}</option>`).join("") : `<option value="">All of ${esc(CONFIG.REVIEWER_NAME)}'s target coins are in your plan</option>`;
     sel.disabled = !opts.length; btn.disabled = !opts.length;
   };
   $("#ex-add-btn").onclick = () => { const sel = $("#ex-add-sel"); if (!sel.value) return sel.focus(); addCoin(sel.value, sel.selectedOptions[0]?.dataset.sym); };
@@ -2604,7 +2669,7 @@ async function viewExit(v) {
       dd.classList.remove("hidden"); dd.innerHTML = `<div class="opt muted">Searching…</div>`;
       const res = (await CG.search(s)).filter(c => !STABLE_IDS.includes(c.id));
       if (!res.length) { dd.innerHTML = `<div class="opt muted">No coins found.</div>`; return; }
-      dd.innerHTML = res.map((c, i) => `<div class="opt" data-i="${i}">${coinCell({ ...c, coin_id: c.id })}<span class="muted" style="font-size:12px">${coins.some(x => x.id === c.id) ? "in your plan" : tpFor(c.id, c.symbol) ? "has targets" : c.rank ? "#" + c.rank : ""}</span></div>`).join("");
+      dd.innerHTML = res.map((c, i) => `<div class="opt" data-i="${i}">${coinCell({ ...c, coin_id: c.id }, true)}<span class="muted" style="font-size:12px">${coins.some(x => x.id === c.id) ? "in your plan" : tpFor(c.id, c.symbol) ? "has targets" : c.rank ? "#" + c.rank : ""}</span></div>`).join("");
       dd.querySelectorAll(".opt[data-i]").forEach(o => o.onclick = () => { const c = res[+o.dataset.i]; q.value = ""; dd.classList.add("hidden"); q.blur(); addCoin(c.id, c.symbol); });
     }, 350);
     q.oninput = run;
