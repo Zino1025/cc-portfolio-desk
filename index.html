@@ -433,6 +433,16 @@ function nameSym(name, sym) {
 }
 function coinLabel(id) { return symOf(id); }
 
+/** CoinGecko renamed some coin ids (ACN after the AITECH migration, OTK). Saved trades, plans and settings may
+ *  still use the old ids, so everything read from the database is translated to the current ones. */
+const COIN_ID_RENAMES = { "solidus-ai-tech": "solidus-aitech", "octokn": "octo-gaming" };
+function canonIds(data) {
+  if (data == null || typeof data !== "object") return typeof data === "string" && COIN_ID_RENAMES[data] ? COIN_ID_RENAMES[data] : data;
+  let j = JSON.stringify(data), changed = false;
+  for (const [o, n] of Object.entries(COIN_ID_RENAMES)) if (j.includes('"' + o + '"')) { j = j.split('"' + o + '"').join('"' + n + '"'); changed = true; }
+  return changed ? JSON.parse(j) : data;
+}
+
 /* ===================== COINGECKO ===================== */
 const CG = {
   base: "https://api.coingecko.com/api/v3",
@@ -504,9 +514,9 @@ const SAMPLE_PRICES = {
   "solana":          { name: "Solana", symbol: "sol", price: 180, change24: 2.4, rank: 5 },
   "paal-ai":         { name: "PAAL AI", symbol: "paal", price: 0.08, change24: -3.1, rank: 700 },
   "velo":            { name: "Velo", symbol: "velo", price: 0.012, change24: 4.6, rank: 600 },
-  "octokn":          { name: "Octo Gaming", symbol: "otk", price: 0.004, change24: -1.9, rank: 1500 },
+  "octo-gaming":          { name: "Octo Gaming", symbol: "otk", price: 0.004, change24: -1.9, rank: 1500 },
   "tectum":          { name: "Tectum", symbol: "tet", price: 1.2, change24: -17.5, change7: -21.0, rank: 1800 },
-  "solidus-ai-tech": { name: "AITECH Cloud Network", symbol: "acn", price: 0.03, change24: 6.2, change7: 11.4, rank: 650 },
+  "solidus-aitech": { name: "AITECH Cloud Network", symbol: "acn", price: 0.03, change24: 6.2, change7: 11.4, rank: 650 },
   "tether":          { name: "Tether", symbol: "usdt", price: 1, change24: 0, change7: 0, rank: 3 },
   "usd-coin":        { name: "USDC", symbol: "usdc", price: 1, change24: 0, change7: 0, rank: 7 },
 };
@@ -556,7 +566,7 @@ const api = DEMO ? makeDemoApi() : makeSupabaseApi();
 
 function makeSupabaseApi() {
   sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
-  const ok = ({ data, error }) => { if (error) throw error; return data; };
+  const ok = ({ data, error }) => { if (error) throw error; return canonIds(data); };
   async function fetchAll(build) {
     const size = 1000; let from = 0, out = [];
     for (;;) { const data = ok(await build().range(from, from + size - 1)); out = out.concat(data); if (data.length < size) break; from += size; }
@@ -638,14 +648,14 @@ function makeDemoApi() {
   tx("u1", "paal-ai", "buy", 15000, 0.11, d(30, 21));
   tx("u1", "paal-ai", "buy", 10000, 0.07, d(12, 8));
   tx("u1", "velo", "buy", 40000, 0.009, d(9, 19));
-  tx("u2", "octokn", "buy", 800000, 0.003, d(25, 2));
-  tx("u2", "octokn", "sell", 200000, 0.005, d(10, 14));
+  tx("u2", "octo-gaming", "buy", 800000, 0.003, d(25, 2));
+  tx("u2", "octo-gaming", "sell", 200000, 0.005, d(10, 14));
   tx("u2", "solana", "buy", 3, 165, d(7, 11), 0.5, "Binance");
   tx("u2", "velo", "buy", 25000, 0.013, d(3, 22));
   tx("u3", "bitcoin", "buy", 0.05, 72000, d(80, 9), 5, "Kraken");
   tx("u3", "ethereum", "buy", 1.2, 2900, d(70, 9), 3, "Kraken");
   tx("u3", "solana", "buy", 10, 150, d(50, 16), 1, "Kraken");
-  tx("u3", "solidus-ai-tech", "buy", 20000, 0.025, d(20, 20));
+  tx("u3", "solidus-aitech", "buy", 20000, 0.025, d(20, 20));
   tx("u3", "tectum", "buy", 300, 1.5, d(15, 13));
   tx("u3", "ethereum", "sell", 0.2, 3500, d(5, 10), 1, "Kraken");
   tx("u4", "bitcoin", "buy", 0.003, 93000, d(4, 18), 1, "Coinbase");
@@ -654,11 +664,11 @@ function makeDemoApi() {
   tx("u1", "tectum", "buy", 400, 1.4, d(20, 12));
   tx("dkay", "bitcoin", "buy", 0.4, 60000, d(85, 8), 10, "Binance");
   tx("dkay", "velo", "buy", 300000, 0.006, d(40, 23));
-  tx("dkay", "solidus-ai-tech", "buy", 150000, 0.02, d(33, 12));
+  tx("dkay", "solidus-aitech", "buy", 150000, 0.02, d(33, 12));
   const msg = (member_id, author_id, kind, body, created_at, coin_id = null) => store.messages.push({ id: uid(), member_id, author_id, kind, body, created_at, coin_id });
-  msg("u3", "dkay", "suggestion", "Nice spread. Your ETH entries were clean. Keep adding to ACN on dips once the migration dust settles.", d(6, 17), "solidus-ai-tech");
+  msg("u3", "dkay", "suggestion", "Nice spread. Your ETH entries were clean. Keep adding to ACN on dips once the migration dust settles.", d(6, 17), "solidus-aitech");
   msg("u3", "u3", "reply", "Got it, thanks! Holding.", d(6, 18));
-  msg("u2", "dkay", "suggestion", "OTK is ~70% of your bag. Consider taking another chunk off into SOL or stables, you're one bad week from a big drawdown.", d(40, 12), "octokn");
+  msg("u2", "dkay", "suggestion", "OTK is ~70% of your bag. Consider taking another chunk off into SOL or stables, you're one bad week from a big drawdown.", d(40, 12), "octo-gaming");
   msg("u1", "u1", "question", "Am I too heavy in PAAL? Thinking about adding more VELO before Q4.", d(1, 9));
 
   let currentId = "u1";
@@ -2050,17 +2060,17 @@ const DEFAULT_MODEL = {
   version: 2,
   fixed: [
     { coin: "tectum", label: "Tectum (TET)", pct: 40 },
-    { coin: "solidus-ai-tech", label: "AITECH (ACN)", pct: 30 },
+    { coin: "solidus-aitech", label: "AITECH (ACN)", pct: 30 },
   ],
   flex: [
     { coin: "paal-ai", max: 30 },
     { coin: "velo", max: 30 },
-    { coin: "octokn", max: 10 },
+    { coin: "octo-gaming", max: 10 },
   ],
   presets: [
-    { name: "Even split", mix: { "paal-ai": 10, "velo": 10, "octokn": 10 } },
-    { name: "PAAL-heavy", mix: { "paal-ai": 20, "velo": 10, "octokn": 0 } },
-    { name: "All PAAL", mix: { "paal-ai": 30, "velo": 0, "octokn": 0 } },
+    { name: "Even split", mix: { "paal-ai": 10, "velo": 10, "octo-gaming": 10 } },
+    { name: "PAAL-heavy", mix: { "paal-ai": 20, "velo": 10, "octo-gaming": 0 } },
+    { name: "All PAAL", mix: { "paal-ai": 30, "velo": 0, "octo-gaming": 0 } },
   ],
   drift: 2,     // % points before we suggest a trade
   drop24: 15,   // urgent-bid alert: 24h drop of this % or more
@@ -2460,10 +2470,10 @@ function alertBanner() {
 const DEFAULT_TPS = [
   // Dkay's "ideal TPs in a supercycle scenario": bare minimum, ideal range, extension.
   { sym: "TET", coin: "tectum", label: "Tectum (TET)", min: 37, lo: 100, hi: 300, ext: 500, main: true },
-  { sym: "ACN", coin: "solidus-ai-tech", label: "AITECH (ACN)", min: 0.28, lo: 1, hi: 3, ext: 6, main: true },
+  { sym: "ACN", coin: "solidus-aitech", label: "AITECH (ACN)", min: 0.28, lo: 1, hi: 3, ext: 6, main: true },
   { sym: "PAAL", coin: "paal-ai", label: "PAAL AI", min: 0.35, lo: 1.2, hi: 3, main: true },
   { sym: "VELO", coin: "velo", label: "Velo", lo: 0.12, hi: 0.64, main: true },
-  { sym: "OTK", coin: "octokn", label: "Octo Gaming (OTK)", min: 0.016, lo: 0.04, hi: 0.2, main: true },
+  { sym: "OTK", coin: "octo-gaming", label: "Octo Gaming (OTK)", min: 0.016, lo: 0.04, hi: 0.2, main: true },
   { sym: "IRON", label: "IRON", min: 1.65, lo: 7, hi: 15 },
   { sym: "ALVA", label: "ALVA", min: 0.36, lo: 1.5, hi: 3 },
   { sym: "KTA", label: "KTA", lo: 1, hi: 3 },
