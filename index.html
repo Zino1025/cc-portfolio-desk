@@ -48,6 +48,8 @@ body { margin:0; background:var(--page); color:var(--text-primary); font-size:15
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); }
 .num { font-variant-numeric: tabular-nums; }
+html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+html, body { overflow-x:hidden; max-width:100%; }
 .muted { color: var(--text-muted); }
 .secondary { color: var(--text-secondary); }
 .good { color: var(--good); } .bad { color: var(--bad); }
@@ -207,6 +209,26 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .add-coin .btn { flex:none; }
 @media (max-width:640px) { table.plan .coin > div > div:first-child { display:none; } table.plan .coin .sym { font-size:13px; color:var(--text-primary); font-weight:600; } table.plan th, table.plan td { padding-left:5px; padding-right:5px; } table.plan .coin img, table.plan .coin .ph { display:none; } }
 .showpw input { width:16px; height:16px; margin:0; accent-color:var(--accent); cursor:pointer; }
+
+.tc-list { display:flex; flex-direction:column; gap:10px; }
+.tc { border:1px solid var(--border); border-radius:14px; overflow:hidden; background:var(--surface-1); }
+.tc-head { display:flex; align-items:center; gap:12px; width:100%; padding:12px 14px; background:none; border:none; cursor:pointer; text-align:left; color:inherit; font:inherit; }
+.tc-head .coin { flex:1; min-width:0; }
+.tc-stats { text-align:right; font-size:13px; }
+.tc-chev { color:var(--text-muted); transition:transform .15s; flex:none; }
+.tc.open .tc-chev { transform:rotate(90deg); }
+.tc-sum { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:0 14px 12px; font-size:12px; }
+.tc-sum b { display:block; font-size:13px; font-weight:600; color:var(--text-primary); }
+.tc-sum span { color:var(--text-muted); }
+.tc-tx { border-top:1px solid var(--grid); }
+.tc-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid var(--grid); font-size:13px; }
+.tc-row:first-child { border-top:none; }
+.tc-row .main { flex:1; min-width:0; }
+.tc-row .meta { color:var(--text-muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tc-row .acts { display:flex; gap:10px; flex:none; }
+.tr-tools { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+.tr-tools select { width:auto; }
+@media (max-width:640px) { .tc-sum { grid-template-columns:repeat(2,1fr); } }
 .hint { font-size:12px; color:var(--text-muted); margin-top:4px; }
 .err { color:var(--bad); font-size:13px; margin:8px 0; min-height:1em; }
 .auth-wrap { min-height:100vh; display:grid; place-items:center; padding:20px; }
@@ -954,7 +976,6 @@ function reviewNudge() {
 
 /* ===================== MEMBER: TRADES ===================== */
 function tradesTable(txs, editable) {
-  if (editable && S.tradeFilter) txs = txs.filter(t => t.coin_id === S.tradeFilter);
   if (!txs.length) return `<div class="empty"><div class="big">No trades logged</div>${editable ? "Use “Add trade” to log your buys and sells with the exact time." : ""}</div>`;
   const rows = [...txs].sort((a, b) => new Date(b.executed_at) - new Date(a.executed_at));
   return `<div class="table-wrap"><table><thead><tr>${editable ? "<th></th>" : ""}<th>Date &amp; time</th><th>Side</th><th>Coin</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Total</th><th class="r hide-sm">Fee</th><th class="hide-sm">Exchange</th><th class="hide-sm">Note</th>${editable ? "<th></th>" : ""}</tr></thead><tbody>
@@ -972,17 +993,73 @@ function tradesTable(txs, editable) {
       ${editable ? `<td class="r"><button class="link-btn" style="color:var(--bad)" data-del="${esc(t.id)}">Delete</button></td>` : ""}
     </tr>`).join("")}</tbody></table></div>`;
 }
+const TRADE_SORTS = { value: "Value", trades: "Most trades", name: "Name A–Z", recent: "Last trade", pnl: "P&L" };
+function tradesByCoin() {
+  const pf = computePortfolio(S.txs), groups = new Map();
+  for (const t of S.txs) { if (!groups.has(t.coin_id)) groups.set(t.coin_id, []); groups.get(t.coin_id).push(t); }
+  const list = [...groups.entries()].map(([id, txs]) => {
+    txs.sort((a, b) => new Date(b.executed_at) - new Date(a.executed_at));
+    const h = pf.holdings.find(x => x.coin_id === id), t0 = txs[0], info = CG.info(id);
+    const bought = txs.filter(t => t.side === "buy").reduce((a, t) => a + num(t.quantity) * num(t.price_usd), 0);
+    return { id, txs, h, symbol: t0.symbol, name: t0.name, image: info?.image, last: new Date(t0.executed_at), value: h?.value || 0, pnl: h?.pnl ?? null, pnlPct: h?.pnlPct, bought };
+  });
+  const k = S.tradeSort || "value";
+  const cmp = { value: (a, b) => b.value - a.value, trades: (a, b) => b.txs.length - a.txs.length, name: (a, b) => String(a.name).localeCompare(b.name), recent: (a, b) => b.last - a.last, pnl: (a, b) => (b.pnl ?? -1e18) - (a.pnl ?? -1e18) }[k];
+  return list.sort(cmp);
+}
+function coinTradesHtml(g) {
+  const open = S.tradeOpen.has(g.id);
+  const sumCell = (l, v) => `<div><span>${l}</span><b class="num">${v}</b></div>`;
+  return `<div class="tc ${open ? "open" : ""}" data-tc="${esc(g.id)}">
+    <button class="tc-head" type="button" data-toggle="${esc(g.id)}" aria-expanded="${open}">
+      ${coinCell({ ...g, coin_id: g.id })}
+      <div class="tc-stats num"><div>${g.h ? fmtUsd(g.value) : "Sold"}</div>${g.pnl != null ? `<div class="${signCls(g.pnl)}" style="font-size:12px">${fmtUsd(g.pnl)} (${fmtPct(g.pnlPct)})</div>` : `<div class="muted" style="font-size:12px">${g.txs.length} trade${g.txs.length === 1 ? "" : "s"}</div>`}</div>
+      <span class="tc-chev" aria-hidden="true">›</span>
+    </button>
+    <div class="tc-sum">
+      ${sumCell("Holdings", g.h ? fmtQty(g.h.qty) : "0")}
+      ${sumCell("Avg buy", g.h ? fmtPrice(g.h.avg) : "—")}
+      ${sumCell("Invested", fmtUsd(g.bought))}
+      ${sumCell("Trades", `${g.txs.length}`)}
+    </div>
+    ${open ? `<div class="tc-tx">${g.txs.map(t => `<div class="tc-row">
+        <span class="tag ${t.side}">${t.side}</span>
+        <div class="main"><div class="num">${fmtQty(t.quantity)} @ ${fmtPrice(t.price_usd)}</div>
+          <div class="meta">${fmtDate(t.executed_at)}${t.exchange ? " · " + esc(t.exchange) : ""}${num(t.fee_usd) ? " · fee " + fmtUsd(t.fee_usd) : ""}${t.note ? " · " + esc(t.note) : ""}</div></div>
+        <div class="r num" style="flex:none">${fmtUsd(num(t.quantity) * num(t.price_usd))}</div>
+        <div class="acts"><button class="link-btn" data-edit="${esc(t.id)}">Edit</button><button class="link-btn" style="color:var(--bad)" data-del="${esc(t.id)}">Delete</button></div>
+      </div>`).join("")}
+      <div class="tc-row" style="justify-content:flex-end"><button class="link-btn" data-addfor="${esc(g.id)}">+ Add trade for ${esc(String(g.symbol || "").toUpperCase())}</button></div></div>` : ""}
+  </div>`;
+}
 async function viewTrades(v) {
   await CG.ensure(S.txs.map(t => t.coin_id));
+  if (!S.tradeOpen) S.tradeOpen = new Set();
+  if (S.tradeFilter) { S.tradeView = "coin"; S.tradeOpen.add(S.tradeFilter); }
+  const view = S.tradeView || "coin", groups = view === "coin" ? tradesByCoin() : [];
+  const coins = [...new Map(S.txs.map(t => [t.coin_id, t])).values()].sort((a, b) => String(a.name).localeCompare(b.name));
   v.innerHTML = `
-    <div class="page-head"><div><h1>Trades</h1><div class="secondary">${S.txs.length} trade${S.txs.length === 1 ? "" : "s"} logged. Tap <b>Edit</b> on any trade to fix its price, amount or time.</div>
-      ${S.tradeFilter ? `<div style="margin-top:8px"><span class="tag">${esc((S.txs.find(t => t.coin_id === S.tradeFilter)?.symbol || S.tradeFilter).toUpperCase())} only</span> <button class="link-btn" id="clear-filter">Show all trades</button></div>` : ""}</div>
+    <div class="page-head"><div><h1>Trades</h1><div class="secondary">${S.txs.length} trade${S.txs.length === 1 ? "" : "s"} across ${coins.length} coin${coins.length === 1 ? "" : "s"}.</div></div>
       <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end"><button class="btn" id="csv">Export CSV</button><button class="btn" id="import-shot">⬆ Import</button><button class="btn primary" id="add">+ Add trade</button></div></div>
-    <div class="card">${tradesTable(S.txs, true)}</div>`;
+    ${S.txs.length ? `<div class="tr-tools">
+      <div class="seg"><button class="${view === "coin" ? "on" : ""}" data-view="coin">By coin</button><button class="${view === "all" ? "on" : ""}" data-view="all">All trades</button></div>
+      ${view === "coin"
+        ? `<select id="tr-sort" aria-label="Sort coins">${Object.entries(TRADE_SORTS).map(([k, l]) => `<option value="${k}" ${(S.tradeSort || "value") === k ? "selected" : ""}>Sort: ${l}</option>`).join("")}</select>
+           <button class="link-btn" id="tr-expand">${groups.every(g => S.tradeOpen.has(g.id)) ? "Collapse all" : "Expand all"}</button>`
+        : `<select id="tr-coin" aria-label="Filter by coin"><option value="">All coins</option>${coins.map(t => `<option value="${esc(t.coin_id)}" ${S.tradeCoin === t.coin_id ? "selected" : ""}>${esc(t.name)} (${esc(String(t.symbol || "").toUpperCase())})</option>`).join("")}</select>`}
+    </div>` : ""}
+    ${view === "coin" && S.txs.length ? `<div class="tc-list">${groups.map(coinTradesHtml).join("")}</div>`
+      : `<div class="card">${tradesTable(S.tradeCoin ? S.txs.filter(t => t.coin_id === S.tradeCoin) : S.txs, true)}</div>`}`;
+  S.tradeFilter = null;
   $("#add").onclick = () => openTradeModal();
   $("#import-shot").onclick = openImportModal;
   $("#csv").onclick = exportCsv;
-  $("#clear-filter") && ($("#clear-filter").onclick = () => { S.tradeFilter = null; render(); });
+  v.querySelectorAll("[data-view]").forEach(b => b.onclick = () => { S.tradeView = b.dataset.view; render(); });
+  $("#tr-sort") && ($("#tr-sort").onchange = (e) => { S.tradeSort = e.target.value; render(); });
+  $("#tr-coin") && ($("#tr-coin").onchange = (e) => { S.tradeCoin = e.target.value || null; render(); });
+  $("#tr-expand") && ($("#tr-expand").onclick = () => { const all = groups.every(g => S.tradeOpen.has(g.id)); groups.forEach(g => all ? S.tradeOpen.delete(g.id) : S.tradeOpen.add(g.id)); render(); });
+  v.querySelectorAll("[data-toggle]").forEach(b => b.onclick = () => { const id = b.dataset.toggle; S.tradeOpen.has(id) ? S.tradeOpen.delete(id) : S.tradeOpen.add(id); render(); });
+  v.querySelectorAll("[data-addfor]").forEach(b => b.onclick = () => openTradeModal(null, b.dataset.addfor));
   v.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => openTradeModal(S.txs.find(t => t.id === b.dataset.edit)));
   v.querySelectorAll("[data-del]").forEach(b => b.onclick = () => confirmModal("Delete this trade?", "This can't be undone.", async () => {
     await api.deleteTx(b.dataset.del); S.txs = S.txs.filter(t => t.id !== b.dataset.del); toast("Trade deleted"); render();
@@ -998,9 +1075,10 @@ function exportCsv() {
 }
 
 /* ---------- Trade modal ---------- */
-function openTradeModal(existing) {
+function openTradeModal(existing, presetCoinId) {
   const t = existing ? { ...existing } : { side: "buy", executed_at: new Date().toISOString(), fee_usd: 0 };
-  let coin = existing ? { id: existing.coin_id, name: existing.name, symbol: existing.symbol, image: CG.info(existing.coin_id)?.image } : null;
+  const src = existing || (presetCoinId && S.txs.find(x => x.coin_id === presetCoinId));
+  let coin = src ? { id: src.coin_id, name: src.name, symbol: src.symbol, image: CG.info(src.coin_id)?.image } : null;
   const ov = document.createElement("div");
   ov.className = "overlay";
   ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
@@ -2311,7 +2389,7 @@ async function viewExit(v) {
       </tbody></table></div>
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;margin-top:8px">
         <div class="row" style="flex:none;align-items:center;gap:8px"><button class="btn small" data-add="1" style="flex:none">+ Add a step</button>${cp.steps.length > 1 ? `<span class="muted" style="flex:none;font-size:12px">drag ⠿ to reorder</span>` : ""}</div>
-        <div class="num ${calc.over ? "bad" : "secondary"}" style="flex:none;font-size:13px">Sells <b>${calc.sold}%</b> · keeps <b>${calc.keep}%</b> as a moonbag${c.h ? ` · ≈ <b>${fmtUsd(calc.total)}</b> out` : ""}${calc.over ? " · over 100%, lower a step" : ""}${c.h?.cost && calc.initialsAt == null && !calc.over ? ` · <span class="bad">doesn't get your initial ${fmtUsd(c.h.cost)} back</span>` : ""}</div>
+        <div class="num ${calc.over ? "bad" : "secondary"}" style="flex:1 1 240px;min-width:0;font-size:13px;line-height:1.5">Sells <b>${calc.sold}%</b> · keeps <b>${calc.keep}%</b> as a moonbag${c.h ? ` · ≈ <b>${fmtUsd(calc.total)}</b> out` : ""}${calc.over ? " · over 100%, lower a step" : ""}${c.h?.cost && calc.initialsAt == null && !calc.over ? ` · <span class="bad">doesn't get your initial ${fmtUsd(c.h.cost)} back</span>` : ""}</div>
       </div></div>`;
   };
   v.innerHTML = `
