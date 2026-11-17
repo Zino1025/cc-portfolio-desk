@@ -109,7 +109,7 @@ function coinLabel(id) { return symOf(id); }
 const ATT = {
   MAX: 50 * 1024 * 1024, ACCEPT: "image/*,audio/*,video/*,application/pdf", picks: {}, signed: {},
   pickerHtml(id) {
-    return `<div class="att-pick" id="${id}"><label class="btn small att-btn">Attach chart, voice note or video<input type="file" multiple accept="${this.ACCEPT}" hidden></label><button type="button" class="btn small att-btn att-rec">${ICON.mic}<span>Record voice note</span></button><div class="att-list"></div></div>`;
+    return `<div class="att-pick" id="${id}"><label class="btn small att-btn">Attach photo, video or file<input type="file" multiple accept="${this.ACCEPT}" hidden></label><button type="button" class="btn small att-btn att-rec">${ICON.mic}<span>Record voice note</span></button><div class="att-list"></div></div>`;
   },
   /** Record straight from the mic. Prefers mp4/AAC so it plays on iPhone. */
   async record(btn, onDone) {
