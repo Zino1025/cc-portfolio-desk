@@ -13,7 +13,9 @@ const db = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey(), {
 });
 const APP = "https://zino1025.github.io/cc-portfolio-desk/";
 const REVIEWER = "Dkay";
-const DEFAULT_MODEL = { version: 2, fixed: [{ coin: "tectum" }, { coin: "solidus-ai-tech" }], flex: [{ coin: "paal-ai" }, { coin: "velo" }, { coin: "octokn" }], drop24: 15, drop7: 25 };
+const DEFAULT_MODEL = { version: 2, fixed: [{ coin: "tectum" }, { coin: "solidus-aitech" }], flex: [{ coin: "paal-ai" }, { coin: "velo" }, { coin: "octo-gaming" }], drop24: 15, drop7: 25 };
+// CoinGecko renamed these ids; a saved model may still use the old ones.
+const COIN_ID_RENAMES: Record<string, string> = { "solidus-ai-tech": "solidus-aitech", "octokn": "octo-gaming" };
 
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const cut = (s: string, n = 300) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
@@ -103,7 +105,7 @@ Deno.serve(async (req) => {
     if (table === "price-check") {
       const { data: st } = await db.from("app_settings").select("value").eq("key", "model").maybeSingle();
       const model = st?.value?.version === 2 ? st.value : DEFAULT_MODEL;
-      const ids = [...new Set([...(model.fixed ?? []).map((f: any) => f.coin), ...(model.flex ?? []).map((f: any) => f.coin)])];
+      const ids = [...new Set([...(model.fixed ?? []).map((f: any) => f.coin), ...(model.flex ?? []).map((f: any) => f.coin)].map((id: string) => COIN_ID_RENAMES[id] ?? id))];
       if (!ids.length) return Response.json({ skipped: "no coins" });
       const r = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}&price_change_percentage=24h,7d`);
       if (!r.ok) return Response.json({ skipped: "coingecko " + r.status });
