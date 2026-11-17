@@ -50,6 +50,9 @@ a { color: var(--accent); }
 .num { font-variant-numeric: tabular-nums; }
 html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 html, body { overflow-x:hidden; max-width:100%; }
+/* Stop the page from rubber-banding past its ends (which Telegram reads as "swipe to close"). */
+html, body { overscroll-behavior:none; }
+.table-wrap, .thread, .modal, .dropdown, #bc-list { overscroll-behavior:contain; }
 .muted { color: var(--text-muted); }
 .secondary { color: var(--text-secondary); }
 .good { color: var(--good); } .bad { color: var(--bad); }
@@ -559,6 +562,9 @@ function makeSupabaseApi() {
     },
     async updateProfile(id, patch) { return ok(await sb.from("profiles").update(patch).eq("id", id).select().single()); },
     async messages(memberId) { return fetchAll(() => sb.from("messages").select("*").eq("member_id", memberId).order("created_at")); },
+    async notes(memberId) { return ok(await sb.from("member_notes").select("*").eq("member_id", memberId).order("created_at", { ascending: false })); },
+    async addNote(n) { const s = await this.session(); return ok(await sb.from("member_notes").insert({ ...n, author_id: s.user.id }).select().single()); },
+    async deleteNote(id) { ok(await sb.from("member_notes").delete().eq("id", id)); },
     async addMessage(m) { return ok(await sb.from("messages").insert(m).select().single()); },
     async addMessages(rows) { return ok(await sb.from("messages").insert(rows).select("id,member_id,author_id,created_at,kind")); },
     async deleteMessage(id) { ok(await sb.from("messages").delete().eq("id", id)); },
@@ -658,11 +664,14 @@ function makeDemoApi() {
                   { name: "Velo", symbol: "VELO", quantity: 42000, avg_buy_price: null, current_price: null, value: null, coingecko_id_guess: null } ] }; },
     async updateProfile(id, patch) { const p = store.profiles.find(x => x.id === id); Object.assign(p, patch); return clone(p); },
     async messages(memberId) { return clone(store.messages.filter(m => m.member_id === memberId).sort((a, b) => a.created_at.localeCompare(b.created_at))); },
+    async notes(memberId) { return clone((store.notes ||= []).filter(n => n.member_id === memberId).sort((a, b) => b.created_at.localeCompare(a.created_at))); },
+    async addNote(n) { const row = { id: uid(), author_id: currentId, created_at: new Date().toISOString(), ...n }; (store.notes ||= []).push(row); return clone(row); },
+    async deleteNote(id) { store.notes = (store.notes || []).filter(n => n.id !== id); },
     async addMessage(m) { const row = { id: uid(), author_id: currentId, created_at: new Date().toISOString(), coin_id: null, ...m }; store.messages.push(row); return clone(row); },
     async addMessages(rows) { return rows.map(m => { const row = { id: uid(), author_id: currentId, created_at: new Date().toISOString(), coin_id: null, ...m }; store.messages.push(row); return clone(row); }); },
     async deleteMessage(id) { store.messages = store.messages.filter(m => m.id !== id); },
     async allProfiles() { await pause(); return clone(store.profiles); },
-    async removeMember(id) { store.profiles = store.profiles.filter(p => p.id !== id); store.transactions = store.transactions.filter(t => t.user_id !== id); store.messages = store.messages.filter(m => m.member_id !== id && m.author_id !== id); },
+    async removeMember(id) { store.profiles = store.profiles.filter(p => p.id !== id); store.transactions = store.transactions.filter(t => t.user_id !== id); store.messages = store.messages.filter(m => m.member_id !== id && m.author_id !== id); store.notes = (store.notes || []).filter(n => n.member_id !== id); },
     async allTransactions() { return clone(store.transactions); },
     async allMessageMeta() { return clone(store.messages.map(({ member_id, author_id, created_at, kind }) => ({ member_id, author_id, created_at, kind }))); },
     async getSetting(key) { return store.settings[key] ? clone(store.settings[key]) : null; },
@@ -2568,7 +2577,9 @@ function openBroadcast() {
   const offTarget = (r) => r.pf.holdings.length && planFor(r.p, r.pf, {}).rows.some(x => Math.abs(x.nowPct - x.target) >= (m.drift ?? 2));
   const coins = {};
   for (const r of rows) for (const h of r.pf.holdings) (coins[h.coin_id] ||= { id: h.coin_id, symbol: (h.symbol || "").toUpperCase(), n: 0 }).n++;
-  const coinList = Object.values(coins).sort((a, b) => b.n - a.n);
+  // The big five (model coins) are always on the list, first, even with 0 holders.
+  const big = modelCoinIds(m);
+  const coinList = [...big.map(id => coins[id] || { id, symbol: symOf(id), n: 0 }), ...Object.values(coins).filter(c => !big.includes(c.id)).sort((a, b) => b.n - a.n)];
   const AUD = [
     ["all", "All members", () => true],
     ["holders", "Members holding a coin…", (r, c) => r.pf.holdings.some(h => h.coin_id === c)],
@@ -2583,7 +2594,7 @@ function openBroadcast() {
   ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="max-width:560px"><h2>📣 Broadcast <button class="x" aria-label="Close">×</button></h2>
     <p class="secondary" style="margin-top:0">One message, sent privately to each member. It lands in their own Feedback thread (they can reply 1-on-1) and pings them on Telegram if linked.</p>
     <label class="field"><span>Send to</span><select id="bc-aud">${AUD.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join("")}</select></label>
-    <label class="field hidden" id="bc-coin-wrap"><span>Coin</span><select id="bc-coin">${coinList.map(c => `<option value="${esc(c.id)}">${esc(c.symbol)} · ${c.n} holder${c.n === 1 ? "" : "s"}</option>`).join("")}</select></label>
+    <label class="field hidden" id="bc-coin-wrap"><span>Coin</span><select id="bc-coin">${coinList.map((c, i) => `${i === big.length && i ? `<option disabled>──────────</option>` : ""}<option value="${esc(c.id)}">${big.includes(c.id) ? "★ " : ""}${esc(c.symbol)} · ${c.n} holder${c.n === 1 ? "" : "s"}</option>`).join("")}</select></label>
     <div class="hidden" id="bc-pick" style="margin-bottom:12px"><input type="search" enterkeyhint="done" id="bc-q" placeholder="Search members" style="margin-bottom:6px">
       <div id="bc-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:4px 8px"></div></div>
     <label class="field"><span>Type</span><select id="bc-kind"><option value="note">Note</option><option value="suggestion">Suggestion</option></select></label>
@@ -2753,19 +2764,24 @@ async function viewMemberDetail(v, id) {
         <div class="chips" style="margin-bottom:10px">${TEMPLATES.map(([l], i) => `<button class="chip" data-tpl="${i}">${esc(l)}</button>`).join("")}</div>
         <div class="row">
           <label class="field"><span>Type</span><select id="kind"><option value="suggestion">Suggestion</option><option value="note">Note</option><option value="reply">Reply</option></select></label>
-          <label class="field"><span>About coin (optional)</span><select id="coin"><option value="">—</option>${pf.holdings.map(h => `<option value="${esc(h.coin_id)}">${esc((h.symbol || "").toUpperCase())} · ${esc(h.name)}</option>`).join("")}</select></label>
+          <label class="field"><span>About coin (optional)</span><select id="coin"><option value="">—</option>${(() => { const big = modelCoinIds(); const held = Object.fromEntries(pf.holdings.map(h => [h.coin_id, h])); const nm = (id) => held[id]?.name || CG.info(id)?.name || SAMPLE_PRICES[id]?.name || id; const opt = (id) => `<option value="${esc(id)}">${big.includes(id) ? "★ " : ""}${esc(symOf(id))} · ${esc(nm(id))}${held[id] ? "" : " (not held)"}</option>`; const others = pf.holdings.map(h => h.coin_id).filter(id => !big.includes(id)); return big.map(opt).join("") + (others.length ? `<option disabled>──────────</option>` + others.map(opt).join("") : ""); })()}</select></label>
         </div>
         <label class="field"><span>Message</span><textarea id="body" maxlength="4000" rows="5" placeholder="Your suggestion for ${esc(memberName(p))}…"></textarea></label>
         <div class="row" style="justify-content:flex-end"><button class="btn" id="send" style="flex:none">Send</button><button class="btn primary" id="send-mark" style="flex:none">Send &amp; mark reviewed</button></div>
       </div>
       <div class="card"><h2>Thread</h2><div class="thread" id="thread">${threadHtml(msgs, S.me.id, p.id, names)}</div></div>
     </div>
-    <div class="card" style="margin-top:16px"><h2>Trade history (${r.txs.length})</h2>${tradesTable(r.txs, false)}</div>
+    <div class="card" style="margin-top:16px" id="notes-card"><div class="card-h"><h2>📝 Member profile</h2><span class="muted" style="font-size:12px">Private · only admins see this</span></div>
+      <div class="secondary" style="font-size:13px;margin:-4px 0 10px">${r.txs.length} trade${r.txs.length === 1 ? "" : "s"} logged${r.txs.length ? ` · first ${ago(r.txs[0].executed_at)} · latest ${ago(r.txs.at(-1).executed_at)}` : ""} · joined ${ago(p.created_at)}</div>
+      <label class="field"><span>Add a note about ${esc(memberName(p))}</span><textarea id="note-body" rows="3" maxlength="4000" placeholder="e.g. Prefers to DCA weekly. Sold TET in panic last dip, check in when it drops again."></textarea></label>
+      <div class="row" style="justify-content:flex-end;margin-bottom:10px"><button class="btn primary" id="note-add" style="flex:none">Save note</button></div>
+      <div id="notes-list"><div class="muted">Loading notes…</div></div></div>
     ${p.role !== "admin" && p.id !== S.me.id ? `<div class="card" style="margin-top:16px;border:1px solid color-mix(in srgb, var(--bad) 35%, transparent)">
       <h2>Remove member</h2>
       <p class="secondary" style="margin-top:0;font-size:13px">Deletes ${esc(memberName(p))}'s account, trades, exit plan and messages. They lose access to the app. This can't be undone.</p>
       <button class="btn" id="remove-member" style="color:var(--bad)">Remove ${esc(memberName(p))}</button></div>` : ""}`;
   $("#remove-member") && ($("#remove-member").onclick = () => removeMemberModal(p));
+  bindMemberNotes(p, names);
   if (pf.holdings.length) { renderDonut("pie-member", pf.holdings, "Total", pf.totals.value); renderPerf("perf-member", pf.holdings); paintHero(r.txs, "hero-m"); }
   const th = $("#thread"); th.scrollTop = th.scrollHeight;
   v.querySelectorAll("[data-tpl]").forEach(b => b.onclick = () => { const ta = $("#body"); ta.value = (ta.value ? ta.value + "\n\n" : "") + TEMPLATES[+b.dataset.tpl][1]; ta.focus(); });
@@ -2786,6 +2802,35 @@ async function viewMemberDetail(v, id) {
   $("#send-mark").onclick = () => send(true);
   $("#mark").onclick = async () => { await markReviewed(); toast("Marked reviewed"); render(); };
   bindMsgDelete(v, async () => { render(); });
+}
+
+/* Owner's private notes on a member (member_notes table, admin-only RLS). */
+async function bindMemberNotes(p, names) {
+  const list = $("#notes-list"); if (!list) return;
+  let notes = [];
+  const paint = () => {
+    list.innerHTML = notes.length ? notes.map(n => `<div class="note-item" style="border-top:1px solid var(--border);padding:10px 0">
+      <div style="white-space:pre-wrap">${esc(n.body)}</div>
+      <div class="muted" style="font-size:12px;margin-top:4px;display:flex;gap:10px;align-items:center">${esc(names[n.author_id] || CONFIG.REVIEWER_NAME)} · ${ago(n.created_at)}
+        <button class="btn" data-del-note="${esc(n.id)}" style="flex:none;margin-left:auto;padding:2px 10px;font-size:12px">Delete</button></div></div>`).join("")
+      : `<div class="muted" style="font-size:13px">No notes yet. Anything you jot here stays for future reference.</div>`;
+    list.querySelectorAll("[data-del-note]").forEach(b => b.onclick = () => confirmModal("Delete note?", "This note will be removed for good.", async () => {
+      try { await api.deleteNote(b.dataset.delNote); notes = notes.filter(n => n.id !== b.dataset.delNote); paint(); } catch (e) { toast("Couldn't delete: " + (e.message || e)); }
+    }));
+  };
+  try { notes = await api.notes(p.id); paint(); }
+  catch (e) {
+    list.innerHTML = `<div class="callout" style="font-size:13px">Notes aren't set up yet. Run <b>supabase/member_notes.sql</b> once in Supabase → SQL Editor, then reload.</div>`;
+    $("#note-add").disabled = true; return;
+  }
+  $("#note-add").onclick = async () => {
+    const ta = $("#note-body"), body = ta.value.trim();
+    if (!body) return ta.focus();
+    const btn = $("#note-add"); btn.disabled = true;
+    try { const n = await api.addNote({ member_id: p.id, body }); notes.unshift(n); ta.value = ""; paint(); toast("Note saved"); }
+    catch (e) { toast("Couldn't save: " + (e.message || e)); }
+    btn.disabled = false;
+  };
 }
 
 function removeMemberModal(p) {
@@ -2935,7 +2980,13 @@ setInterval(() => { if (S.me && !document.hidden && ["overview"].includes(curren
 /* ===================== TELEGRAM MINI APP ===================== */
 const TG = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) ? window.Telegram.WebApp : null;
 function tgTheme() { try { if (!localStorage.getItem("cc-theme")) document.documentElement.dataset.theme = TG.colorScheme === "dark" ? "dark" : "light"; } catch (e) {} }
-if (TG) { try { TG.ready(); TG.expand(); tgTheme(); TG.onEvent("themeChanged", tgTheme); document.documentElement.classList.add("in-telegram"); } catch (e) {} }
+if (TG) { try { TG.ready(); TG.expand(); tgTheme(); TG.onEvent("themeChanged", tgTheme); document.documentElement.classList.add("in-telegram"); } catch (e) {}
+  // Scrolling to the very top/bottom of a long page shouldn't minimise or close the Mini App.
+  try {
+    if (TG.isVersionAtLeast && TG.isVersionAtLeast("7.7")) TG.disableVerticalSwipes();
+    else if (TG.enableClosingConfirmation) TG.enableClosingConfirmation();   // older Telegram: at least ask before closing
+  } catch (e) {}
+}
 async function tgLink() {
   try {
     const u = TG && TG.initDataUnsafe && TG.initDataUnsafe.user;
