@@ -424,6 +424,15 @@ function coinCell(c) {
   return `<div class="coin">${img}<div><div>${esc(name)}</div>${dupSym ? "" : `<div class="sym">${esc(sym)}</div>`}</div></div>`;
 }
 
+/** "Tectum (TET)", but just "PAAL AI" / "Velo" when the name already says the ticker. */
+function nameSym(name, sym) {
+  name = String(name || "").trim(); sym = String(sym || "").trim().toUpperCase();
+  if (!name) return sym; if (!sym) return name;
+  const m = name.match(/^(.*?)\s*\(([^)]+)\)$/); if (m) return nameSym(m[1], m[2]);   // already "Name (SYM)"
+  return name.toLowerCase().split(/[^a-z0-9]+/).includes(sym.toLowerCase()) || name.toUpperCase() === sym ? name : `${name} (${sym})`;
+}
+function coinLabel(id, label) { return label ? nameSym(label) : nameSym(CG.info(id)?.name || SAMPLE_PRICES[id]?.name, symOf(id)); }
+
 /* ===================== COINGECKO ===================== */
 const CG = {
   base: "https://api.coingecko.com/api/v3",
@@ -917,8 +926,9 @@ function renderPerf(id, holdings) {
 
 /* ===================== SHELL ===================== */
 function routes() {
-  const r = [["overview", "Portfolio"], ["trades", "Trades"], ["rebalance", "Rebalance"], ["exit", "Exit plan"], ["projections", "Projections"], ["updates", "Market updates"], ["feedback", "Feedback from " + CONFIG.REVIEWER_NAME], ["profile", "Profile"]];
+  const r = [["overview", "Portfolio"], ["trades", "Trades"], ["rebalance", "Rebalance"], ["exit", "Exit plan"], ["projections", "Projections"], ["updates", "Market updates"], ["feedback", "Feedback from " + CONFIG.REVIEWER_NAME]];
   if (isAdmin()) r.push(["sep"], ["members", "Review queue"], ["insights", "Group insights"], ["model", "Model portfolio"]);
+  r.push(["profile", "Profile"]);
   return r;
 }
 function currentRoute() {
@@ -1117,7 +1127,7 @@ async function viewTrades(v) {
       ${view === "coin"
         ? `<select id="tr-sort" aria-label="Sort coins">${Object.entries(TRADE_SORTS).map(([k, l]) => `<option value="${k}" ${(S.tradeSort || "value") === k ? "selected" : ""}>Sort: ${l}</option>`).join("")}</select>
            <button class="link-btn" id="tr-expand">${groups.every(g => S.tradeOpen.has(g.id)) ? "Collapse all" : "Expand all"}</button>`
-        : `<select id="tr-coin" aria-label="Filter by coin"><option value="">All coins</option>${coins.map(t => `<option value="${esc(t.coin_id)}" ${S.tradeCoin === t.coin_id ? "selected" : ""}>${esc(t.name)} (${esc(String(t.symbol || "").toUpperCase())})</option>`).join("")}</select>`}
+        : `<select id="tr-coin" aria-label="Filter by coin"><option value="">All coins</option>${coins.map(t => `<option value="${esc(t.coin_id)}" ${S.tradeCoin === t.coin_id ? "selected" : ""}>${esc(nameSym(t.name, t.symbol))}</option>`).join("")}</select>`}
     </div>` : ""}
     ${view === "coin" && S.txs.length ? `<div class="tc-list">${groups.map(coinTradesHtml).join("")}</div>`
       : `<div class="card">${tradesTable(S.tradeCoin ? S.txs.filter(t => t.coin_id === S.tradeCoin) : S.txs, true)}</div>`}`;
@@ -2074,10 +2084,10 @@ function planTable(plan, m) {
 }
 function mixSliders(m, mix) {
   const pool = poolSize(m);
-  return m.fixed.map(f => `<div class="bucket"><div class="bucket-head"><b>${esc(f.label || symOf(f.coin))}</b><span class="num"><b>${num(f.pct).toFixed(0)}%</b> <span class="muted">fixed</span></span></div></div>`).join("") +
+  return m.fixed.map(f => `<div class="bucket"><div class="bucket-head"><b>${esc(coinLabel(f.coin, f.label))}</b><span class="num"><b>${num(f.pct).toFixed(0)}%</b> <span class="muted">fixed</span></span></div></div>`).join("") +
     `<div class="bucket" style="border-bottom:none;padding-bottom:0"><div class="bucket-head"><b>Flexible ${pool}%</b><span class="muted" style="font-size:13px">split it your way</span></div></div>` +
     m.flex.map(f => `<div class="bucket flex">
-      <div class="bucket-head"><span>${esc(symOf(f.coin))} <span class="muted" style="font-size:12px">${esc(CG.info(f.coin)?.name || "")}</span></span><span class="num"><b id="fx-${esc(f.coin)}">${num(mix[f.coin]).toFixed(1)}%</b> <span class="muted">max ${Math.min(num(f.max) || pool, pool)}%</span></span></div>
+      <div class="bucket-head"><span>${esc(coinLabel(f.coin))}</span><span class="num"><b id="fx-${esc(f.coin)}">${num(mix[f.coin]).toFixed(1)}%</b> <span class="muted">max ${Math.min(num(f.max) || pool, pool)}%</span></span></div>
       <input type="range" class="range" min="0" max="${Math.min(num(f.max) || pool, pool)}" step="0.5" value="${num(mix[f.coin])}" data-flex="${esc(f.coin)}" aria-label="${esc(symOf(f.coin))} share of the flexible ${pool}%">
     </div>`).join("");
 }
@@ -2168,14 +2178,14 @@ async function viewModel(v) {
       <div class="two-col">
         <div class="card"><h2>Fixed coins</h2>
           <div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">%</th><th></th></tr></thead><tbody>
-            ${draft.fixed.map((f, i) => `<tr><td>${esc(symOf(f.coin))} <span class="muted" style="font-size:12px">${esc(CG.info(f.coin)?.name || "")}</span></td><td class="r">${pctIn(f.pct, `data-fx="${i}"`)}</td><td class="r"><button class="btn small danger" data-delfx="${i}">Remove</button></td></tr>`).join("")}
+            ${draft.fixed.map((f, i) => `<tr><td>${esc(coinLabel(f.coin))}</td><td class="r">${pctIn(f.pct, `data-fx="${i}"`)}</td><td class="r"><button class="btn small danger" data-delfx="${i}">Remove</button></td></tr>`).join("")}
           </tbody></table></div>
           <button class="btn small" id="addfx" style="margin-top:8px">+ Add fixed coin</button>
           <div class="secondary num" style="margin-top:10px">Fixed: <b>${fixedSum}%</b> → flexible pool: <b>${pool}%</b>${fixedSum > 100 ? ' <span class="bad">Fixed adds up to over 100%.</span>' : ""}</div>
         </div>
         <div class="card"><h2>Flexible ${pool}%: coins members can pick</h2>
           <div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Max %</th><th></th></tr></thead><tbody>
-            ${draft.flex.map((f, i) => `<tr><td>${esc(symOf(f.coin))} <span class="muted" style="font-size:12px">${esc(CG.info(f.coin)?.name || "")}</span></td><td class="r">${pctIn(f.max, `data-fmax="${i}"`)}</td><td class="r"><button class="btn small danger" data-delfl="${i}">Remove</button></td></tr>`).join("")}
+            ${draft.flex.map((f, i) => `<tr><td>${esc(coinLabel(f.coin))}</td><td class="r">${pctIn(f.max, `data-fmax="${i}"`)}</td><td class="r"><button class="btn small danger" data-delfl="${i}">Remove</button></td></tr>`).join("")}
           </tbody></table></div>
           <button class="btn small" id="addfl" style="margin-top:8px">+ Add flex coin</button>
           ${draft.flex.reduce((s, f) => s + Math.min(num(f.max) || pool, pool), 0) < pool ? `<div class="bad" style="margin-top:8px;font-size:13px">The max values add up to less than ${pool}%, so the pool can't be filled. Raise a max.</div>` : ""}
@@ -2583,7 +2593,7 @@ async function viewExit(v) {
     const shown = new Set(coins.map(c => c.id)), shownTps = new Set(coins.map(c => c.tp).filter(Boolean));
     const opts = getTps().filter(t => t.coin && !shown.has(t.coin) && !shownTps.has(t));
     const sel = $("#ex-add-sel"), btn = $("#ex-add-btn");
-    sel.innerHTML = opts.length ? `<option value="">Select a coin</option>` + opts.map(t => `<option value="${esc(t.coin)}" data-sym="${esc(t.sym)}">${esc(t.label || t.sym)}${t.main ? "" : " (other)"}</option>`).join("") : `<option value="">All of ${esc(CONFIG.REVIEWER_NAME)}'s target coins are in your plan</option>`;
+    sel.innerHTML = opts.length ? `<option value="">Select a coin</option>` + opts.map(t => `<option value="${esc(t.coin)}" data-sym="${esc(t.sym)}">${esc(t.label ? nameSym(t.label) : t.sym)}${t.main ? "" : " (other)"}</option>`).join("") : `<option value="">All of ${esc(CONFIG.REVIEWER_NAME)}'s target coins are in your plan</option>`;
     sel.disabled = !opts.length; btn.disabled = !opts.length;
   };
   $("#ex-add-btn").onclick = () => { const sel = $("#ex-add-sel"); if (!sel.value) return sel.focus(); addCoin(sel.value, sel.selectedOptions[0]?.dataset.sym); };
@@ -3044,6 +3054,8 @@ async function boot() {
     if (!s) return renderAuth();
     await loadMe();
     await tgLink();
+    // Members always open on their portfolio, whatever page they were on last time.
+    if (!isAdmin() && location.hash !== "#overview") history.replaceState(null, "", location.pathname + location.search + "#overview");
     render();
   } catch (e) {
     $("#app").innerHTML = `<div class="auth-wrap"><div class="card" style="max-width:440px"><h2>Couldn't load</h2><p class="secondary">${esc(e.message || e)}</p><button class="btn" onclick="location.reload()">Retry</button></div></div>`;
