@@ -986,10 +986,27 @@ async function matchCoinsInner(rows, onProgress) {
 const IMPORT_STABLES = new Set(["USDT", "USDC", "DAI", "BUSD", "FDUSD", "TUSD", "USDE", "PYUSD", "USDS"]);
 const IMPORT_BASE_IDS = { ETH: "ethereum", WETH: "weth", BTC: "bitcoin", WBTC: "wrapped-bitcoin", SOL: "solana", BNB: "binancecoin", AVAX: "avalanche-2", TON: "the-open-network", TRX: "tron", MATIC: "matic-network", POL: "polygon-ecosystem-token", ARB: "arbitrum", OP: "optimism", SUI: "sui" };
 const importRateCache = {};
+// Full daily history (no 1-year limit): Binance public market data first, then Coinbase. Average of the day's open and close (UTC).
+async function exchangeDayPrice(cur, date) {
+  const sym = { WETH: "ETH", WBTC: "BTC" }[cur] || cur;
+  const [y, m, d] = date.split("-").map(Number), t0 = Date.UTC(y, m - 1, d);
+  try {
+    const r = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${sym}USDT&interval=1d&startTime=${t0}&limit=1`);
+    if (r.ok) { const k = (await r.json())[0]; if (k && k[0] === t0) return (Number(k[1]) + Number(k[4])) / 2; }
+  } catch (e) {}
+  try {
+    const iso = (t) => new Date(t).toISOString();
+    const r = await fetch(`https://api.exchange.coinbase.com/products/${sym}-USD/candles?granularity=86400&start=${iso(t0)}&end=${iso(t0 + 86400000)}`);
+    if (r.ok) { const c = (await r.json()).find(x => x[0] * 1000 === t0); if (c) return (c[3] + c[4]) / 2; }
+  } catch (e) {}
+  return null;
+}
 async function usdRateOn(cur, date) {
   if (IMPORT_STABLES.has(cur)) return 1;
   const key = cur + "|" + date;
   if (key in importRateCache) return importRateCache[key];
+  const ex = await exchangeDayPrice(cur, date);
+  if (ex > 0) return (importRateCache[key] = ex);
   let id = IMPORT_BASE_IDS[cur];
   if (!id) id = (await importSearch(cur)).find(c => c.symbol.toUpperCase() === cur)?.id;
   let rate = null;
@@ -1021,7 +1038,10 @@ function openImportModal() {
   let result = null, rows = [], mode = "holdings";
   const dayKey = (d) => { const x = new Date(d); return `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`; };
   // Transaction already logged (same coin, side, day and amount)? Untick it.
+  const CC_START = "2023-06-01";   // CC started June 2023: older trades come in unticked
   function applyDup(r) {
+    r.preCC = !!(r.date && r.date < CC_START);
+    if (r.preCC) { r.include = false; r.dup = false; return; }
     r.dup = !!(r.match && r.date && S.txs.some(t => t.coin_id === r.match.id && t.side === r.side && dayKey(t.executed_at) === dayKey(r.date + "T12:00") && Math.abs(num(t.quantity) - num(r.quantity)) <= num(r.quantity) * 0.005));
     if (r.dup) r.include = false;
   }
@@ -1124,6 +1144,7 @@ function openImportModal() {
             <div style="flex:1;min-width:0">
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span class="tag" style="color:var(--${r.side === "sell" ? "bad" : "good"})">${r.side === "sell" ? "Sell" : "Buy"}</span><input type="date" data-date="${i}" value="${esc(r.date || "")}" style="flex:1"></div>
               ${r.dup ? `<div class="hint" style="margin-bottom:6px">Looks already logged (same coin, day and amount), so it's unticked.</div>` : ""}
+              ${r.preCC ? `<div class="hint" style="margin-bottom:6px">Before CC started (June 2023), so it's unticked. Tick it if you still want it.</div>` : ""}
               <div class="row">
                 <label class="field" style="margin-bottom:0"><span>Quantity</span><input type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-qty="${i}" value="${r.quantity != null ? esc(+Number(r.quantity).toPrecision(10)) : ""}"></label>
                 <label class="field" style="margin-bottom:0"><span>Price per coin (USD)</span><input type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-price="${i}" value="${r.avg_buy_price != null ? esc(+Number(r.avg_buy_price).toPrecision(8)) : ""}">${r.paid ? paidHint : tot ? `<div class="hint">Total ${fmtUsd(tot)}</div>` : ""}</label>
@@ -1151,7 +1172,9 @@ function openImportModal() {
     list.querySelectorAll("[data-price]").forEach(inp => inp.oninput = () => { const r = rows[+inp.dataset.price]; r.avg_buy_price = inp.value === "" ? null : inp.value; r.manualPrice = inp.value !== ""; });
     list.querySelectorAll("[data-date]").forEach(inp => inp.onchange = async () => {
       const r = rows[+inp.dataset.date]; r.date = inp.value || null;
-      if (r.paid && !r.manualPrice) { await convertPaidTrades([r]); paintRows(); }   // re-price with the new day's rate
+      applyDup(r); if (!r.dup && !r.preCC && r.match) r.include = true;
+      if (r.paid && !r.manualPrice) await convertPaidTrades([r]);   // re-price with the new day's rate
+      paintRows();
     });
     list.querySelectorAll("[data-change]").forEach(b => b.onclick = () => openCoinPicker(async (c) => {
       const r = rows[+b.dataset.change], m = { id: c.id, name: c.name, symbol: c.symbol, image: c.image };
