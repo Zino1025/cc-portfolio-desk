@@ -222,13 +222,25 @@ async function viewExit(v) {
           const row = hd.closest("tr"), tbody = row.parentNode, from = [...tbody.children].indexOf(row);
           if (document.activeElement && document.activeElement !== hd) document.activeElement.blur();
           row.classList.add("dragging");
-          const move = (ev) => {
-            const y = ev.clientY; let before = null;
+          try { hd.setPointerCapture(e.pointerId); } catch (_) {}   // keep getting moves if the mouse leaves the window
+          let lastY = e.clientY, raf = 0;
+          const place = (y) => {
+            let before = null;
             for (const r of tbody.children) { if (r === row) continue; const b = r.getBoundingClientRect(); if (y < b.top + b.height / 2) { before = r; break; } }
             if (before !== row.nextElementSibling || (!before && tbody.lastElementChild !== row)) tbody.insertBefore(row, before);
-            const vh = window.innerHeight; if (y < 60) window.scrollBy(0, -12); else if (y > vh - 60) window.scrollBy(0, 12);
           };
+          // Keep scrolling while the pointer rests near an edge (a still mouse fires no pointermove), faster the closer it gets.
+          const EDGE = 80;
+          const tick = () => {
+            const vh = window.innerHeight, y = Math.max(0, Math.min(vh, lastY));
+            const dy = y < EDGE ? -Math.ceil((EDGE - y) / 4) : y > vh - EDGE ? Math.ceil((y - (vh - EDGE)) / 4) : 0;
+            if (dy) { const before = window.scrollY; window.scrollBy(0, dy); if (window.scrollY !== before) place(y); }
+            raf = requestAnimationFrame(tick);
+          };
+          raf = requestAnimationFrame(tick);
+          const move = (ev) => { lastY = ev.clientY; place(Math.max(0, Math.min(window.innerHeight, lastY))); };
           const up = () => {
+            cancelAnimationFrame(raf);
             window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up);
             row.classList.remove("dragging");
             const to = [...tbody.children].indexOf(row);

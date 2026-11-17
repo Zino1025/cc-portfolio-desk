@@ -226,7 +226,7 @@ async function viewMemberDetail(v, id) {
     } catch (e) { toast(/cc_joined_on/.test(e.message || "") ? "Run supabase/cc_joined_on.sql in Supabase first" : "Couldn't save: " + (e.message || e)); }
   };
   if (pf.holdings.length) { renderDonut("pie-member", pf.holdings, "Total", pf.totals.value); renderPerf("perf-member", pf.holdings); paintHero(r.txs, "hero-m"); }
-  const th = $("#thread"); th.scrollTop = th.scrollHeight;
+  pinThreadBottom($("#thread"));
   v.querySelectorAll("[data-tpl]").forEach(b => b.onclick = () => { const ta = $("#body"); ta.value = (ta.value ? ta.value + "\n\n" : "") + TEMPLATES[+b.dataset.tpl][1]; ta.focus(); });
   const markReviewed = async () => {
     const up = await api.updateProfile(p.id, { review_requested: false, last_reviewed_at: new Date().toISOString() });

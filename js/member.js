@@ -1,4 +1,14 @@
 /* ===================== FEEDBACK THREAD ===================== */
+// Open the thread at its newest message and stay pinned there while photos/videos load in
+// (they load after the first scroll and would otherwise leave it short of the bottom). Stops once the user scrolls up.
+function pinThreadBottom(th) {
+  if (!th) return;
+  let stick = true;
+  const toEnd = () => { if (stick) th.scrollTop = th.scrollHeight; };
+  toEnd(); requestAnimationFrame(toEnd);
+  th.addEventListener("scroll", () => { stick = th.scrollHeight - th.scrollTop - th.clientHeight < 40; }, { passive: true });
+  th.addEventListener("load", toEnd, true); th.addEventListener("loadedmetadata", toEnd, true);
+}
 function threadHtml(msgs, viewerId, memberId, names) {
   if (!msgs.length) return `<div class="empty">No messages yet.</div>`;
   return msgs.map(m => {
@@ -29,7 +39,7 @@ async function viewFeedback(v) {
         <div class="composer"><textarea id="reply" maxlength="4000" placeholder="Reply or ask a follow-up…"></textarea>${ATT.pickerHtml("att-reply")}<div style="text-align:right"><button class="btn primary" id="send">Send</button></div></div>
       </div>
     </div>`;
-  const th = $("#thread"); th.scrollTop = th.scrollHeight;
+  pinThreadBottom($("#thread"));
   if (unreadCount()) { S.me = await api.updateProfile(S.me.id, { feedback_seen_at: new Date().toISOString() }); renderShellBadgesOnly(); }
   $("#req") && ($("#req").onclick = async () => {
     const q = $("#req-q").value.trim();
