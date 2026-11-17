@@ -609,7 +609,7 @@ function renderDonut(canvasId, holdings, totalLabel, totalValue) {
   const center = el.parentElement.querySelector(".chart-center");
   if (center) center.innerHTML = `<div><div class="v num">${fmtUsd(totalValue, { compact: true })}</div><div class="l">${esc(totalLabel)}</div></div>`;
   const legend = document.getElementById(canvasId + "-legend");
-  if (legend) legend.innerHTML = slices.map(s => `<div class="li"><span class="swatch" style="background:${s.color}"></span><span class="n">${esc(s.label)} <span class="muted">${esc(s.name && s.name !== s.label ? s.name : "")}</span></span><span class="p num">${s.alloc.toFixed(1)}%</span></div>`).join("");
+  if (legend) legend.innerHTML = slices.map(s => `<div class="li"><span class="swatch" style="background:${s.color}"></span><span class="n" title="${esc(s.name || s.label)}">${esc(s.label)}</span><span class="p num">${s.alloc.toFixed(1)}%</span></div>`).join("");
 }
 function donutCard(id, title) {
   return `<div class="card"><h2>${esc(title)}</h2><div class="chart-box"><canvas id="${id}" role="img" aria-label="${esc(title)} pie chart"></canvas><div class="chart-center"></div></div><div class="legend" id="${id}-legend"></div></div>`;
