@@ -571,6 +571,10 @@ function makeSupabaseApi() {
     async addUpdate(u) { return ok(await sb.from("updates").insert(u).select().single()); },
     async deleteUpdate(id) { ok(await sb.from("updates").delete().eq("id", id)); },
     async groupHoldings() { return ok(await sb.rpc("group_holdings")) || []; },
+    async removeMember(id) {
+      const { error } = await sb.rpc("admin_remove_member", { target: id });
+      if (error) throw new Error(/admin_remove_member|schema cache|does not exist/i.test(error.message) ? "Removing members isn't set up yet. Run supabase/admin_remove_member.sql in the Supabase SQL Editor once." : error.message);
+    },
     onAuthChange(cb) { sb.auth.onAuthStateChange((ev, s) => cb(ev, s)); },
   };
 }
@@ -658,6 +662,7 @@ function makeDemoApi() {
     async addMessages(rows) { return rows.map(m => { const row = { id: uid(), author_id: currentId, created_at: new Date().toISOString(), coin_id: null, ...m }; store.messages.push(row); return clone(row); }); },
     async deleteMessage(id) { store.messages = store.messages.filter(m => m.id !== id); },
     async allProfiles() { await pause(); return clone(store.profiles); },
+    async removeMember(id) { store.profiles = store.profiles.filter(p => p.id !== id); store.transactions = store.transactions.filter(t => t.user_id !== id); store.messages = store.messages.filter(m => m.member_id !== id && m.author_id !== id); },
     async allTransactions() { return clone(store.transactions); },
     async allMessageMeta() { return clone(store.messages.map(({ member_id, author_id, created_at, kind }) => ({ member_id, author_id, created_at, kind }))); },
     async getSetting(key) { return store.settings[key] ? clone(store.settings[key]) : null; },
@@ -2754,7 +2759,12 @@ async function viewMemberDetail(v, id) {
       </div>
       <div class="card"><h2>Thread</h2><div class="thread" id="thread">${threadHtml(msgs, S.me.id, p.id, names)}</div></div>
     </div>
-    <div class="card" style="margin-top:16px"><h2>Trade history (${r.txs.length})</h2>${tradesTable(r.txs, false)}</div>`;
+    <div class="card" style="margin-top:16px"><h2>Trade history (${r.txs.length})</h2>${tradesTable(r.txs, false)}</div>
+    ${p.role !== "admin" && p.id !== S.me.id ? `<div class="card" style="margin-top:16px;border:1px solid color-mix(in srgb, var(--bad) 35%, transparent)">
+      <h2>Remove member</h2>
+      <p class="secondary" style="margin-top:0;font-size:13px">Deletes ${esc(memberName(p))}'s account, trades, exit plan and messages. They lose access to the app. This can't be undone.</p>
+      <button class="btn" id="remove-member" style="color:var(--bad)">Remove ${esc(memberName(p))}</button></div>` : ""}`;
+  $("#remove-member") && ($("#remove-member").onclick = () => removeMemberModal(p));
   if (pf.holdings.length) { renderDonut("pie-member", pf.holdings, "Total", pf.totals.value); renderPerf("perf-member", pf.holdings); paintHero(r.txs, "hero-m"); }
   const th = $("#thread"); th.scrollTop = th.scrollHeight;
   v.querySelectorAll("[data-tpl]").forEach(b => b.onclick = () => { const ta = $("#body"); ta.value = (ta.value ? ta.value + "\n\n" : "") + TEMPLATES[+b.dataset.tpl][1]; ta.focus(); });
@@ -2775,6 +2785,32 @@ async function viewMemberDetail(v, id) {
   $("#send-mark").onclick = () => send(true);
   $("#mark").onclick = async () => { await markReviewed(); toast("Marked reviewed"); render(); };
   bindMsgDelete(v, async () => { render(); });
+}
+
+function removeMemberModal(p) {
+  const name = memberName(p);
+  const ov = document.createElement("div"); ov.className = "overlay";
+  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="max-width:400px"><h2>Remove ${esc(name)}?</h2>
+    <p class="secondary">Their account, trades, exit plan and messages are deleted for good, and they can't open the app anymore. They could sign up again later as a new member.</p>
+    <label class="field"><span>Type <b>REMOVE</b> to confirm</span><input type="text" id="rm-confirm" autocomplete="off" autocapitalize="characters" enterkeyhint="done"></label>
+    <div class="err" id="rm-err"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" id="rm-no" style="flex:none">Cancel</button><button class="btn primary" id="rm-yes" style="flex:none;background:var(--bad);border-color:var(--bad)" disabled>Remove</button></div></div>`;
+  document.body.appendChild(ov);
+  const inp = $("#rm-confirm", ov), yes = $("#rm-yes", ov);
+  inp.oninput = () => { yes.disabled = inp.value.trim().toUpperCase() !== "REMOVE"; };
+  $("#rm-no", ov).onclick = () => ov.remove();
+  ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
+  yes.onclick = async () => {
+    yes.disabled = true; yes.textContent = "Removing…";
+    try {
+      await api.removeMember(p.id);
+      S.admin.profiles = S.admin.profiles.filter(x => x.id !== p.id);
+      S.admin.txs = S.admin.txs.filter(t => t.user_id !== p.id);
+      S.admin.meta = S.admin.meta.filter(m => m.member_id !== p.id);
+      ov.remove(); toast(`${name} removed`); location.hash = "members";
+    } catch (e) { yes.disabled = false; yes.textContent = "Remove"; $("#rm-err", ov).textContent = e.message || "Couldn't remove. Try again."; }
+  };
+  setTimeout(() => inp.focus(), 50);
 }
 
 /* ===================== ADMIN: GROUP INSIGHTS ===================== */
