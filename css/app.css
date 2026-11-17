@@ -111,6 +111,9 @@ h2 { font-size:19px; line-height:24px; font-weight:600; margin:0 0 14px; letter-
 .btn.small { min-height:34px; padding:7px 14px; font-size:13.5px; }
 .btn.danger { color:var(--bad); }
 .btn:disabled { opacity:.55; cursor:default; }
+/* Icon side needs less padding than the text side (optical balance) */
+.btn:has(> svg:first-child) { padding-left:13px; } .btn:has(> svg:last-child) { padding-right:13px; }
+.btn.small:has(> svg:first-child) { padding-left:10px; } .btn.small:has(> svg:last-child) { padding-right:10px; }
 .link-btn { background:none; border:none; color:var(--accent); cursor:pointer; padding:0; font-size:13px; }
 label.field { display:block; font-size:13px; color:var(--text-secondary); margin-bottom:12px; }
 label.field > span, .field-div span:first-child, .field-div label span { display:block; margin-bottom:5px; }
