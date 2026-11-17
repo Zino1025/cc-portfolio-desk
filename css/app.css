@@ -245,7 +245,7 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .add-coin select { flex:1 1 160px; width:auto; min-width:0; }
 .add-coin .search-wrap { flex:1 1 220px; }
 .add-coin .btn { flex:none; }
-@media (max-width:640px) { table.plan .coin > div > div:first-child { display:none; } table.plan .coin .sym { font-size:13px; color:var(--text-primary); font-weight:600; } table.plan th, table.plan td { padding-left:5px; padding-right:5px; } table.plan .coin img, table.plan .coin .ph { display:none; } }
+@media (max-width:640px) { table.plan th, table.plan td { padding-left:5px; padding-right:5px; } table.plan .coin img, table.plan .coin .ph { display:none; } }
 .showpw input { width:16px; height:16px; margin:0; accent-color:var(--accent); cursor:pointer; }
 
 .tc-list { display:flex; flex-direction:column; gap:10px; }
