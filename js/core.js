@@ -113,25 +113,28 @@ const ATT = {
   },
   /** Record straight from the mic. Prefers mp4/AAC so it plays on iPhone. */
   async record(btn, onDone) {
-    if (btn._rec) return btn._rec.stop();
+    if (btn._rec) { if (btn._rec.state === "recording") btn._rec.stop(); return; }
+    if (btn._starting) return;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast("Recording isn't supported here. Record in your voice memos app and attach it instead.");
+    const idle = () => { btn.classList.remove("recording"); btn.innerHTML = `${ICON.mic}<span>Record voice note</span>`; };
+    btn._starting = true; btn.innerHTML = `${ICON.mic}<span>Starting mic…</span>`;
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch (e) { return toast("Microphone blocked. Allow mic access for Telegram in Settings, then try again."); }
+    catch (e) { btn._starting = false; idle(); return toast("Microphone blocked. Allow mic access for Telegram in Settings, then try again."); }
     const mime = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"].find(t => MediaRecorder.isTypeSupported(t)) || "";
-    const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : {}), chunks = [], t0 = Date.now(), label = btn.querySelector("span");
+    const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : {}), chunks = [];
+    let t0 = 0, iv = 0;
+    const show = () => { const s = Math.floor((Date.now() - t0) / 1000); btn.innerHTML = `${ICON.stop}<span>Stop · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}</span>`; if (s >= 600) rec.stop(); };
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-    const tick = () => { const s = Math.floor((Date.now() - t0) / 1000); label.textContent = `Stop · ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; if (s >= 600) rec.stop(); };
-    const iv = setInterval(tick, 500);
+    rec.onstart = () => { btn._starting = false; t0 = Date.now(); btn.classList.add("recording"); show(); iv = setInterval(show, 250); };
     rec.onstop = () => {
-      clearInterval(iv); stream.getTracks().forEach(t => t.stop()); btn._rec = null;
-      btn.classList.remove("recording"); btn.innerHTML = `${ICON.mic}<span>Record voice note</span>`;
+      clearInterval(iv); stream.getTracks().forEach(t => t.stop()); btn._rec = null; btn._starting = false; idle();
       const type = (rec.mimeType || mime || "audio/webm").split(";")[0], ext = /mp4/.test(type) ? "m4a" : /ogg/.test(type) ? "ogg" : "webm";
-      if (Date.now() - t0 < 800 || !chunks.length) return toast("Too short, hold on a bit longer");
+      if (!t0 || Date.now() - t0 < 800 || !chunks.length) return toast("Too short, hold on a bit longer");
       const d = new Date(), name = `Voice note ${d.getHours()}-${String(d.getMinutes()).padStart(2, "0")}.${ext}`;
       onDone(new File([new Blob(chunks, { type })], name, { type }));
     };
-    rec.start(1000); btn._rec = rec; btn.classList.add("recording"); btn.innerHTML = `${ICON.stop}<span>Stop · 0:00</span>`;
+    btn._rec = rec; rec.start(1000);
   },
   bind(id) {
     const root = document.getElementById(id); if (!root) return;
