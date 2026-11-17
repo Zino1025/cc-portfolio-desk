@@ -16,7 +16,10 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 4. Before committing: `node --check js/app.js`.
 5. After changing `css/app.css` or `js/app.js`, bump `?v=` in `index.html` to today's date (YYYYMMDD). Otherwise Telegram and browsers keep serving the cached old version.
 6. When adding a new section, use the same `/* ===== NAME ===== */` header style and add it to the map below.
-7. When you deploy or change an Edge Function, copy the code into `supabase/functions/<name>/index.ts` and update that README.
+7. Debug by looking, not guessing: print or query the real values first (console output, a Supabase SQL query, the function logs), then fix.
+8. No test suites. Verification is `node --check js/app.js` plus checking the changed screen on the live site. Keep every check under a minute.
+9. Keep this file short. It should only hold what the code doesn't already make obvious. Update the map when sections move, and cut stale notes.
+10. When you deploy or change an Edge Function, copy the code into `supabase/functions/<name>/index.ts` and update that README.
 
 ## js/app.js map (approximate starting lines)
 | Line | Section |
