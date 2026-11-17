@@ -186,7 +186,7 @@ details.past summary { cursor:pointer; }
 .tpz { position:absolute; top:-1px; bottom:-1px; background:color-mix(in srgb, var(--good) 35%, transparent); border-radius:6px; }
 .tpm { position:absolute; top:-5px; width:3px; height:20px; border-radius:2px; transform:translateX(-1px); }
 .tpm.now { background:var(--text-primary); } .tpm.avg { background:var(--accent); } .tpm.min { background:var(--warn-ink); } .tpm.ext { background:var(--good); }
-.tplegend { display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--text-secondary); }
+.tplegend { display:flex; gap:4px 12px; flex-wrap:wrap; font-size:12px; margin-top:6px; color:var(--text-secondary); }
 .tplegend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; vertical-align:-1px; }
 .tplegend i.now { background:var(--text-primary); } .tplegend i.avg { background:var(--accent); } .tplegend i.min { background:var(--warn-ink); } .tplegend i.ext { background:var(--good); } .tplegend i.zone { background:color-mix(in srgb, var(--good) 35%, transparent); }
 .guide-list { margin:0; padding-left:18px; display:grid; gap:6px; font-size:14px; }
@@ -223,12 +223,15 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .tc-tx { border-top:1px solid var(--grid); }
 .tc-row { display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid var(--grid); font-size:13px; }
 .tc-row:first-child { border-top:none; }
+.tc-tap { width:100%; background:none; border-left:none; border-right:none; border-bottom:none; color:inherit; font:inherit; text-align:left; cursor:pointer; padding:12px 14px; }
+.tc-tap .r { text-align:right; } .tc-tap:active { background:var(--surface-2); }
 .tc-row .main { flex:1; min-width:0; }
 .tc-row .meta { color:var(--text-muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tc-row .acts { display:flex; gap:10px; flex:none; }
 .tr-tools { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
 .tr-tools select { width:auto; }
 @media (max-width:640px) { .tc-sum { grid-template-columns:repeat(2,1fr); } }
+#pj-table tr.pj-total td { border-top:2px solid var(--grid); }
 .hint { font-size:12px; color:var(--text-muted); margin-top:4px; }
 .err { color:var(--bad); font-size:13px; margin:8px 0; min-height:1em; }
 .auth-wrap { min-height:100vh; display:grid; place-items:center; padding:20px; }
@@ -308,6 +311,9 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
   #pj-table td[data-l="Coin"]::before { display:none; }
   #pj-table td input { width:100% !important; }
   #pj-table .pj-rm { position:absolute; top:12px; right:0; }
+  #pj-table .pj-empty { display:none; }
+  #pj-table tr.pj-total td { border:none; }
+  #pj-table tr.pj-total { background:var(--surface-2); border-radius:12px; padding:12px; margin-top:10px; border:none; }
   .top-inner { flex-wrap:wrap; }
   nav.tabs { order:3; flex-basis:100%; }
   .kpi .value { font-size:20px; }
@@ -409,7 +415,7 @@ function coinIcon(c) {
 function coinCell(c) {
   const img = c.image ? `<img src="${esc(c.image)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'${esc((c.symbol||'?').slice(0,3).toUpperCase())}'}))">` : `<span class="ph">${esc((c.symbol || "?").slice(0, 3).toUpperCase())}</span>`;
   const name = c.name || c.coin_id || "", sym = c.symbol || "";
-  const dupSym = !sym || name.toLowerCase().split(/\s+/).includes(sym.toLowerCase());
+  const dupSym = !sym || name.toLowerCase().split(/[^a-z0-9]+/).includes(sym.toLowerCase());
   return `<div class="coin">${img}<div><div>${esc(name)}</div>${dupSym ? "" : `<div class="sym">${esc(sym)}</div>`}</div></div>`;
 }
 
@@ -1022,13 +1028,10 @@ function coinTradesHtml(g) {
       ${sumCell("Invested", fmtUsd(g.bought))}
       ${sumCell("Trades", `${g.txs.length}`)}
     </div>
-    ${open ? `<div class="tc-tx">${g.txs.map(t => `<div class="tc-row">
-        <span class="tag ${t.side}">${t.side}</span>
-        <div class="main"><div class="num">${fmtQty(t.quantity)} @ ${fmtPrice(t.price_usd)}</div>
-          <div class="meta">${fmtDate(t.executed_at)}${t.exchange ? " · " + esc(t.exchange) : ""}${num(t.fee_usd) ? " · fee " + fmtUsd(t.fee_usd) : ""}${t.note ? " · " + esc(t.note) : ""}</div></div>
-        <div class="r num" style="flex:none">${fmtUsd(num(t.quantity) * num(t.price_usd))}</div>
-        <div class="acts"><button class="link-btn" data-edit="${esc(t.id)}">Edit</button><button class="link-btn" style="color:var(--bad)" data-del="${esc(t.id)}">Delete</button></div>
-      </div>`).join("")}
+    ${open ? `<div class="tc-tx">${g.txs.map(t => `<button type="button" class="tc-row tc-tap" data-edit="${esc(t.id)}">
+        <div class="main"><div style="font-weight:550">${t.side === "sell" ? "Sell" : "Buy"}</div><div class="meta">${new Date(t.executed_at).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</div></div>
+        <div class="r num" style="flex:none"><div class="${t.side === "sell" ? "bad" : "good"}">${t.side === "sell" ? "−" : "+"} ${fmtQty(t.quantity)} ${esc(String(g.symbol || "").toUpperCase())}</div><div>${fmtUsd(num(t.quantity) * num(t.price_usd))}</div></div>
+      </button>`).join("")}
       <div class="tc-row" style="justify-content:flex-end"><button class="link-btn" data-addfor="${esc(g.id)}">+ Add trade for ${esc(String(g.symbol || "").toUpperCase())}</button></div></div>` : ""}
   </div>`;
 }
@@ -1039,7 +1042,7 @@ async function viewTrades(v) {
   const view = S.tradeView || "coin", groups = view === "coin" ? tradesByCoin() : [];
   const coins = [...new Map(S.txs.map(t => [t.coin_id, t])).values()].sort((a, b) => String(a.name).localeCompare(b.name));
   v.innerHTML = `
-    <div class="page-head"><div><h1>Trades</h1><div class="secondary">${S.txs.length} trade${S.txs.length === 1 ? "" : "s"} across ${coins.length} coin${coins.length === 1 ? "" : "s"}.</div></div>
+    <div class="page-head"><div><h1>Trades</h1><div class="secondary">${S.txs.length} trade${S.txs.length === 1 ? "" : "s"} · ${coins.length} coin${coins.length === 1 ? "" : "s"}. Tap a trade to edit it.</div></div>
       <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end"><button class="btn" id="csv">Export CSV</button><button class="btn" id="import-shot">⬆ Import</button><button class="btn primary" id="add">+ Add trade</button></div></div>
     ${S.txs.length ? `<div class="tr-tools">
       <div class="seg"><button class="${view === "coin" ? "on" : ""}" data-view="coin">By coin</button><button class="${view === "all" ? "on" : ""}" data-view="all">All trades</button></div>
@@ -1084,21 +1087,20 @@ function openTradeModal(existing, presetCoinId) {
   ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
     <h2>${existing ? "Edit trade" : "Add trade"} <button class="x" aria-label="Close">×</button></h2>
     <div style="margin-bottom:16px"><div class="seg" id="side"><button data-s="buy" class="buy">Buy</button><button data-s="sell" class="sell">Sell</button></div></div>
-    <div class="field-div"><span>Coin (search CoinGecko)</span><div id="coin-slot"></div></div>
+    <div class="field-div"><span>Coin</span><div id="coin-slot"></div></div>
     <div class="row">
-      <label class="field"><span>Quantity (coins)</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="qty" value="${existing ? esc(existing.quantity) : ""}" placeholder="0.00"></label>
-      <label class="field"><span>Price per coin (USD)</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="price" value="${existing ? esc(existing.price_usd) : ""}" placeholder="0.00"></label>
+      <label class="field"><span>Quantity</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="qty" value="${existing ? esc(+Number(existing.quantity).toPrecision(12)) : ""}" placeholder="0.00"></label>
+      <label class="field"><span>Price per coin</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="price" value="${existing ? esc(+Number(existing.price_usd).toPrecision(6)) : ""}" placeholder="$0.00"></label>
     </div>
-    <label class="field"><span>Total (USD) <span class="muted">· type this instead of price if easier</span></span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="total" placeholder="0.00"></label>
-    <div class="field-div"><label for="when"><span>Date &amp; time of trade</span></label><input type="datetime-local" id="when" value="${toLocalInput(t.executed_at)}">
-      <div class="hint"><button class="link-btn" id="fill-price" type="button">Fill price from CoinGecko for this date</button> <span id="fill-status"></span></div></div>
     <div class="row">
-      <label class="field"><span>Fee (USD)</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="fee" value="${esc(t.fee_usd ?? 0)}"></label>
-      <label class="field"><span>Exchange / wallet</span><input type="text" enterkeyhint="done" id="exch" value="${esc(t.exchange || "")}" placeholder="MEXC, Binance, Phantom…" maxlength="60"></label>
+      <label class="field"><span>Total</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="total" placeholder="$0.00"></label>
+      <label class="field"><span>Fee</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="fee" value="${num(t.fee_usd) ? esc(t.fee_usd) : ""}" placeholder="$0.00"></label>
     </div>
-    <label class="field"><span>Note (why you bought, target, etc.)</span><textarea id="note" maxlength="500" placeholder="Optional">${esc(t.note || "")}</textarea></label>
+    <label class="field"><span>Date</span><input type="datetime-local" id="when" value="${toLocalInput(t.executed_at)}"></label>
+    <label class="field"><span>Notes</span><textarea id="note" maxlength="500" placeholder="Optional">${esc(t.note || "")}</textarea></label>
     <div class="err" id="trade-err"></div>
-    <div class="row" style="justify-content:flex-end"><button class="btn" id="cancel" style="flex:none">Cancel</button><button class="btn primary" id="save" style="flex:none">${existing ? "Save changes" : "Add trade"}</button></div>
+    <div class="row" style="justify-content:space-between;align-items:center">${existing ? `<button class="link-btn" id="del-trade" type="button" style="color:var(--bad)">Delete</button>` : "<span></span>"}
+      <div class="row" style="flex:none;gap:8px"><button class="btn" id="cancel" style="flex:none">Cancel</button><button class="btn primary" id="save" style="flex:none">${existing ? "Save" : "Add trade"}</button></div></div>
   </div>`;
   document.body.appendChild(ov);
   const close = () => ov.remove();
@@ -1144,21 +1146,13 @@ function openTradeModal(existing, presetCoinId) {
   async function prefillCurrent() {
     await CG.ensure([coin.id]);
     const p = CG.info(coin.id)?.price;
-    if (p && !price.value && !priceTouched) { price.value = p; syncTotal(); }
+    if (p && !price.value && !priceTouched) { price.value = +p.toPrecision(6); syncTotal(); }
   }
   paintCoin();
 
-  $("#fill-price", ov).onclick = async () => {
-    const st = $("#fill-status", ov);
-    if (!coin) { st.textContent = "Pick a coin first."; return; }
-    st.textContent = "Fetching…";
-    try {
-      const p = await CG.historical(coin.id, new Date($("#when", ov).value));
-      if (p == null) { st.textContent = "No CoinGecko price for that date."; return; }
-      price.value = +p.toPrecision(8); priceTouched = true; lastMoney = "price"; syncTotal();
-      st.textContent = "Filled (CoinGecko daily price). Adjust to your exact fill if different.";
-    } catch (e) { st.textContent = "Couldn't reach CoinGecko (free plan covers the past year). Enter the price manually."; }
-  };
+  $("#del-trade", ov) && ($("#del-trade", ov).onclick = () => { close(); confirmModal("Delete this trade?", "This can't be undone.", async () => {
+    await api.deleteTx(existing.id); S.txs = S.txs.filter(x => x.id !== existing.id); toast("Trade deleted"); render();
+  }); });
 
   $("#save", ov).onclick = async () => {
     const err = $("#trade-err", ov); err.textContent = "";
@@ -1174,7 +1168,7 @@ function openTradeModal(existing, presetCoinId) {
       const held = computePortfolio(S.txs.filter(x => x.id !== existing?.id)).holdings.find(h => h.coin_id === coin.id)?.qty || 0;
       if (q > held + 1e-9) return err.textContent = `You only hold ${fmtQty(held)} ${String(coin.symbol || "").toUpperCase()} before this trade.`;
     }
-    const row = { coin_id: coin.id, symbol: coin.symbol, name: coin.name, side, quantity: q, price_usd: p, fee_usd: feeV, executed_at: new Date(when).toISOString(), exchange: $("#exch", ov).value.trim() || null, note: $("#note", ov).value.trim() || null };
+    const row = { coin_id: coin.id, symbol: coin.symbol, name: coin.name, side, quantity: q, price_usd: p, fee_usd: feeV, executed_at: new Date(when).toISOString(), exchange: t.exchange || null, note: $("#note", ov).value.trim() || null };
     const btn = $("#save", ov); btn.disabled = true;
     try {
       if (existing) { const u = await api.updateTx(existing.id, row); S.txs = S.txs.map(x => x.id === existing.id ? u : x); toast("Trade updated"); }
@@ -1784,7 +1778,16 @@ function paintProj() {
       <td class="r num" data-l="Projected">${fmtUsd(c.valueProj)}</td>
       <td class="r num ${signCls(c.profit)}" data-l="Profit">${fmtUsd(c.profit)}<div style="font-size:12px">${c.cost > 0 ? fmtPct(c.roi) : ""}</div></td>
       <td class="pj-rm"><button class="link-btn" data-rm="${esc(r.id)}" style="color:var(--text-muted)" aria-label="Remove">✕</button></td>
-    </tr>`; }).join("")}</tbody></table></div>
+    </tr>`; }).join("")}
+    <tr class="pj-total">
+      <td data-l="Coin"><b>Portfolio total</b></td>
+      <td data-l="Paid" class="num">${fmtUsd(T.cost)}</td>
+      <td class="r num" data-l="Value now">${fmtUsd(T.now)}</td>
+      <td class="pj-empty"></td><td data-l="Multiple" class="num">${T.now > 0 ? (T.proj / T.now).toFixed(2) + "×" : "—"}</td>
+      <td class="r num" data-l="Projected"><b>${fmtUsd(T.proj)}</b></td>
+      <td class="r num ${signCls(profit)}" data-l="Profit"><b>${fmtUsd(profit)}</b><div style="font-size:12px">${T.cost > 0 ? fmtPct(profit / T.cost * 100) : ""}</div></td>
+      <td class="pj-empty"></td>
+    </tr></tbody></table></div>
     <div class="hint">Target and Multiple update each other. MC = market cap at target.</div>`;
   const commit = debounce(() => paintProjKeepFocus(), 600);
   tbl.querySelectorAll("input[data-f]").forEach(inp => inp.oninput = () => {
@@ -2284,7 +2287,8 @@ function tpLevels(tp) {
 }
 function tpFor(coinId, symbol) {
   const sym = String(symbol || "").toUpperCase();
-  return getTps().find(t => (t.coin && t.coin === coinId) || (!t.coin && t.sym === sym)) || null;
+  const tps = getTps();
+  return tps.find(t => t.coin && t.coin === coinId) || tps.find(t => sym && t.sym === sym) || null;
 }
 const round5 = (v) => Math.max(0, Math.round(v / 5) * 5);
 /** Suggested steps (percent of the position) for a strategy. */
@@ -2341,6 +2345,7 @@ function exitStatus(p) {
   if (ep.updated_at && new Date(ep.updated_at) > new Date(ep.committed_at)) return { state: "edited", label: "Exit plan edited, not re-committed" };
   return { state: "committed", label: "Exit plan committed " + ago(ep.committed_at) };
 }
+const fp = (v) => { const n = num(v); return n >= 1 ? "$" + (+n.toPrecision(4)).toLocaleString("en-US") : fmtPrice(n).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1"); };
 function tpLadderBar(tp, price, avg) {
   const L = tpLevels(tp); if (!L.length) return "";
   const lo = Math.min(...L.map(l => l.price), price || Infinity, avg || Infinity) * 0.7, hi = Math.max(...L.map(l => l.price)) * 1.15;
@@ -2348,7 +2353,7 @@ function tpLadderBar(tp, price, avg) {
   const zone = num(tp.lo) && num(tp.hi) ? `<div class="tpz" style="left:${x(tp.lo)}%;width:${x(tp.hi) - x(tp.lo)}%" title="Ideal TP range"></div>` : "";
   const mark = (v, cls, t) => v > 0 ? `<div class="tpm ${cls}" style="left:${x(v)}%" title="${esc(t)}"></div>` : "";
   return `<div class="tpbar">${zone}${mark(num(tp.min), "min", "Bare minimum " + fmtPrice(tp.min))}${mark(num(tp.ext), "ext", "Extension " + fmtPrice(tp.ext))}${mark(avg, "avg", "Your average buy " + fmtPrice(avg))}${mark(price, "now", "Price now " + fmtPrice(price))}</div>
-    <div class="tplegend"><span><i class="now"></i>now ${fmtPrice(price)}</span>${avg ? `<span><i class="avg"></i>your avg ${fmtPrice(avg)}</span>` : ""}${num(tp.min) ? `<span><i class="min"></i>bare min ${fmtPrice(tp.min)}</span>` : ""}${num(tp.lo) ? `<span><i class="zone"></i>ideal ${fmtPrice(tp.lo)}–${fmtPrice(tp.hi)}</span>` : ""}${num(tp.ext) ? `<span><i class="ext"></i>extension ${fmtPrice(tp.ext)}</span>` : ""}</div>`;
+    <div class="tplegend"><span><i class="now"></i>Now ${fp(price)}</span>${avg ? `<span><i class="avg"></i>Avg ${fp(avg)}</span>` : ""}${num(tp.min) ? `<span><i class="min"></i>Min ${fp(tp.min)}</span>` : ""}${num(tp.lo) ? `<span><i class="zone"></i>Ideal ${fp(tp.lo)}–${fp(tp.hi).replace("$", "")}</span>` : ""}${num(tp.ext) ? `<span><i class="ext"></i>Ext ${fp(tp.ext)}</span>` : ""}</div>`;
 }
 async function viewExit(v) {
   v.innerHTML = `<div class="spinner"></div>`;
@@ -2368,7 +2373,7 @@ async function viewExit(v) {
     const info = CG.info(c.id), price = info?.price ?? c.h?.price ?? 0, tp = c.tp, cp = plan.coins[c.id];
     const L = tp ? tpLevels(tp) : [];
     const head = `<div class="row" style="align-items:center;justify-content:space-between;flex-wrap:wrap">
-        <div style="flex:1;min-width:180px">${coinCell({ coin_id: c.id, symbol: (info?.symbol || tp?.sym || c.h?.symbol || "").toLowerCase(), name: tp?.label || info?.name || c.h?.name || c.id, image: info?.image })}</div>
+        <div style="flex:1;min-width:180px">${coinCell({ coin_id: c.id, symbol: (info?.symbol || tp?.sym || c.h?.symbol || "").toLowerCase(), name: info?.name || c.h?.name || tp?.label || c.id, image: info?.image })}</div>
         <div class="secondary num" style="flex:none;font-size:13px">${c.h ? `${fmtQty(c.h.qty)} held · avg ${fmtPrice(c.h.avg)} · worth ${fmtUsd(c.h.value)}` : `Not held yet · <button class="link-btn" data-rm-coin="${esc(c.id)}">Remove</button>`}</div></div>`;
     if (!cp) return `<div class="card exit-card">${head}${tp ? tpLadderBar(tp, price, 0) : ""}<button class="btn small" data-plan="${esc(c.id)}" style="margin-top:10px">Plan an exit for this coin</button></div>`;
     const calc = exitCalc(tp, cp, c.h);
@@ -2400,10 +2405,11 @@ async function viewExit(v) {
         <li><b>You cannot time the market.</b></li>
         <li><b>Sell in steps.</b></li>
         <li><b>Get your initials out early.</b></li>
+        <li><b>Buy aggressively at the bottom.</b></li>
         <li><b>Take profit at macro levels.</b></li>
-        <li><b>Buy aggressively at the bottom, then make capital preservation the focus.</b></li>
-      </ul>
-      <div class="hint">Keep up with the ${esc(CONFIG.GROUP_NAME)} chat for ${esc(CONFIG.REVIEWER_NAME)}'s latest updates: targets and timing can change. These are his "ideal supercycle" levels, not promises. Education, not financial advice.</div></div>
+        <li><b>Make capital preservation the focus.</b></li>
+      </ul></div>
+    <div class="card" style="margin-top:12px;padding:12px 16px;font-size:13px;border-left:3px solid var(--accent)">💬 Keep up with the ${esc(CONFIG.GROUP_NAME)} chat for ${esc(CONFIG.REVIEWER_NAME)}'s latest updates: targets and timing can change. These are his "ideal supercycle" levels, not promises. Education, not financial advice.</div>
     <div class="two-col" style="margin-top:16px">
       <div class="card"><h2>Your money goal</h2>
         <label class="field"><span>Total I want to cash out ($)</span><input type="text" enterkeyhint="done" inputmode="decimal" id="ex-goal" value="${plan.goal || ""}" placeholder="e.g. 50000"></label>
@@ -2501,10 +2507,10 @@ async function viewExit(v) {
     if (card) { card.scrollIntoView({ behavior: "smooth", block: "center" }); toast(`${symOf(id)} added with a suggested plan`); }
   };
   const paintAdd = () => {
-    const shown = new Set(coins.map(c => c.id));
-    const opts = getTps().filter(t => t.coin && !shown.has(t.coin));
+    const shown = new Set(coins.map(c => c.id)), shownTps = new Set(coins.map(c => c.tp).filter(Boolean));
+    const opts = getTps().filter(t => t.coin && !shown.has(t.coin) && !shownTps.has(t));
     const sel = $("#ex-add-sel"), btn = $("#ex-add-btn");
-    sel.innerHTML = opts.length ? `<option value="">Pick a coin with ${esc(CONFIG.REVIEWER_NAME)}'s targets…</option>` + opts.map(t => `<option value="${esc(t.coin)}" data-sym="${esc(t.sym)}">${esc(t.label || t.sym)}${t.main ? "" : " (other)"}</option>`).join("") : `<option value="">All of ${esc(CONFIG.REVIEWER_NAME)}'s target coins are in your plan</option>`;
+    sel.innerHTML = opts.length ? `<option value="">Select a coin</option>` + opts.map(t => `<option value="${esc(t.coin)}" data-sym="${esc(t.sym)}">${esc(t.label || t.sym)}${t.main ? "" : " (other)"}</option>`).join("") : `<option value="">All of ${esc(CONFIG.REVIEWER_NAME)}'s target coins are in your plan</option>`;
     sel.disabled = !opts.length; btn.disabled = !opts.length;
   };
   $("#ex-add-btn").onclick = () => { const sel = $("#ex-add-sel"); if (!sel.value) return sel.focus(); addCoin(sel.value, sel.selectedOptions[0]?.dataset.sym); };
