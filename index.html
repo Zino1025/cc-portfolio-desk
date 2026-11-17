@@ -545,7 +545,8 @@ function makeDemoApi() {
       if (hint === "trades") return { source_app: "CoinGecko", currency: "USD", warnings: [], holdings: [], trades: [
         { name: "Tectum", symbol: "TET", side: "buy", quantity: 518.992, total_usd: 155.357, price_usd: 155.357 / 518.992, date: "2026-10-26", coingecko_id_guess: "tectum" },
         { name: "Tectum", symbol: "TET", side: "buy", quantity: 428.76, total_usd: 127.373, price_usd: 127.373 / 428.76, date: "2026-10-11", coingecko_id_guess: "tectum" },
-        { name: "Tectum", symbol: "TET", side: "buy", quantity: 500, total_usd: 132.536, price_usd: 132.536 / 500, date: "2026-10-07", coingecko_id_guess: "tectum" } ] };
+        { name: "Tectum", symbol: "TET", side: "buy", quantity: 500, total_usd: 132.536, price_usd: 132.536 / 500, date: "2026-10-07", coingecko_id_guess: "tectum" },
+        { name: "Tectum", symbol: "TET", side: "buy", quantity: 601.8, total_usd: null, price_usd: null, paid: { amount: 0.05, currency: "ETH" }, date: "2026-04-01", coingecko_id_guess: "tectum" } ] };
       return { source_app: "CoinGecko", currency: "USD", warnings: ["Demo mode: these are sample results, not your screenshot."],
       holdings: [ { name: "Paal AI", symbol: "PAAL", quantity: 5200, avg_buy_price: 0.21, current_price: null, value: null, coingecko_id_guess: "paal-ai" },
                   { name: "Ethereum", symbol: "ETH", quantity: 0.8, avg_buy_price: 2850, current_price: null, value: null, coingecko_id_guess: "ethereum" },
@@ -981,6 +982,34 @@ async function matchCoinsInner(rows, onProgress) {
   return rows;
 }
 
+// Trades paid in crypto (e.g. "0.05 ETH"): convert to USD with that coin's CoinGecko price on the trade day.
+const IMPORT_STABLES = new Set(["USDT", "USDC", "DAI", "BUSD", "FDUSD", "TUSD", "USDE", "PYUSD", "USDS"]);
+const IMPORT_BASE_IDS = { ETH: "ethereum", WETH: "weth", BTC: "bitcoin", WBTC: "wrapped-bitcoin", SOL: "solana", BNB: "binancecoin", AVAX: "avalanche-2", TON: "the-open-network", TRX: "tron", MATIC: "matic-network", POL: "polygon-ecosystem-token", ARB: "arbitrum", OP: "optimism", SUI: "sui" };
+const importRateCache = {};
+async function usdRateOn(cur, date) {
+  if (IMPORT_STABLES.has(cur)) return 1;
+  const key = cur + "|" + date;
+  if (key in importRateCache) return importRateCache[key];
+  let id = IMPORT_BASE_IDS[cur];
+  if (!id) id = (await importSearch(cur)).find(c => c.symbol.toUpperCase() === cur)?.id;
+  let rate = null;
+  if (id) for (let i = 0; i < 3; i++) {
+    try { rate = await CG.historical(id, new Date(date + "T12:00")); break; }
+    catch (e) { if (!/429/.test(e.message) || i === 2) break; await new Promise(r => setTimeout(r, 2500 * (i + 1))); }
+  }
+  return (importRateCache[key] = rate);
+}
+async function convertPaidTrades(rows) {
+  for (const r of rows) {
+    if (!r.paid || r.manualPrice) continue;
+    const q = num(r.quantity);
+    if (!r.date || !(q > 0)) { r.conv = { ok: false }; continue; }
+    const rate = await usdRateOn(r.paid.currency, r.date);
+    if (rate > 0) { r.avg_buy_price = r.paid.amount * rate / q; r.conv = { ok: true, rate }; }
+    else { r.avg_buy_price = null; r.conv = { ok: false }; }
+  }
+}
+
 function openImportModal() {
   const ov = document.createElement("div"); ov.className = "overlay";
   ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="max-width:560px"><h2>Import from screenshot <button class="x" aria-label="Close">×</button></h2><div id="imp-body"></div></div>`;
@@ -1033,12 +1062,14 @@ function openImportModal() {
       result = await api.parseScreenshots(slices, /tx|trade|history/i.test(files[0]?.name || "") ? "trades" : "");
       mode = (result.trades || []).length ? "trades" : "holdings";
       rows = mode === "trades"
-        ? result.trades.map(t => ({ name: t.name, symbol: t.symbol, quantity: t.quantity, avg_buy_price: t.price_usd, total_usd: t.total_usd, current_price: null, coingecko_id_guess: t.coingecko_id_guess, side: t.side, date: t.date, include: true }))
+        ? result.trades.map(t => ({ name: t.name, symbol: t.symbol, quantity: t.quantity, avg_buy_price: t.price_usd, total_usd: t.total_usd, current_price: null, coingecko_id_guess: t.coingecko_id_guess, side: t.side, date: t.date, paid: t.paid || null, include: true }))
         : (result.holdings || []).map(h => ({ ...h, include: true }));
       if (!rows.length) throw new Error((result.warnings || [])[0] || "No holdings found in that screenshot. Try one that shows your coin list with amounts.");
       status("Matching coins on CoinGecko…");
       await matchImportedCoins(rows, (d, t) => { const p = body.querySelector("p"); if (p) p.textContent = `Matching coins on CoinGecko… ${d}/${t}`; });
       for (const r of rows) { if (mode === "trades") applyDup(r); else applyHeld(r); if (!r.quantity) r.include = false; }
+      const paidCurs = [...new Set(rows.filter(r => r.paid && r.avg_buy_price == null).map(r => r.paid.currency))];
+      if (paidCurs.length) { status(`Converting ${paidCurs.join(", ")} amounts to USD…`); await convertPaidTrades(rows); }
       busy = false; stepConfirm();
     } catch (e) { busy = false; stepPick(e.message || "Something went wrong. Try again."); }
   }
@@ -1084,6 +1115,9 @@ function openImportModal() {
         const coinFlag = !r.match ? `<div class="hint" style="color:var(--bad);margin:-4px 0 8px">Couldn't match “${esc(shot)}”. Pick the coin.</div>`
           : !r.sure ? `<div class="hint" style="color:var(--bad);margin:-4px 0 8px">Not 100% sure this is the right coin. Please check.</div>` : "";
         const tot = num(r.quantity) * num(r.avg_buy_price);
+        const paidHint = !r.paid ? "" : r.manualPrice ? `<div class="hint">Paid ${fmtQty(r.paid.amount)} ${esc(r.paid.currency)}</div>`
+          : r.conv?.ok ? `<div class="hint">Paid ${fmtQty(r.paid.amount)} ${esc(r.paid.currency)} ≈ ${fmtUsd(r.paid.amount * r.conv.rate)} (${esc(r.paid.currency)} price that day)</div>`
+          : `<div class="hint" style="color:var(--bad)">Paid ${fmtQty(r.paid.amount)} ${esc(r.paid.currency)}. Couldn't get that day's ${esc(r.paid.currency)} price, so enter the USD price per coin.</div>`;
         return `${firstOfCoin ? `<div style="margin:4px 0 8px">${coin}</div>${coinFlag}` : ""}<div class="card" style="padding:10px 12px;margin-bottom:10px;${r.include ? "" : "opacity:.6"}">
           <div style="display:flex;gap:10px;align-items:flex-start">
             <input type="checkbox" data-inc="${i}" ${r.include ? "checked" : ""} style="width:auto;margin-top:10px" aria-label="Import this trade">
@@ -1092,7 +1126,7 @@ function openImportModal() {
               ${r.dup ? `<div class="hint" style="margin-bottom:6px">Looks already logged (same coin, day and amount), so it's unticked.</div>` : ""}
               <div class="row">
                 <label class="field" style="margin-bottom:0"><span>Quantity</span><input type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-qty="${i}" value="${r.quantity != null ? esc(+Number(r.quantity).toPrecision(10)) : ""}"></label>
-                <label class="field" style="margin-bottom:0"><span>Price per coin (USD)</span><input type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-price="${i}" value="${r.avg_buy_price != null ? esc(+Number(r.avg_buy_price).toPrecision(8)) : ""}">${tot ? `<div class="hint">Total ${fmtUsd(tot)}</div>` : ""}</label>
+                <label class="field" style="margin-bottom:0"><span>Price per coin (USD)</span><input type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-price="${i}" value="${r.avg_buy_price != null ? esc(+Number(r.avg_buy_price).toPrecision(8)) : ""}">${r.paid ? paidHint : tot ? `<div class="hint">Total ${fmtUsd(tot)}</div>` : ""}</label>
               </div>
             </div>
           </div></div>`;
@@ -1114,8 +1148,11 @@ function openImportModal() {
     }).join("");
     list.querySelectorAll("[data-inc]").forEach(cb => cb.onchange = () => { rows[+cb.dataset.inc].include = cb.checked; paintRows(); });
     list.querySelectorAll("[data-qty]").forEach(inp => inp.oninput = () => { rows[+inp.dataset.qty].quantity = inp.value; });
-    list.querySelectorAll("[data-price]").forEach(inp => inp.oninput = () => { rows[+inp.dataset.price].avg_buy_price = inp.value === "" ? null : inp.value; });
-    list.querySelectorAll("[data-date]").forEach(inp => inp.onchange = () => { rows[+inp.dataset.date].date = inp.value || null; });
+    list.querySelectorAll("[data-price]").forEach(inp => inp.oninput = () => { const r = rows[+inp.dataset.price]; r.avg_buy_price = inp.value === "" ? null : inp.value; r.manualPrice = inp.value !== ""; });
+    list.querySelectorAll("[data-date]").forEach(inp => inp.onchange = async () => {
+      const r = rows[+inp.dataset.date]; r.date = inp.value || null;
+      if (r.paid && !r.manualPrice) { await convertPaidTrades([r]); paintRows(); }   // re-price with the new day's rate
+    });
     list.querySelectorAll("[data-change]").forEach(b => b.onclick = () => openCoinPicker(async (c) => {
       const r = rows[+b.dataset.change], m = { id: c.id, name: c.name, symbol: c.symbol, image: c.image };
       if (mode === "trades") { for (const x of rows) if (x.key === r.key) { x.match = m; x.sure = true; x.include = true; applyDup(x); } }
