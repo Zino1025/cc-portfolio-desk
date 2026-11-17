@@ -241,11 +241,11 @@ function openImportModal() {
   }
   function stepPick(msg = "") {
     body.innerHTML = `
-      <p class="secondary" style="margin-top:0">Screenshot your holdings in <b>CoinGecko</b>, CoinMarketCap, your exchange or wallet, then add the screenshots here. We'll read the coins and amounts, and you check everything before it's saved.</p>
+      <p class="secondary" style="margin-top:0">Screenshot your holdings in <b>CoinGecko</b>, CoinMarketCap, your exchange or wallet, then add the screenshots here.</p>
       <ul class="secondary" style="font-size:13px;padding-left:18px;margin:0 0 14px">
-        <li>Long list? Add up to ${IMPORT_MAX_FILES} screenshots (overlaps are fine).</li>
-        <li>Make sure amounts aren't hidden (turn off "hide balances").</li>
-        <li>Buy prices come through if the screenshot shows them (CoinGecko does).</li>
+        <li>Add up to ${IMPORT_MAX_FILES} screenshots</li>
+        <li>Make sure amounts aren't hidden</li>
+        <li>Buy prices added automatically</li>
       </ul>
       <label class="btn primary" style="display:flex;justify-content:center;cursor:pointer">Choose screenshots<input type="file" id="imp-file" accept="image/*" multiple style="display:none"></label>
       <div class="hint">Screenshots are only used to read your holdings. They aren't stored.</div>
