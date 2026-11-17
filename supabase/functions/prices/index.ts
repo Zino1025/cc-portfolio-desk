@@ -6,6 +6,10 @@
 // Request:  POST { "symbols": ["TET", "ACN", "PAAL"] }   (or GET ?symbols=TET,ACN)
 // Response: { "at": 1731850000000, "source": "MEXC", "prices": { "TET": { "price": 1.31, "change24": -2.4, "high24": 1.4, "low24": 1.2 } } }
 // Tickers MEXC doesn't list are simply missing from "prices"; the app falls back to CoinGecko for those.
+//
+// Chart candles: POST { "klines": { "symbol": "TET", "interval": "60m", "limit": 168 } }
+// Response: { "symbol": "TET", "interval": "60m", "source": "MEXC", "prices": [[openTimeMs, close], ...] }
+// Cached 60s per symbol+interval so all members share one MEXC call.
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -16,6 +20,21 @@ const CORS = {
 type Tick = { price: number; change24: number | null; high24: number | null; low24: number | null };
 let cache: { at: number; map: Map<string, Tick> } = { at: 0, map: new Map() };
 let inflight: Promise<void> | null = null;
+
+const INTERVALS = new Set(["1m", "5m", "15m", "30m", "60m", "4h", "1d", "1W"]);
+const klineCache = new Map<string, { at: number; prices: [number, number][] }>();
+async function klines(symbol: string, interval: string, limit: number) {
+  const key = `${symbol}:${interval}:${limit}`, hit = klineCache.get(key);
+  if (hit && Date.now() - hit.at < 60000) return hit.prices;
+  const r = await fetch(`https://api.mexc.com/api/v3/klines?symbol=${symbol}USDT&interval=${interval}&limit=${limit}`);
+  if (!r.ok) throw new Error("MEXC " + r.status);
+  const rows = await r.json();
+  const prices = (Array.isArray(rows) ? rows : []).map((k: unknown[]) => [Number(k[0]), Number(k[4])] as [number, number])
+    .filter(([t, c]) => Number.isFinite(t) && Number.isFinite(c) && c > 0);
+  if (klineCache.size > 300) klineCache.clear();
+  klineCache.set(key, { at: Date.now(), prices });
+  return prices;
+}
 
 async function refresh() {
   const r = await fetch("https://api.mexc.com/api/v3/ticker/24hr");
@@ -43,6 +62,14 @@ Deno.serve(async (req) => {
     let syms: string[] = (new URL(req.url).searchParams.get("symbols") || "").split(",");
     if (req.method === "POST") {
       const b = await req.json().catch(() => ({}));
+      if (b && b.klines) {
+        const symbol = String(b.klines.symbol || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20);
+        const interval = String(b.klines.interval || "60m");
+        const limit = Math.max(2, Math.min(1000, Number(b.klines.limit) || 200));
+        if (!symbol || !INTERVALS.has(interval)) return new Response(JSON.stringify({ error: "bad klines request" }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } });
+        const prices = await klines(symbol, interval, limit);
+        return new Response(JSON.stringify({ symbol, interval, source: "MEXC", prices }), { headers: { ...CORS, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+      }
       if (Array.isArray(b.symbols)) syms = b.symbols;
     }
     syms = [...new Set(syms.map((s) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, "")).filter(Boolean))].slice(0, 60);

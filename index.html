@@ -769,14 +769,49 @@ function donutCard(id, title) {
 /* ===================== DELTA-STYLE CHARTS ===================== */
 const HIST_PERIODS = [[7, "7D"], [30, "1M"], [90, "3M"], [365, "1Y"]];
 CG.hist = {};
+/* Price history for charts: exchange candles first (Coinbase for BTC/ETH, MEXC via our Supabase "prices"
+   function for the alts), CoinGecko as the fallback. Returns [[timeMs, price], ...] oldest first. */
+const EXCHANGE_CHART = {
+  CB: { bitcoin: "BTC-USD", ethereum: "ETH-USD" },
+  async coinbase(id, days) {
+    const gran = days <= 1 ? 300 : days <= 7 ? 3600 : days <= 30 ? 21600 : 86400;
+    const end = Date.now(), start = end - days * 864e5, step = 300 * gran * 1000, out = [];
+    for (let to = end; to > start; to -= step) {   // Coinbase returns max 300 candles per call
+      const from = Math.max(start, to - step);
+      const r = await fetch(`https://api.exchange.coinbase.com/products/${this.CB[id]}/candles?granularity=${gran}&start=${new Date(from).toISOString()}&end=${new Date(to).toISOString()}`);
+      if (!r.ok) throw new Error("Coinbase " + r.status);
+      for (const c of await r.json()) out.push([c[0] * 1000, +c[4]]);   // [time, low, high, open, close, volume]
+    }
+    return out;
+  },
+  async mexc(id, days) {
+    if (api.demo || !sb) throw new Error("no relay");
+    const [interval, limit] = days <= 1 ? ["15m", 96] : days <= 7 ? ["60m", 168] : days <= 30 ? ["4h", 180] : days <= 90 ? ["1d", 90] : ["1d", Math.min(1000, Math.ceil(days))];
+    const { data, error } = await sb.functions.invoke("prices", { body: { klines: { symbol: symOf(id), interval, limit } } });
+    if (error || !data || !Array.isArray(data.prices)) throw error || new Error("no candles");
+    const pts = data.prices, last = pts.length && pts[pts.length - 1][1], ref = CG.info(id)?.cgPrice;
+    // Same-token check: model coins are verified; anything else must sit within 30% of CoinGecko's price.
+    if (!modelCoinIds().includes(id) && !(ref && last && Math.abs(last / ref - 1) <= 0.3)) throw new Error("unverified ticker");
+    return pts;
+  },
+};
 CG.chart = async function (id, days) {
   const k = id + ":" + days, c = this.hist[k];
-  if (c && Date.now() - c.at < 10 * 60000) return c.prices;
-  const d = await this.get(`/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=${days}`);
-  const prices = (d.prices || []).filter(p => Number.isFinite(p[1]));
-  this.hist[k] = { prices, at: Date.now() };
+  if (c && Date.now() - c.at < (days <= 1 ? 2 : 10) * 60000) return c.prices;
+  let prices = null, src = null;
+  try {
+    if (EXCHANGE_CHART.CB[id]) { prices = await EXCHANGE_CHART.coinbase(id, days); src = "Coinbase"; }
+    else if (!STABLE_IDS.includes(id)) { prices = await EXCHANGE_CHART.mexc(id, days); src = "MEXC"; }
+  } catch (e) { prices = null; }
+  if (prices) prices = prices.filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]) && p[1] > 0).sort((a, b) => a[0] - b[0]);
+  if (!prices || prices.length < 2) {
+    const d = await this.get(`/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=${days}`);
+    prices = (d.prices || []).filter(p => Number.isFinite(p[1])); src = "CoinGecko";
+  }
+  this.hist[k] = { prices, at: Date.now(), src };
   return prices;
 };
+CG.chartSrc = function (id, days) { return this.hist[id + ":" + days]?.src || ""; };
 function rgba(hex, a) {
   const h = String(hex).trim().replace("#", "");
   if (h.length !== 6) return hex;
@@ -1015,13 +1050,13 @@ async function paintPriceChart() {
   if (tok !== S.pcTok || !document.body.contains(box)) return;
   pcHeader();
   if (S.charts.pc) { S.charts.pc.destroy(); delete S.charts.pc; }
-  if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">Couldn't load ${esc(symOf(id))} price history (CoinGecko is busy). Tap the period again in a minute.</div>`; $("#pc-range").textContent = ""; return; }
+  if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">Couldn't load ${esc(symOf(id))} price history right now. Tap the period again in a minute.</div>`; $("#pc-range").textContent = ""; return; }
   const data = pts.map(p => [p[0], p[1]]), info = CG.info(id);
   if (info && !info.sample && info.price != null) data.push([Date.now(), info.price]);   // end on the live price
   const first = data[0][1], last = data[data.length - 1][1], chg = (last - first) / first * 100;
   const lo = Math.min(...data.map(p => p[1])), hi = Math.max(...data.map(p => p[1]));
   S.pcPeriodChg = { chg, label: PRICE_PERIODS.find(x => x[0] === days)?.[1] || "" }; pcHeader();
-  $("#pc-range").textContent = `Low ${fmtPrice(lo)} · High ${fmtPrice(hi)}`;
+  $("#pc-range").textContent = `Low ${fmtPrice(lo)} · High ${fmtPrice(hi)} · chart: ${CG.chartSrc(id, days) || "CoinGecko"}`;
   box.innerHTML = `<canvas id="pc-cv" role="img" aria-label="${esc(symOf(id))} price chart"></canvas>`;
   const col = cssVar(chg < 0 ? "--bad" : "--good"), times = data.map(p => p[0]);
   const fmtT = (t) => new Date(t).toLocaleString(undefined, days <= 7 ? { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric", year: "numeric" });
