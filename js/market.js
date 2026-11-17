@@ -9,7 +9,7 @@ async function viewModel(v) {
     const pool = poolSize(draft);
     const fixedSum = draft.fixed.reduce((s, f) => s + num(f.pct), 0);
     v.innerHTML = `
-      <div class="page-head"><div><h1>Model portfolio</h1><div class="secondary">What members' Rebalance page aims for. Fixed coins always get their %; members split the flexible rest between the flex coins.</div></div>
+      <div class="page-head"><div><h1>Model portfolio</h1></div>
         <div class="row" style="flex:none"><button class="btn" id="reset">Reset to default</button><button class="btn primary" id="save">Save model</button></div></div>
       <div class="two-col">
         <div class="card"><h2>Fixed coins</h2>
@@ -19,7 +19,7 @@ async function viewModel(v) {
           <button class="btn small" id="addfx" style="margin-top:8px">+ Add fixed coin</button>
           <div class="secondary num" style="margin-top:10px">Fixed: <b>${fixedSum}%</b> → flexible pool: <b>${pool}%</b>${fixedSum > 100 ? ' <span class="bad">Fixed adds up to over 100%.</span>' : ""}</div>
         </div>
-        <div class="card"><h2>Flexible ${pool}%: coins members can pick</h2>
+        <div class="card"><h2>Flexible ${pool}%</h2>
           <div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Max %</th><th></th></tr></thead><tbody>
             ${draft.flex.map((f, i) => `<tr><td>${esc(coinLabel(f.coin))}</td><td class="r">${pctIn(f.max, `data-fmax="${i}"`)}</td><td class="r"><button class="btn small danger" data-delfl="${i}">Remove</button></td></tr>`).join("")}
           </tbody></table></div>
@@ -36,19 +36,17 @@ async function viewModel(v) {
             <td class="r"><button class="btn small danger" data-delp="${i}">Remove</button></td></tr>`; }).join("")}
         </tbody></table></div>
         <button class="btn small" id="addp" style="margin-top:8px">+ Add quick pick</button>
-        <div class="hint">Each quick pick should add up to ${pool}%. The first one is what members get until they choose. Members can also drag their own split.</div>
       </div>
       <div class="card" style="margin-top:16px"><h2>Take-profit targets (supercycle)</h2>
         <div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Bare minimum</th><th class="r">Ideal low</th><th class="r">Ideal high</th><th class="r">Extension</th></tr></thead><tbody>
           ${draft.tps.map((t, i) => `<tr><td><b>${esc(t.sym)}</b>${t.main ? "" : ' <span class="muted" style="font-size:12px">other</span>'}</td>${["min", "lo", "hi", "ext"].map(k => `<td class="r"><input type="text" enterkeyhint="done" inputmode="decimal" value="${t[k] ?? ""}" data-tp="${i}" data-tk="${k}" style="width:90px;text-align:right"></td>`).join("")}</tr>`).join("")}
-        </tbody></table></div><div class="hint">These power every member's Exit plan page. Leave a box empty if there's no level for it.</div></div>
+        </tbody></table></div></div>
       <div class="card" style="margin-top:16px"><h2>Rules</h2>
         <div class="row">
           <label class="field"><span>Suggest a trade when off by (% pts)</span><input type="text" enterkeyhint="done" inputmode="decimal" id="drift" value="${draft.drift}"></label>
           <label class="field"><span>Urgent-bid alert: 24h drop ≥ %</span><input type="text" enterkeyhint="done" inputmode="decimal" id="d24" value="${draft.drop24}"></label>
           <label class="field"><span>…or 7-day drop ≥ %</span><input type="text" enterkeyhint="done" inputmode="decimal" id="d7" value="${draft.drop7}"></label>
-        </div>
-        <div class="hint">Price-drop alerts show on everyone's Market updates page and ping you on Telegram so you can post an urgent bid.</div></div>`;
+        </div></div>`;
     const setPct = (sel, fn) => v.querySelectorAll(sel).forEach(inp => inp.onchange = () => { fn(inp, Math.max(0, decOr0(inp.value))); paint(); });
     setPct("[data-fx]", (inp, x) => { draft.fixed[+inp.dataset.fx].pct = x; });
     setPct("[data-fmax]", (inp, x) => { draft.flex[+inp.dataset.fmax].max = x; });
@@ -99,7 +97,7 @@ async function viewUpdates(v) {
       ${!isAdmin() || api.demo ? `<div class="callout" style="margin:10px 0 0">${esc(s.text)}${s.amount ? `\nSuggested bid: <b>${fmtUsd(s.amount)}</b>` : ""}</div>` : ""}
       <div class="muted" style="font-size:12px;margin-top:8px">Posted ${ago(u.created_at)}${u.expires_at ? ` · expires ${fmtDate(u.expires_at, false)}` : ""}${isAdmin() ? ` · <button class="link-btn" data-del-up="${esc(u.id)}">Remove</button>` : ""}</div></div>`; };
   v.innerHTML = `
-    <div class="page-head"><div><h1>Market updates</h1><div class="secondary">${esc(CONFIG.REVIEWER_NAME)}'s weekly summary and urgent bids, plus automatic alerts when a model coin drops hard.</div></div><button class="btn" id="reload">Refresh</button></div>
+    <div class="page-head"><div><h1>Market updates</h1></div><button class="btn" id="reload">Refresh</button></div>
     ${priceChartCard()}
     <div class="kpis">
       ${g ? groupKpi(g) : ""}
@@ -126,13 +124,12 @@ async function viewUpdates(v) {
         <label class="field"><span>Note (optional)</span><textarea id="u-body" rows="3" maxlength="2000"></textarea></label>
         ${ATT.pickerHtml("att-urgent")}
         <label class="field"><span>Show for</span><select id="u-exp" class="as-seg"><option value="1">1 day</option><option value="3" selected>3 days</option><option value="7">7 days</option></select></label>
-        <button class="btn primary" id="u-post">Post urgent bid</button><div class="hint">Everyone linked on Telegram gets a ping.</div></div>
+        <button class="btn primary" id="u-post">Post urgent bid</button></div>
       <div class="card"><h2>Post the weekly summary</h2>
         <label class="field"><span>Title</span><input type="text" enterkeyhint="done" id="w-title" maxlength="140" value="Weekly update · ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}"></label>
         <label class="field"><span>Summary</span><textarea id="w-body" rows="10" maxlength="6000" placeholder="Your take on the week…"></textarea></label>
         ${ATT.pickerHtml("att-weekly")}
-        <div class="btn-row"><button class="btn" id="w-draft">Fill with this week's numbers</button><button class="btn primary" id="w-post">Post summary</button></div>
-        <div class="hint">Everyone linked on Telegram gets a ping with the first lines.</div></div>
+        <div class="btn-row"><button class="btn" id="w-draft">Fill with this week's numbers</button><button class="btn primary" id="w-post">Post summary</button></div></div>
     </div>` : ""}`;
   paintPriceChart();
   $("#reload").onclick = async () => { await CG.ensure(["bitcoin", "ethereum", ...modelCoinIds(m)], 0); CG.hist = {}; render(); };

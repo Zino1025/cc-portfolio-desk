@@ -2,7 +2,6 @@
 function renderAuth(mode = "signin", msg = "") {
   $("#app").innerHTML = `<div class="auth-wrap"><div class="auth">
     <div class="brand"><span class="logo">${esc(CONFIG.GROUP_NAME)}</span>Portfolio Desk</div>
-    <p class="secondary" style="text-align:center;margin:0 0 18px">Track your bags. Get ${esc(CONFIG.REVIEWER_NAME)}'s feedback without the DMs.</p>
     <div class="card">
       ${mode === "recover" ? `
         <h2>Set a new password</h2>
@@ -21,7 +20,6 @@ function renderAuth(mode = "signin", msg = "") {
       <button class="btn primary" id="a-go" style="width:100%">${mode === "signup" ? "Create account" : "Sign in"}</button>
       ${mode === "signin" ? `<div style="text-align:center;margin-top:12px"><button class="link-btn" id="a-forgot">Forgot password?</button></div>` : ""}`}
     </div>
-    <p class="muted" style="text-align:center;font-size:12px;margin-top:16px">Your portfolio is private: only you and ${esc(CONFIG.REVIEWER_NAME)} can see it.</p>
   </div></div>`;
   document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => renderAuth(b.dataset.m));
   const err = (m) => $("#a-err").textContent = m;

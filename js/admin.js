@@ -20,8 +20,7 @@ function openBroadcast() {
   ];
   const picked = new Set();
   const ov = document.createElement("div"); ov.className = "overlay";
-  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="max-width:560px"><h2>📣 Broadcast <button class="x" aria-label="Close">×</button></h2>
-    <p class="secondary" style="margin-top:0">One message, sent privately to each member. It lands in their own Feedback thread (they can reply 1-on-1) and pings them on Telegram if linked.</p>
+  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="max-width:560px"><h2>Broadcast <button class="x" aria-label="Close">×</button></h2>
     <label class="field"><span>Send to</span><select id="bc-aud">${AUD.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join("")}</select></label>
     <label class="field hidden" id="bc-coin-wrap"><span>Coin</span><select id="bc-coin">${coinList.map((c, i) => `${i === big.length && i ? `<option disabled>──────────</option>` : ""}<option value="${esc(c.id)}">${big.includes(c.id) ? "★ " : ""}${esc(c.symbol)} · ${c.n} holder${c.n === 1 ? "" : "s"}</option>`).join("")}</select></label>
     <div class="hidden" id="bc-pick" style="margin-bottom:12px"><input type="search" enterkeyhint="done" id="bc-q" placeholder="Search members" style="margin-bottom:6px">
@@ -111,12 +110,12 @@ async function viewMembers(v) {
   const total = all.reduce((s, r) => s + r.pf.totals.value, 0);
   const stale = all.filter(isStale).length;
   v.innerHTML = `
-    <div class="page-head"><div><h1>Review queue</h1><div class="secondary">Every member's portfolio in one place. Open requests are listed first.</div></div><div class="row" style="flex:none"><button class="btn" id="reload">Reload</button><button class="btn primary" id="bcast">Broadcast</button></div></div>
+    <div class="page-head"><div><h1>Review queue</h1></div><div class="row" style="flex:none"><button class="btn" id="reload">Reload</button><button class="btn primary" id="bcast">Broadcast</button></div></div>
     <div class="kpis">
       <div class="card kpi"><div class="label">Members</div><div class="value num">${all.length}</div><div class="sub muted">${all.filter(r => r.txs.length).length} with trades logged</div></div>
       <div class="card kpi"><div class="label">Open review requests</div><div class="value num">${all.filter(r => r.p.review_requested).length}</div><div class="sub muted">${all.filter(r => r.newFromMember).length} threads with unanswered messages</div></div>
-      <div class="card kpi"><div class="label">Not reviewed in 30d</div><div class="value num">${stale}</div><div class="sub muted">incl. never reviewed</div></div>
-      <div class="card kpi"><div class="label">Total tracked value</div><div class="value num">${fmtUsd(total, { compact: true })}</div><div class="sub muted">across all members</div></div>
+      <div class="card kpi"><div class="label">Not reviewed in 30d</div><div class="value num">${stale}</div></div>
+      <div class="card kpi"><div class="label">Total tracked value</div><div class="value num">${fmtUsd(total, { compact: true })}</div></div>
     </div>
     <div class="card">
       <div class="toolbar">
@@ -201,7 +200,7 @@ async function viewMemberDetail(v, id) {
       </div>
       <div class="card"><h2>Thread</h2><div class="thread" id="thread">${threadHtml(msgs, S.me.id, p.id, names)}</div></div>
     </div>
-    <div class="card" style="margin-top:16px" id="notes-card"><div class="card-h"><h2>📝 Member profile</h2><span class="muted" style="font-size:12px">Private · only admins see this</span></div>
+    <div class="card" style="margin-top:16px" id="notes-card"><div class="card-h"><h2>Member profile</h2><span class="muted" style="font-size:12px">Private</span></div>
       <div class="secondary" style="font-size:13px;margin:-4px 0 10px">${r.txs.length} trade${r.txs.length === 1 ? "" : "s"} logged${r.txs.length ? ` · first ${ago(r.txs[0].executed_at)} · latest ${ago(r.txs.at(-1).executed_at)}` : ""} · signed up to the desk ${ago(p.created_at)}</div>
       <div class="row" style="align-items:flex-end;margin-bottom:6px">
         <label class="field" style="margin-bottom:0"><span>Joined ${esc(CONFIG.GROUP_NAME)} <span class="muted">(optional)</span></span><input type="date" id="cc-joined" max="${todayISO()}" value="${esc(p.cc_joined_on || "")}"></label>
@@ -263,7 +262,7 @@ async function bindMemberNotes(p, names) {
       <div style="white-space:pre-wrap">${esc(n.body)}</div>
       <div class="muted" style="font-size:12px;margin-top:4px;display:flex;gap:10px;align-items:center">${esc(names[n.author_id] || CONFIG.REVIEWER_NAME)} · ${ago(n.created_at)}
         <button class="btn" data-del-note="${esc(n.id)}" style="flex:none;margin-left:auto;padding:2px 10px;font-size:12px">Delete</button></div></div>`).join("")
-      : `<div class="muted" style="font-size:13px">No notes yet. Anything you jot here stays for future reference.</div>`;
+      : `<div class="muted" style="font-size:13px">No notes yet.</div>`;
     list.querySelectorAll("[data-del-note]").forEach(b => b.onclick = () => confirmModal("Delete note?", "This note will be removed for good.", async () => {
       try { await api.deleteNote(b.dataset.delNote); notes = notes.filter(n => n.id !== b.dataset.delNote); paint(); } catch (e) { toast("Couldn't delete: " + (e.message || e)); }
     }));
@@ -325,10 +324,10 @@ async function viewInsights(v) {
   const byHolders = [...list].sort((a, b) => b.holders - a.holders || b.value - a.value);
   const conc = rows.filter(r => r.concentrated).sort((a, b) => b.top.alloc - a.top.alloc);
   v.innerHTML = `
-    <div class="page-head"><div><h1>Group insights</h1><div class="secondary">What the ${esc(CONFIG.GROUP_NAME)} group holds, combined across ${rows.length} member portfolio${rows.length === 1 ? "" : "s"}.</div></div></div>
+    <div class="page-head"><div><h1>Group insights</h1></div></div>
     ${(() => { const t = rows.reduce((a, r) => ({ value: a.value + r.pf.totals.value, cost: a.cost + r.pf.totals.cost, chg: a.chg + r.pf.totals.change24Usd }), { value: 0, cost: 0, chg: 0 }); return `<div class="kpis">
       <div class="card kpi"><div class="label">All members, total value</div><div class="value num">${fmtUsd(t.value)}</div><div class="sub num ${signCls(t.chg)}">${fmtUsd(t.chg)} 24h</div></div>
-      <div class="card kpi"><div class="label">Total invested</div><div class="value num">${fmtUsd(t.cost)}</div><div class="sub muted">cost basis</div></div>
+      <div class="card kpi"><div class="label">Total invested</div><div class="value num">${fmtUsd(t.cost)}</div></div>
       <div class="card kpi"><div class="label">Group unrealized P&amp;L</div><div class="value num ${signCls(t.value - t.cost)}">${fmtUsd(t.value - t.cost)}</div><div class="sub num ${signCls(t.value - t.cost)}">${t.cost ? fmtPct((t.value - t.cost) / t.cost * 100) : "—"}</div></div>
       <div class="card kpi"><div class="label">Avg portfolio</div><div class="value num">${fmtUsd(rows.length ? t.value / rows.length : 0)}</div><div class="sub muted">${rows.length} members with holdings</div></div></div>`; })()}
     <div class="two-col">

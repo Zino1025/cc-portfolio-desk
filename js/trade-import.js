@@ -241,17 +241,10 @@ function openImportModal() {
   }
   function stepPick(msg = "") {
     body.innerHTML = `
-      <p class="secondary" style="margin-top:0">Screenshot your holdings in <b>CoinGecko</b>, CoinMarketCap, your exchange or wallet, then add the screenshots here.</p>
-      <ul class="secondary" style="font-size:13px;padding-left:18px;margin:0 0 14px">
-        <li>Add up to ${IMPORT_MAX_FILES} screenshots</li>
-        <li>Make sure amounts aren't hidden</li>
-        <li>Buy prices added automatically</li>
-      </ul>
       <label class="btn primary" style="display:flex;justify-content:center;cursor:pointer">Choose screenshots<input type="file" id="imp-file" accept="image/*" multiple style="display:none"></label>
-      <div class="hint">Screenshots are only used to read your holdings. They aren't stored.</div>
       <div style="display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:var(--text-muted);font-size:12px"><span style="flex:1;border-top:1px solid var(--grid)"></span>or<span style="flex:1;border-top:1px solid var(--grid)"></span></div>
       <label class="btn" style="display:flex;justify-content:center;cursor:pointer">Upload a CSV file<input type="file" id="imp-csv" accept=".csv,text/csv,.txt,text/plain" style="display:none"></label>
-      <div class="hint">Columns: coin, quantity, buy price, date (optional). Exports from CoinGecko, exchanges and this app work too. <button class="link-btn" type="button" id="imp-tpl" style="font-size:12px">Download template</button></div>
+      <div class="hint">Columns: coin, quantity, buy price, date. <button class="link-btn" type="button" id="imp-tpl" style="font-size:12px">Download template</button></div>
       <div class="err" id="imp-err">${esc(msg)}</div>`;
     $("#imp-file", ov).onchange = (e) => { const files = [...e.target.files]; if (files.length) run(files); };
     $("#imp-csv", ov).onchange = (e) => { const f = e.target.files[0]; if (f) runCsv(f); };
@@ -304,15 +297,14 @@ function openImportModal() {
     if (nonUsd) rows.forEach(r => { r.avg_buy_price = null; });
     body.innerHTML = `
       <p class="secondary" style="margin-top:0">${mode === "trades"
-        ? `Found <b>${rows.length}</b> transaction${rows.length === 1 ? "" : "s"}${isCsv ? " in your CSV" : src ? ` in your ${esc(src)} screenshot` : ""}. Each one is saved as its own trade with its date. Check them, then import.`
-        : `Found <b>${rows.length}</b> coin${rows.length === 1 ? "" : "s"}${isCsv ? " in your CSV" : src ? ` in your ${esc(src)} screenshot` : ""}. Check each one, fix anything that's off, then import.`}</p>
+        ? `Found <b>${rows.length}</b> transaction${rows.length === 1 ? "" : "s"}${isCsv ? " in your CSV" : src ? ` in your ${esc(src)} screenshot` : ""}.`
+        : `Found <b>${rows.length}</b> coin${rows.length === 1 ? "" : "s"}${isCsv ? " in your CSV" : src ? ` in your ${esc(src)} screenshot` : ""}.`}</p>
       ${warns.length ? `<div class="card" style="padding:10px 12px;margin-bottom:12px;font-size:13px">⚠️ ${warns.map(esc).join("<br>⚠️ ")}</div>` : ""}
       <div id="imp-rows"></div>
       <div class="row" style="margin-top:6px">
         ${mode === "trades" ? "" : `<label class="field"><span>Bought around</span><input type="datetime-local" id="imp-when" value="${toLocalInput(new Date())}"></label>`}
         <label class="field"><span>Exchange / wallet</span><input type="text" id="imp-exch" maxlength="60" value="${esc(src && !/coingecko|coinmarketcap/i.test(src) ? src : "")}" placeholder="MEXC, Binance, Phantom…"></label>
       </div>
-      ${mode === "trades" ? "" : `<div class="hint" style="margin-top:-6px">Every imported coin gets this date. You can fix individual dates later under Trades.</div>`}
       <div class="err" id="imp-err"></div>
       <div class="row" style="justify-content:space-between;align-items:center"><button class="link-btn" id="imp-again" type="button">${isCsv ? "Use a different file" : "Use different screenshots"}</button>
         <button class="btn primary" id="imp-save" style="flex:none"></button></div>`;
@@ -330,13 +322,13 @@ function openImportModal() {
         ? `<div class="picked" style="padding:6px 9px">${coinCell({ ...r.match, coin_id: r.match.id })}<button class="link-btn" type="button" data-change="${i}">Change</button></div>`
         : `<button class="btn" type="button" data-change="${i}" style="width:100%">Pick the coin</button>`;
       const flag = !r.match ? `<div class="hint" style="color:var(--bad)">Couldn't match “${esc(shot)}”. Pick it, or untick to skip.</div>`
-        : !r.sure ? `<div class="hint" style="color:var(--bad)">Not 100% sure this is the right coin. Please check.</div>`
+        : !r.sure ? `<div class="hint" style="color:var(--bad)">Check this coin.</div>`
         : r.topUp ? `<div class="hint">You have ${fmtQty(r.heldQty)} logged and the screenshot shows ${fmtQty(r.shotQty)}, so only the extra ${fmtQty(r.quantity)} will be added.</div>`
         : r.alreadyHeld ? `<div class="hint">Already logged (you have ${fmtQty(r.heldQty)}), so it's unticked. Tick it only if this is a new buy on top.</div>` : "";
       if (mode === "trades") {
         const firstOfCoin = i === 0 || rows[i - 1].key !== r.key;
         const coinFlag = !r.match ? `<div class="hint" style="color:var(--bad);margin:-4px 0 8px">Couldn't match “${esc(shot)}”. Pick the coin.</div>`
-          : !r.sure ? `<div class="hint" style="color:var(--bad);margin:-4px 0 8px">Not 100% sure this is the right coin. Please check.</div>` : "";
+          : !r.sure ? `<div class="hint" style="color:var(--bad);margin:-4px 0 8px">Check this coin.</div>` : "";
         const tot = num(r.quantity) * num(r.avg_buy_price);
         const paidHint = !r.paid ? "" : r.manualPrice ? `<div class="hint">Paid ${fmtQty(r.paid.amount)} ${esc(r.paid.currency)}</div>`
           : r.conv?.ok ? `<div class="hint">Paid ${fmtQty(r.paid.amount)} ${esc(r.paid.currency)} ≈ ${fmtUsd(r.paid.amount * r.conv.rate)} (${esc(r.paid.currency)} price that day)</div>`

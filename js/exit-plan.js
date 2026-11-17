@@ -148,7 +148,7 @@ async function viewExit(v) {
       </div></div>`;
   };
   v.innerHTML = `
-    <div class="page-head"><div><h1>Exit plan</h1><div class="secondary">Decide now, while you're calm, where you'll take profit, then commit to it. ${esc(CONFIG.REVIEWER_NAME)} can see your plan.</div></div><div id="ex-status"></div></div>
+    <div class="page-head"><div><h1>Exit plan</h1></div><div id="ex-status"></div></div>
     <div class="card guide"><h2>${esc(CONFIG.REVIEWER_NAME)}'s exit rules</h2>
       <ul class="guide-list">
         <li><b>Set your targets now.</b></li>
@@ -159,7 +159,6 @@ async function viewExit(v) {
         <li><b>Take profit at macro levels.</b></li>
         <li><b>Make capital preservation the focus.</b></li>
       </ul></div>
-    <div class="card" style="margin-top:12px;padding:12px 16px;font-size:13px;border-left:3px solid var(--accent)">💬 Keep up with the ${esc(CONFIG.GROUP_NAME)} chat for ${esc(CONFIG.REVIEWER_NAME)}'s latest updates: targets and timing can change. These are his "ideal supercycle" levels, not promises. Education, not financial advice.</div>
     <div class="two-col" style="margin-top:16px">
       <div class="card"><h2>Your money goal</h2>
         <label class="field"><span>Total I want to cash out ($)</span><input type="text" enterkeyhint="done" inputmode="decimal" id="ex-goal" value="${plan.goal || ""}" placeholder="e.g. 50000"></label>
@@ -174,9 +173,8 @@ async function viewExit(v) {
     <h2 class="section-h">Your coins</h2>
     <div class="grid" id="ex-coins">${coins.map(coinCard).join("")}</div>
     <div class="card" style="margin-top:16px"><h2>Add a coin</h2>
-      <div class="secondary" style="font-size:13px;margin-bottom:10px">Plan an exit for a coin you don't hold yet. It starts with a suggested plan you can change.</div>
       <div class="add-coin"><select id="ex-add-sel" aria-label="Coin with ${esc(CONFIG.REVIEWER_NAME)}'s targets"></select><button class="btn" id="ex-add-btn">Add</button></div>
-      <div class="search-wrap" style="margin-top:10px"><input type="search" enterkeyhint="done" id="ex-add-q" placeholder="…or search any coin (name or ticker)" autocomplete="off"><div class="dropdown hidden" id="ex-add-dd"></div></div>
+      <div class="search-wrap" style="margin-top:10px"><input type="search" enterkeyhint="done" id="ex-add-q" placeholder="Search coin" autocomplete="off"><div class="dropdown hidden" id="ex-add-dd"></div></div>
     </div>
     ${getTps().some(t => !t.main) ? `<div class="card" style="margin-top:16px"><h2>Other coins ${esc(CONFIG.REVIEWER_NAME)} has targets for</h2><div class="secondary" style="font-size:13px">${getTps().filter(t => !t.main).map(t => `${esc(t.sym)}: ${tpLevels(t).filter(l => l.k !== "mid").map(l => fmtPrice(l.price)).join(" / ")}`).join(" · ")}</div><div class="hint">Not part of the main five. They show up above if you hold or add them.</div></div>` : ""}`;
   const paintStatus = () => {
@@ -191,9 +189,9 @@ async function viewExit(v) {
     for (const c of coins) { const cp = plan.coins[c.id]; if (!cp || !c.h) continue; held++; const k = exitCalc(c.tp, cp, c.h); total += k.total; if (k.initialsAt != null || !c.h.cost) initialsOk++; }
     const goal = num(plan.goal);
     $("#ex-sum").innerHTML = `<div class="kpis" style="margin:4px 0 0">
-      <div class="card kpi"><div class="label">Plan cashes out</div><div class="value num">${fmtUsd(total, { compact: total >= 1e6 })}</div><div class="sub muted">if every step fills</div></div>
-      <div class="card kpi"><div class="label">Goal covered</div><div class="value num ${goal && total >= goal ? "good" : ""}">${goal ? Math.min(999, Math.round(total / goal * 100)) + "%" : "—"}</div><div class="sub muted">${goal ? (total >= goal ? "your plan reaches your goal" : `${fmtUsd(goal - total)} short`) : "set a goal above"}</div></div>
-      <div class="card kpi"><div class="label">Initials back</div><div class="value num">${initialsOk}/${held}</div><div class="sub muted">coins whose plan repays your cost</div></div></div>
+      <div class="card kpi"><div class="label">Plan cashes out</div><div class="value num">${fmtUsd(total, { compact: total >= 1e6 })}</div></div>
+      <div class="card kpi"><div class="label">Goal covered</div><div class="value num ${goal && total >= goal ? "good" : ""}">${goal ? Math.min(999, Math.round(total / goal * 100)) + "%" : "—"}</div><div class="sub muted">${goal ? (total >= goal ? "reached" : `${fmtUsd(goal - total)} short`) : ""}</div></div>
+      <div class="card kpi"><div class="label">Initials back</div><div class="value num">${initialsOk}/${held}</div></div></div>
 `;
   };
   const bind = () => {

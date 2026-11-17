@@ -60,7 +60,7 @@ async function viewTrades(v) {
   const view = S.tradeView || "coin", groups = view === "coin" ? tradesByCoin() : [];
   const coins = [...new Map(S.txs.map(t => [t.coin_id, t])).values()].sort((a, b) => String(a.name).localeCompare(b.name));
   v.innerHTML = `
-    <div class="page-head"><div><h1>Trades</h1><div class="secondary">${S.txs.length} trade${S.txs.length === 1 ? "" : "s"} · ${coins.length} coin${coins.length === 1 ? "" : "s"}. Tap a trade to edit it.</div></div>
+    <div class="page-head"><div><h1>Trades</h1><div class="secondary">${S.txs.length} trade${S.txs.length === 1 ? "" : "s"} · ${coins.length} coin${coins.length === 1 ? "" : "s"}</div></div>
       <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end"><button class="btn" id="csv">Export CSV</button><button class="btn" id="import-shot">Import</button><button class="btn primary" id="add">+ Add trade</button></div></div>
     ${S.txs.length ? `<div class="tr-tools">
       <div class="seg"><button class="${view === "coin" ? "on" : ""}" data-view="coin">By coin</button><button class="${view === "all" ? "on" : ""}" data-view="all">All trades</button></div>
@@ -147,7 +147,7 @@ function openTradeModal(existing, presetCoinId) {
       if (!existing && !price.value) prefillCurrent();
       return;
     }
-    slot.innerHTML = `<div class="search-wrap"><input type="search" enterkeyhint="done" id="coin-q" placeholder="Type a name, ticker, or paste a CoinGecko link" autocomplete="off"><div class="dropdown hidden" id="coin-dd"></div></div>`;
+    slot.innerHTML = `<div class="search-wrap"><input type="search" enterkeyhint="done" id="coin-q" placeholder="Search coin" autocomplete="off"><div class="dropdown hidden" id="coin-dd"></div></div>`;
     const q = $("#coin-q", ov), dd = $("#coin-dd", ov);
     q.focus();
     const run = debounce(async () => {

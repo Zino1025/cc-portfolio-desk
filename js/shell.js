@@ -74,9 +74,9 @@ function kpiRow(pf) {
   const t = pf.totals;
   return `<div class="kpis">
     <div class="card kpi"><div class="label">Portfolio value</div><div class="value num">${fmtUsd(t.value)}</div><div class="sub num ${signCls(t.change24Usd)}">${fmtUsd(t.change24Usd)} (${fmtPct(t.change24Pct)}) 24h</div></div>
-    <div class="card kpi"><div class="label">Invested (cost basis)</div><div class="value num">${fmtUsd(t.cost)}</div><div class="sub muted">avg-cost method, fees included</div></div>
+    <div class="card kpi"><div class="label">Invested</div><div class="value num">${fmtUsd(t.cost)}</div></div>
     <div class="card kpi"><div class="label">Unrealized P&amp;L</div><div class="value num ${signCls(t.pnl)}">${fmtUsd(t.pnl)}</div><div class="sub num ${signCls(t.pnl)}">${fmtPct(t.pnlPct)}</div></div>
-    <div class="card kpi"><div class="label">Realized P&amp;L</div><div class="value num ${signCls(t.realized)}">${fmtUsd(t.realized)}</div><div class="sub muted">from sells</div></div>
+    <div class="card kpi"><div class="label">Realized P&amp;L</div><div class="value num ${signCls(t.realized)}">${fmtUsd(t.realized)}</div></div>
   </div>`;
 }
 function holdingsTable(pf, editable = false) {
@@ -99,7 +99,6 @@ function holdingsTable(pf, editable = false) {
       <td class="r num hide-sm">${h.alloc.toFixed(1)}%</td>
       <td class="hide-sm secondary" style="font-size:13px">${fmtDate(h.firstBuy)}</td>
     </tr>`).join("")}</tbody></table></div>
-    ${editable ? `<div class="hint">Tap a coin to see or edit its trades (buy price, amount, time).</div>` : ""}
     ${pf.estimated ? `<div class="hint">* No live CoinGecko price found; valued at your last trade price.</div>` : ""}`;
 }
 async function viewOverview(v) {
@@ -109,7 +108,7 @@ async function viewOverview(v) {
   const has = pf.holdings.length, ex = exitStatus(S.me).state;
   v.innerHTML = `
     ${alertBanner()}
-    <div class="page-head"><div><h1>My portfolio</h1><div class="secondary">${CG.offline ? "Sample prices (offline)" : "Live prices, refreshed every minute"}</div></div>
+    <div class="page-head"><div><h1>My portfolio</h1>${CG.offline ? `<div class="secondary">Sample prices (offline)</div>` : ""}</div>
       <button class="icon-btn" id="refresh" aria-label="Refresh prices" title="Refresh prices">${ICON.refresh}</button></div>
     ${has ? heroCard(pf) : ""}
     <div class="acts">

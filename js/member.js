@@ -14,13 +14,13 @@ async function viewFeedback(v) {
   S.msgs = await api.messages(S.me.id);
   const req = S.me.review_requested;
   v.innerHTML = `
-    <div class="page-head"><div><h1>Feedback from ${esc(CONFIG.REVIEWER_NAME)}</h1><div class="secondary">Your private thread. Only you and ${esc(CONFIG.REVIEWER_NAME)} can see it.</div></div></div>
+    <div class="page-head"><div><h1>Feedback from ${esc(CONFIG.REVIEWER_NAME)}</h1></div></div>
     <div class="two-col">
       <div class="card">
         <h2>Portfolio review</h2>
         ${req ? `<div class="callout">⏳ Review requested ${ago(S.me.review_requested_at)}${S.me.review_question ? `:\n“${esc(S.me.review_question)}”` : ""}</div>
                  <button class="btn" id="cancel-req">Cancel request</button>`
-              : `<p class="secondary" style="margin-top:0">${S.me.last_reviewed_at ? `Last reviewed ${ago(S.me.last_reviewed_at)}.` : "Not reviewed yet."} Ask a question and ${esc(CONFIG.REVIEWER_NAME)} will look at your holdings and buy history.</p>
+              : `<p class="secondary" style="margin-top:0">${S.me.last_reviewed_at ? `Last reviewed ${ago(S.me.last_reviewed_at)}.` : "Not reviewed yet."}</p>
                  <label class="field"><span>What do you want feedback on?</span><textarea id="req-q" maxlength="1000" placeholder="e.g. Am I too heavy on one coin? Should I take profit on X?"></textarea></label>
                  <button class="btn primary" id="req">Request a review</button>`}
       </div>
@@ -83,8 +83,8 @@ function projRowCalc(r) {
 function openCoinPicker(onPick) {
   const ov = document.createElement("div"); ov.className = "overlay";
   ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><h2>Add a coin <button class="x" aria-label="Close">×</button></h2>
-    <div class="search-wrap"><input type="search" enterkeyhint="done" id="pick-q" placeholder="Name, ticker, or CoinGecko link" autocomplete="off"><div class="dropdown hidden" id="pick-dd"></div></div>
-    <div class="hint">Searches CoinGecko.</div></div>`;
+    <div class="search-wrap"><input type="search" enterkeyhint="done" id="pick-q" placeholder="Search coin" autocomplete="off"><div class="dropdown hidden" id="pick-dd"></div></div>
+    </div>`;
   document.body.appendChild(ov);
   const close = () => ov.remove();
   ov.querySelector(".x").onclick = close; ov.addEventListener("click", e => { if (e.target === ov) close(); });
@@ -104,7 +104,7 @@ async function viewProjections(v) {
   await CG.ensure([...S.txs.map(t => t.coin_id), ...S.proj.rows.map(r => r.coin_id)]);
   const hasPf = computePortfolio(S.txs).holdings.length > 0;
   v.innerHTML = `
-    <div class="page-head"><div><h1>Projections</h1><div class="secondary">What could your coins be worth? Set a target price or multiple per coin. Hypothetical only, not financial advice.</div></div>
+    <div class="page-head"><div><h1>Projections</h1></div>
       <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end">${hasPf ? `<button class="btn" id="pj-load">Load my portfolio</button>` : ""}<button class="btn" id="pj-clear">Start blank</button><button class="btn primary" id="pj-add">+ Add coin</button></div></div>
     <div class="card" style="margin-bottom:16px">
       <div class="toolbar" style="margin:0">
@@ -137,9 +137,9 @@ function paintProj() {
   const T = calcs.reduce((a, c) => ({ now: a.now + c.valueNow, proj: a.proj + c.valueProj, cost: a.cost + c.cost }), { now: 0, proj: 0, cost: 0 });
   const profit = T.proj - T.cost;
   $("#pj-kpis").innerHTML = rows.length ? `<div class="kpis">
-    <div class="card kpi"><div class="label">Value today</div><div class="value num">${fmtUsd(T.now)}</div><div class="sub muted">at live CoinGecko prices</div></div>
+    <div class="card kpi"><div class="label">Value today</div><div class="value num">${fmtUsd(T.now)}</div></div>
     <div class="card kpi"><div class="label">Projected value</div><div class="value num">${fmtUsd(T.proj, { compact: true })}</div><div class="sub num">${T.now > 0 ? (T.proj / T.now).toFixed(2) + "× today" : "—"}</div></div>
-    <div class="card kpi"><div class="label">Projected profit</div><div class="value num ${signCls(profit)}">${fmtUsd(profit, { compact: true })}</div><div class="sub muted">vs what you paid / put in</div></div>
+    <div class="card kpi"><div class="label">Projected profit</div><div class="value num ${signCls(profit)}">${fmtUsd(profit, { compact: true })}</div></div>
     <div class="card kpi"><div class="label">Return on cost</div><div class="value num ${signCls(profit)}">${T.cost > 0 ? fmtPct(profit / T.cost * 100) : "—"}</div><div class="sub muted">${T.cost > 0 ? (T.proj / T.cost).toFixed(2) + "× your money" : ""}</div></div>
   </div>` : "";
   const pieRows = rows.map((r, i) => ({ coin_id: r.coin_id, symbol: r.symbol, name: r.name, value: calcs[i].valueProj })).filter(h => h.value > 0).sort((a, b) => b.value - a.value);
@@ -172,7 +172,7 @@ function paintProj() {
       <td class="r num ${signCls(profit)}" data-l="Profit"><b>${fmtUsd(profit)}</b><div style="font-size:12px">${T.cost > 0 ? fmtPct(profit / T.cost * 100) : ""}</div></td>
       <td class="pj-empty"></td>
     </tr></tbody></table></div>
-    <div class="hint">Target and Multiple update each other. MC = market cap at target.</div>`;
+`;
   const commit = debounce(() => paintProjKeepFocus(), 600);
   tbl.querySelectorAll("input[data-f]").forEach(inp => inp.oninput = () => {
     const r = rows.find(x => x.id === inp.closest("tr").dataset.row), f = inp.dataset.f;
@@ -192,11 +192,11 @@ function paintProjKeepFocus() {
 async function viewProfile(v) {
   const p = S.me;
   v.innerHTML = `
-    <div class="page-head"><div><h1>Profile</h1><div class="secondary">This helps ${esc(CONFIG.REVIEWER_NAME)} tailor suggestions to you.</div></div></div>
+    <div class="page-head"><div><h1>Profile</h1></div></div>
     <div class="card" style="max-width:560px">
       <label class="field"><span>Display name</span><input type="text" enterkeyhint="done" id="p-name" maxlength="60" value="${esc(p.display_name || "")}"></label>
       <label class="field"><span>Telegram handle</span><input type="text" enterkeyhint="done" id="p-tg" maxlength="40" value="${esc(p.telegram_handle || "")}" placeholder="@yourhandle"></label>
-      ${api.demo ? "" : `<div class="secondary" style="font-size:13px;margin:-4px 0 12px">${p.telegram_chat_id ? "🔔 Telegram notifications are on: the CC bot will message you about reviews and feedback." : "🔕 Telegram notifications are off. Open this app once from the CC bot in Telegram to turn them on."}</div>`}
+      ${api.demo ? "" : `<div class="secondary" style="font-size:13px;margin:-4px 0 12px">${p.telegram_chat_id ? "Telegram notifications on" : "Telegram notifications off. Open the app from the CC bot to turn them on."}</div>`}
       <label class="field"><span>Risk appetite</span><select id="p-risk" class="as-seg">${["", "low", "medium", "high", "degen"].map(r => `<option value="${r}" ${p.risk_level === r || (!p.risk_level && !r) ? "selected" : ""}>${r ? r[0].toUpperCase() + r.slice(1) : "Choose…"}</option>`).join("")}</select></label>
       <label class="field"><span>Date you joined ${esc(CONFIG.GROUP_NAME)} <span class="muted">(optional)</span></span><input type="date" id="p-joined" max="${todayISO()}" value="${esc(p.cc_joined_on || "")}"></label>
       <label class="field"><span>Goal &amp; time horizon</span><textarea id="p-goal" maxlength="500" placeholder="e.g. Long-term hold, 2 years, want to 3x">${esc(p.goal || "")}</textarea></label>
@@ -391,7 +391,7 @@ function planTable(plan, m) {
 function mixSliders(m, mix) {
   const pool = poolSize(m);
   return m.fixed.map(f => `<div class="bucket"><div class="bucket-head"><b>${esc(coinLabel(f.coin))}</b><span class="num"><b>${num(f.pct).toFixed(0)}%</b> <span class="muted">fixed</span></span></div></div>`).join("") +
-    `<div class="bucket" style="border-bottom:none;padding-bottom:0"><div class="bucket-head"><b>Flexible ${pool}%</b><span class="muted" style="font-size:13px">split it your way</span></div></div>` +
+    `<div class="bucket" style="border-bottom:none;padding-bottom:0"><div class="bucket-head"><b>Flexible ${pool}%</b></div></div>` +
     m.flex.map(f => `<div class="bucket flex">
       <div class="bucket-head"><span>${esc(coinLabel(f.coin))}</span><span class="num"><b id="fx-${esc(f.coin)}">${num(mix[f.coin]).toFixed(1)}%</b> <span class="muted">max ${Math.min(num(f.max) || pool, pool)}%</span></span></div>
       <input type="range" class="range" min="0" max="${Math.min(num(f.max) || pool, pool)}" step="0.5" value="${num(mix[f.coin])}" data-flex="${esc(f.coin)}" aria-label="${esc(symOf(f.coin))} share of the flexible ${pool}%">
@@ -413,33 +413,31 @@ async function viewRebalance(v) {
     const tgt = Object.entries(plan.T.coins).filter(([, p]) => p > 0).map(([id, p]) => ({ symbol: symOf(id), name: CG.info(id)?.name || id, value: p, alloc: p }));
     $("#reb-body").innerHTML = `
       <div class="kpis">
-        <div class="card kpi"><div class="label">Model coins value</div><div class="value num">${fmtUsd(plan.baseNow)}</div><div class="sub muted">what the plan is based on</div></div>
-        <div class="card kpi"><div class="label">Under target</div><div class="value num">${plan.rows.filter(r => r.target - r.nowPct >= drift).length}</div><div class="sub muted">coins more than ${drift}% below target</div></div>
-        <div class="card kpi"><div class="label">To be fully on target</div><div class="value num good">${fmtUsd(plan.needSum)}</div><div class="sub muted">new money needed, nothing sold</div></div>
-        ${plan.money ? `<div class="card kpi"><div class="label">This buy</div><div class="value num">${fmtUsd(plan.money)}</div><div class="sub muted">split across coins below target</div></div>` : ""}
+        <div class="card kpi"><div class="label">Model coins value</div><div class="value num">${fmtUsd(plan.baseNow)}</div></div>
+        <div class="card kpi"><div class="label">Under target</div><div class="value num">${plan.rows.filter(r => r.target - r.nowPct >= drift).length}</div></div>
+        <div class="card kpi"><div class="label">To be fully on target</div><div class="value num good">${fmtUsd(plan.needSum)}</div></div>
+        ${plan.money ? `<div class="card kpi"><div class="label">This buy</div><div class="value num">${fmtUsd(plan.money)}</div></div>` : ""}
       </div>
       <div class="card"><h2>Your plan</h2>${plan.baseNow || plan.money ? planTable(plan, m) : `<div class="empty"><div class="big">Nothing to balance yet</div>Log your holdings, or enter new money above to plan your first buys.</div>`}
-        ${plan.others.length ? `<div class="hint">Held outside the model (not touched): ${plan.others.map(h => `${esc((h.symbol || "").toUpperCase())} ${fmtUsd(h.value)}`).join(", ")}.</div>` : ""}
-        <div class="hint">We only add when we can: coins over target are simply held while new money tops up the ones below. Suggestions only, not financial advice; check fees before buying.</div></div>`;
+        ${plan.others.length ? `<div class="hint">Held outside the model (not touched): ${plan.others.map(h => `${esc((h.symbol || "").toUpperCase())} ${fmtUsd(h.value)}`).join(", ")}.</div>` : ""}</div>`;
     renderDonut("pie-target", tgt, "Target", 100);
     const c = document.querySelector("#pie-target")?.parentElement?.querySelector(".chart-center"); if (c) c.innerHTML = `<div><div class="v" style="font-size:15px">${esc(mixLabel(m, prefs))}</div><div class="l">target mix</div></div>`;
   };
   const presetChips = () => m.presets.map((p, i) => `<button class="chip ${presetIndex(prefs) === i || (presetIndex(prefs) == null && !prefs.mix && i === 0) ? "on" : ""}" data-p="${i}" title="${esc(m.flex.map(f => `${symOf(f.coin)} ${num(p.mix[f.coin])}%`).join(" · "))}">${esc(p.name)}</button>`).join("") +
     `<button class="chip ${prefs.mix && presetIndex(prefs) == null ? "on" : ""}" data-p="custom" disabled style="cursor:default">Custom</button>`;
   v.innerHTML = `
-    <div class="page-head"><div><h1>Rebalance</h1><div class="secondary">${esc(CONFIG.REVIEWER_NAME)}'s model: ${m.fixed.map(f => `${esc(symOf(f.coin))} ${num(f.pct)}%`).join(", ")}, and you split the other ${poolSize(m)}%. We only add when we can. ${S.modelUpdatedAt ? `Updated ${ago(S.modelUpdatedAt)}.` : ""}</div></div></div>
+    <div class="page-head"><div><h1>Rebalance</h1></div></div>
     <div class="two-col">
       <div class="card"><h2>Your mix</h2>
-        <div class="field-div">Quick picks from ${esc(CONFIG.REVIEWER_NAME)}</div>
+        <div class="field-div">Quick picks</div>
         <div class="chips" id="presets" style="margin:-6px 0 8px">${presetChips()}</div>
         <div id="sliders">${mixSliders(m, memberMix(m, prefs))}</div>
-        <div class="hint">Move a slider and the others adjust so the flexible part always adds up to ${poolSize(m)}%.</div>
         <div class="chart-box" style="margin-top:12px"><canvas id="pie-target" role="img" aria-label="Target allocation pie chart"></canvas><div class="chart-center"></div></div>
         <div class="legend" id="pie-target-legend"></div>
       </div>
       <div>
         <div class="card" style="margin-bottom:16px">
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;flex-wrap:wrap"><b>New money to add</b> <span>$<input type="text" enterkeyhint="done" inputmode="decimal" id="newm" value="${S.reb.newMoney || ""}" placeholder="0" style="width:130px"></span><span class="muted" style="font-size:13px">it goes to the coins furthest below target first</span></label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;flex-wrap:wrap"><b>New money to add</b> <span>$<input type="text" enterkeyhint="done" inputmode="decimal" id="newm" value="${S.reb.newMoney || ""}" placeholder="0" style="width:130px"></span></label>
         </div>
         <div id="reb-body"></div>
       </div>

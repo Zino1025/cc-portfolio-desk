@@ -124,9 +124,9 @@ function heroCard(pf, chartId = "hero") {
     <div class="hero-chart" id="${chartId}-chart"></div>
     <div class="hero-key"><span><i style="background:var(--good)" id="${chartId}-key"></i>Value</span><span><i style="background:repeating-linear-gradient(90deg,var(--text-muted) 0 4px,transparent 4px 7px)"></i>Invested</span><span style="margin-left:auto" class="num" id="${chartId}-period"></span></div>
     <div class="hero-stats">
-      <div><div class="l">Invested</div><div class="v num">${fmtUsd(t.cost)}</div><div class="s muted">fees included</div></div>
+      <div><div class="l">Invested</div><div class="v num">${fmtUsd(t.cost)}</div></div>
       <div><div class="l">Unrealized P&amp;L</div><div class="v num ${signCls(t.pnl)}">${signed(t.pnl)}</div><div class="s num ${signCls(t.pnl)}">${fmtPct(t.pnlPct)}</div></div>
-      <div><div class="l">Realized P&amp;L</div><div class="v num ${signCls(t.realized)}">${signed(t.realized)}</div><div class="s muted">from sells</div></div>
+      <div><div class="l">Realized P&amp;L</div><div class="v num ${signCls(t.realized)}">${signed(t.realized)}</div></div>
     </div></div>`;
 }
 async function paintHero(txs, chartId = "hero") {
@@ -259,7 +259,6 @@ function priceChartCard() {
       <div class="periods" id="pc-periods">${PRICE_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
     <div class="hero-chart" id="pc-chart" style="height:240px"></div>
     <div class="hero-key"><span class="num" id="pc-range"></span><a style="margin-left:auto;color:var(--text-muted)" id="pc-cg" target="_blank" rel="noopener">CoinGecko ↗</a></div>
-    <div class="hint" style="margin-top:6px">Tap or drag on the chart to see the price at any point. BTC and ETH stream live from Coinbase; our alts update every 10 seconds from MEXC.</div>
   </div>`;
 }
 function pcHeader() {
