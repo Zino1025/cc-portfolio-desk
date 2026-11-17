@@ -92,7 +92,7 @@ async function viewUpdates(v) {
   const my7 = pf.holdings.reduce((s, h) => { const c7 = CG.info(h.coin_id)?.change7; return c7 == null ? s : s + (h.value - h.value / (1 + c7 / 100)); }, 0);
   const coinRows = modelCoinIds(m).map(id => ({ id, i: CG.info(id) })).filter(x => x.i);
   const bidCard = (u) => { const s = bidSuggestion(u.coin_id); return `<div class="card urgent">
-      <div class="row" style="align-items:center;justify-content:space-between"><div style="flex:1">${coinCell({ coin_id: u.coin_id, symbol: symOf(u.coin_id).toLowerCase(), name: CG.info(u.coin_id)?.name || u.coin_id, image: CG.info(u.coin_id)?.image })}</div><span class="tag req" style="flex:none">⚡ Urgent bid from ${esc(CONFIG.REVIEWER_NAME)}</span></div>
+      <div class="row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px"><div style="flex:1;min-width:0">${coinCell({ coin_id: u.coin_id, symbol: symOf(u.coin_id).toLowerCase(), name: CG.info(u.coin_id)?.name || u.coin_id, image: CG.info(u.coin_id)?.image })}</div><span class="tag req" style="flex:none">⚡ Urgent bid from ${esc(CONFIG.REVIEWER_NAME)}</span></div>
       <h2 style="margin:10px 0 4px">${esc(u.title)}</h2>
       ${u.buy_low || u.buy_high ? `<div class="num" style="margin-bottom:6px">Bid zone: <b>${u.buy_low ? fmtPrice(u.buy_low) : "…"} – ${u.buy_high ? fmtPrice(u.buy_high) : "…"}</b> · now ${fmtPrice(CG.info(u.coin_id)?.price)}</div>` : ""}
       ${u.body ? `<div style="white-space:pre-wrap">${esc(u.body)}</div>` : ""}${ATT.html(u.attachments)}
@@ -110,7 +110,7 @@ async function viewUpdates(v) {
     ${urgent.length || drops.length ? "" : `<div class="card empty" style="padding:20px">No urgent bids right now. You'll see one here (and get a Telegram ping) when ${esc(CONFIG.REVIEWER_NAME)} posts one.</div>`}
     <div class="grid">${urgent.map(bidCard).join("")}
       ${drops.map(d => { const s = bidSuggestion(d.id); return `<div class="card drop">
-        <div class="row" style="align-items:center;justify-content:space-between"><div style="flex:1">${coinCell({ coin_id: d.id, symbol: d.symbol.toLowerCase(), name: d.name, image: d.image })}</div><span class="tag flag" style="flex:none">Automatic price alert</span></div>
+        <div class="row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px"><div style="flex:1;min-width:0">${coinCell({ coin_id: d.id, symbol: d.symbol.toLowerCase(), name: d.name, image: d.image })}</div><span class="tag flag" style="flex:none">Automatic price alert</span></div>
         <div class="num" style="margin:8px 0">${esc(d.symbol)} is <b class="bad">${fmtPct(d.change24)}</b> in 24h${d.change7 != null ? `, <b class="${signCls(d.change7)}">${fmtPct(d.change7)}</b> over 7 days` : ""} · now ${fmtPrice(d.price)}</div>
         ${!isAdmin() || api.demo ? `<div class="secondary">${esc(s.text)}${s.amount ? ` Your plan says up to <b>${fmtUsd(s.amount)}</b> to get back to target.` : ""}</div>` : `<div class="secondary">Members see how far under target they are. Post an urgent bid below if you want them to act.</div>`}
         <div class="muted" style="font-size:12px;margin-top:8px">Not a call from ${esc(CONFIG.REVIEWER_NAME)}: big drops can keep dropping. Wait for his take if unsure.</div></div>`; }).join("")}</div>
