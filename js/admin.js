@@ -111,7 +111,7 @@ async function viewMembers(v) {
   const total = all.reduce((s, r) => s + r.pf.totals.value, 0);
   const stale = all.filter(isStale).length;
   v.innerHTML = `
-    <div class="page-head"><div><h1>Review queue</h1><div class="secondary">Every member's portfolio in one place. Open requests are listed first.</div></div><div class="row" style="flex:none"><button class="btn" id="reload">Reload</button><button class="btn primary" id="bcast">📣 Broadcast</button></div></div>
+    <div class="page-head"><div><h1>Review queue</h1><div class="secondary">Every member's portfolio in one place. Open requests are listed first.</div></div><div class="row" style="flex:none"><button class="btn" id="reload">Reload</button><button class="btn primary" id="bcast">Broadcast</button></div></div>
     <div class="kpis">
       <div class="card kpi"><div class="label">Members</div><div class="value num">${all.length}</div><div class="sub muted">${all.filter(r => r.txs.length).length} with trades logged</div></div>
       <div class="card kpi"><div class="label">Open review requests</div><div class="value num">${all.filter(r => r.p.review_requested).length}</div><div class="sub muted">${all.filter(r => r.newFromMember).length} threads with unanswered messages</div></div>

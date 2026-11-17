@@ -29,7 +29,7 @@ function renderShell() {
       <nav class="tabs">${routes().map(([k, l]) => k === "sep" ? `<span class="sep"></span>` :
         `<a href="#${k}" class="${route === k || (k === "members" && route.startsWith("member-")) ? "active" : ""}">${esc(l)}${k === "feedback" && unread ? `<span class="badge">${unread}</span>` : ""}${k === "members" && openReviewCount() ? `<span class="badge">${openReviewCount()}</span>` : ""}${k === "updates" && alertCount() ? `<span class="badge">${alertCount()}</span>` : ""}</a>`).join("")}</nav>
       <div class="user-chip"><span class="hide-sm secondary">${esc(memberName(S.me))}</span>
-        <button class="btn small" id="theme-btn" title="Toggle light/dark" aria-label="Toggle theme">☾ Theme</button>
+        <button class="icon-btn sm" id="theme-btn" title="Toggle light/dark" aria-label="Toggle theme">${ICON.moon}</button>
         ${api.demo ? "" : `<button class="btn small" id="signout">Sign out</button>`}</div>
     </div></header>
     <main id="view"></main>`;
@@ -79,11 +79,11 @@ function kpiRow(pf) {
   </div>`;
 }
 function holdingsTable(pf, editable = false) {
-  if (!pf.holdings.length) return `<div class="empty"><div class="big">No holdings yet</div>Add your first buy, or import everything at once from a screenshot or CSV file.${editable ? `<div style="margin-top:12px"><button class="btn primary" id="empty-import">⬆ Import screenshot or CSV</button></div>` : ""}</div>`;
+  if (!pf.holdings.length) return `<div class="empty"><div class="big">No holdings yet</div>Add your first buy, or import everything at once from a screenshot or CSV file.${editable ? `<div style="margin-top:12px"><button class="btn primary" id="empty-import">Import screenshot or CSV</button></div>` : ""}</div>`;
   const list = `<div class="hl-list">${pf.holdings.map(h => `<div class="hl-row" ${editable ? `data-coin="${esc(h.coin_id)}"` : ""}>
       <div class="coin">${coinIcon(h)}</div>
-      <div style="min-width:0"><div class="nm">${esc((h.symbol || h.coin_id).toUpperCase())} <span class="pill sm ${signCls(h.change24)}">${fmtPct(h.change24)}</span></div><div class="q num">${fmtQty(h.qty)} · ${fmtPrice(h.price)}${h.priceEstimated ? "*" : ""}</div></div>
-      <div class="rt"><div class="val num">${fmtUsd(h.value)}</div><div class="num ${signCls(h.pnl)}" style="font-size:13px;font-weight:600">${signed(h.pnl)} (${fmtPct(h.pnlPct)})</div></div>
+      <div style="min-width:0"><div class="nm">${esc((h.symbol || h.coin_id).toUpperCase())}</div><div class="q num">${h.alloc.toFixed(0)}% · ${fmtQty(h.qty)} · ${fmtPrice(h.price)}${h.priceEstimated ? "*" : ""}</div></div>
+      <div class="rt"><div class="val num">${fmtUsd(h.value)}</div><div class="num ${signCls(h.pnl)}">${signed(h.pnl)} · ${fmtPct(h.pnlPct)}</div></div>
     </div>`).join("")}</div>`;
   return `${list}<div class="table-wrap hl-table"><table><thead><tr><th></th><th>Coin</th><th class="r">Holdings</th><th class="r">Avg buy</th><th class="r">Price</th><th class="r hide-sm">24h</th><th class="r">Value</th><th class="r">P&amp;L</th><th class="r hide-sm">Alloc</th><th class="hide-sm">First buy</th></tr></thead><tbody>
     ${pf.holdings.map((h, i) => `<tr ${editable ? `class="click" data-coin="${esc(h.coin_id)}" title="Tap to see and edit these trades"` : ""}>
@@ -108,15 +108,18 @@ async function viewOverview(v) {
   const has = pf.holdings.length, ex = exitStatus(S.me).state;
   v.innerHTML = `
     ${alertBanner()}
-    <div class="page-head"><div><h1>My portfolio</h1><div class="secondary">Prices from CoinGecko${CG.offline ? " (sample, offline)" : ", refreshed every minute"}.</div></div>
-      <div class="head-actions"><button class="btn" id="refresh">↻ Refresh</button><button class="btn" id="import-shot">⬆ Import</button><button class="btn primary" id="add">+ Add trade</button></div></div>
+    <div class="page-head"><div><h1>My portfolio</h1><div class="secondary">${CG.offline ? "Sample prices (offline)" : "Live prices, refreshed every minute"}</div></div>
+      <button class="icon-btn" id="refresh" aria-label="Refresh prices" title="Refresh prices">${ICON.refresh}</button></div>
     ${has ? heroCard(pf) : ""}
-    ${has ? `<div class="quick">
-      <a class="card" href="#rebalance"><span class="ic">⚖️</span><div><div class="t">Rebalance</div><div class="d">vs ${esc(CONFIG.REVIEWER_NAME)}'s model</div></div><span class="go">›</span></a>
-      <a class="card" href="#exit"><span class="ic">🎯</span><div><div class="t">${ex === "edited" ? "Re-commit exit plan" : "Exit plan"}</div><div class="d">${ex === "committed" ? "committed ✓" : "not committed yet"}</div></div><span class="go">›</span></a>
+    <div class="acts">
+      <button class="act" id="add"><span class="icon-btn lg primary">${ICON.plus}</span>Add trade</button>
+      <button class="act" id="import-shot"><span class="icon-btn lg">${ICON.upload}</span>Import</button>
+      <a class="act" href="#rebalance"><span class="icon-btn lg">${ICON.scale}</span>Rebalance</a>
+      <a class="act" href="#exit"><span class="icon-btn lg">${ICON.target}</span>${ex === "edited" ? "Re-commit" : "Exit plan"}${ex === "committed" ? `<span class="d">committed</span>` : ""}</a>
     </div>
-    <div class="ov-grid">${donutCard("pie-me", "Allocation")}${perfCard("perf-me")}</div>` : ""}
-    <div class="card"><div class="card-h"><h2>Holdings</h2>${has ? `<span class="sub">${has} coin${has > 1 ? "s" : ""}</span>` : ""}</div>${holdingsTable(pf, true)}</div>
+    ${has ? `<div class="ov-grid">${donutCard("pie-me", "Allocation")}${perfCard("perf-me")}</div>` : ""}
+    <div class="section-head"><h2>Holdings</h2>${has ? `<span class="muted">${has} coin${has > 1 ? "s" : ""}</span>` : ""}</div>
+    <div class="card hl-card">${holdingsTable(pf, true)}</div>
     ${reviewNudge()}`;
   if (has) { renderDonut("pie-me", pf.holdings, "Total", pf.totals.value); renderPerf("perf-me", pf.holdings); paintHero(S.txs); }
   $("#add").onclick = () => openTradeModal();
@@ -128,7 +131,7 @@ async function viewOverview(v) {
 }
 function reviewNudge() {
   if (!S.txs.length) return "";
-  if (S.me.review_requested) return `<div class="card" style="margin-top:16px">⏳ You asked ${esc(CONFIG.REVIEWER_NAME)} for a review ${ago(S.me.review_requested_at)}. You'll see his notes under <a href="#feedback">Feedback</a>.</div>`;
-  return `<div class="card" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><b>Want ${esc(CONFIG.REVIEWER_NAME)}'s eyes on this?</b><div class="secondary">Request a review here instead of DMing. He sees your full portfolio and replies in your Feedback tab.</div></div><button class="btn primary" id="ask-review">Request a review</button></div>`;
+  if (S.me.review_requested) return `<a class="card cta-card" href="#feedback"><div><div class="t">Review requested ${ago(S.me.review_requested_at)}</div><div class="d">${esc(CONFIG.REVIEWER_NAME)}'s notes will show up in Feedback.</div></div><span class="icon-btn sm">${ICON.clock}</span></a>`;
+  return `<button class="card cta-card" id="ask-review" style="width:100%;border:none;font:inherit;letter-spacing:inherit;text-align:left"><div><div class="t">Get ${esc(CONFIG.REVIEWER_NAME)}'s eyes on this</div><div class="d">He sees your full portfolio and replies in Feedback. No DMs needed.</div></div><span class="icon-btn sm primary">${ICON.arrow}</span></button>`;
 }
 

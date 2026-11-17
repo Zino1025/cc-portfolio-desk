@@ -35,7 +35,15 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 | `admin.js` | ADMIN: BROADCAST 1, ADMIN DATA 83, REVIEW QUEUE 105, MEMBER DETAIL 164, GROUP INSIGHTS 312 |
 | `boot.js` | AUTH 1, BOOT 53 (calls `boot()` at the end), TELEGRAM MINI APP 85, MOBILE KEYBOARD 103 |
 
-css/app.css: THEME 1, LAYOUT 50, CONTROLS 81, TABLES 111, CHART 133, THREAD 144, MODAL/AUTH 166, DELTA-STYLE COMPONENTS 249.
+css/app.css: THEME 1 (tokens), LAYOUT 73, CONTROLS 104, TABLES 135, CHART 157, THREAD 168, MODAL/AUTH 190, DELTA-STYLE COMPONENTS 274, CALM COMPONENTS (end: `.icon-btn`, `.acts`, `.section-head`, `.cta-card`). Icons: `ICON` in core.js.
+
+## Design system (every screen, every change)
+- Font: Inter Tight. Title (h1) 22/28 600 −0.7px. Section header (h2) 19/24 600 −0.6px. Body 14.5/18 400 +0.3px. Captions 13px. All headings and big numbers get negative letter-spacing. Weights 400/500/600 only.
+- Colors: `var(--text)` primary, `var(--muted)` secondary, `var(--strong)` icons. No new grays or hex colors in JS/inline styles; add a token in THEME if truly needed (light and dark).
+- Dividers: 1px `var(--track)`. No visible borders anywhere (`--border` is transparent on purpose). Status = tinted background, not a colored border.
+- Cards: no border, layered shadows: `--sh-1` normal cards, `--sh-2` hero and modals. Radius by depth: 18 hero/modal, 16 card, 14 nested/CTA, 12 inputs/small.
+- Buttons: never flat fills. Text buttons = `.btn` / `.btn.primary`. Icon buttons = `.icon-btn` (38 `.sm`, 40, 46 `.lg`) with an `ICON` svg and an `aria-label`. No emoji in buttons.
+- Old token names (`--text-primary`, `--text-secondary`, `--grid`, `--shadow`…) still work but don't use them in new code.
 
 ## Product rules
 - The name is spelled "Dkay", never "DKay".

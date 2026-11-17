@@ -247,10 +247,10 @@ function openImportModal() {
         <li>Make sure amounts aren't hidden (turn off "hide balances").</li>
         <li>Buy prices come through if the screenshot shows them (CoinGecko does).</li>
       </ul>
-      <label class="btn primary" style="display:flex;justify-content:center;cursor:pointer">📸 Choose screenshots<input type="file" id="imp-file" accept="image/*" multiple style="display:none"></label>
+      <label class="btn primary" style="display:flex;justify-content:center;cursor:pointer">Choose screenshots<input type="file" id="imp-file" accept="image/*" multiple style="display:none"></label>
       <div class="hint">Screenshots are only used to read your holdings. They aren't stored.</div>
       <div style="display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:var(--text-muted);font-size:12px"><span style="flex:1;border-top:1px solid var(--grid)"></span>or<span style="flex:1;border-top:1px solid var(--grid)"></span></div>
-      <label class="btn" style="display:flex;justify-content:center;cursor:pointer">📄 Upload a CSV file<input type="file" id="imp-csv" accept=".csv,text/csv,.txt,text/plain" style="display:none"></label>
+      <label class="btn" style="display:flex;justify-content:center;cursor:pointer">Upload a CSV file<input type="file" id="imp-csv" accept=".csv,text/csv,.txt,text/plain" style="display:none"></label>
       <div class="hint">Columns: coin, quantity, buy price, date (optional). Exports from CoinGecko, exchanges and this app work too. <button class="link-btn" type="button" id="imp-tpl" style="font-size:12px">Download template</button></div>
       <div class="err" id="imp-err">${esc(msg)}</div>`;
     $("#imp-file", ov).onchange = (e) => { const files = [...e.target.files]; if (files.length) run(files); };

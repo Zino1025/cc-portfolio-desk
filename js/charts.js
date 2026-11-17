@@ -1,4 +1,5 @@
 /* ===================== CHARTS ===================== */
+if (window.Chart) Chart.defaults.font.family = '"Inter Tight", Inter, system-ui, sans-serif';
 function renderDonut(canvasId, holdings, totalLabel, totalValue) {
   const el = document.getElementById(canvasId);
   if (!el) return;
@@ -223,7 +224,7 @@ const lastTagPlugin = {
   afterDatasetsDraw(chart, args, o) {
     const meta = chart.getDatasetMeta(0), pt = meta && meta.data[meta.data.length - 1]; if (!pt || !o || !o.text) return;
     const { ctx, chartArea: ca } = chart, text = o.text(chart.data.datasets[0].data[meta.data.length - 1]);
-    ctx.save(); ctx.font = "700 12px system-ui, -apple-system, sans-serif";
+    ctx.save(); ctx.font = '600 12px "Inter Tight", system-ui, -apple-system, sans-serif';
     const w = ctx.measureText(text).width + 14, h = 22, x = Math.min(ca.right - w, pt.x - w / 2 > ca.left ? ca.right - w : ca.left), y = Math.max(ca.top, Math.min(ca.bottom - h, pt.y - h / 2));
     ctx.beginPath(); ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2); ctx.fillStyle = o.color; ctx.fill();
     ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y - h - 6 > ca.top ? y - h - 6 : y + 10, w, h, 11); else ctx.rect(x, y - h - 6 > ca.top ? y - h - 6 : y + 10, w, h);

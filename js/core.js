@@ -70,6 +70,17 @@ const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValu
 function memberName(p) { return p?.display_name || (p?.telegram_handle ? "@" + p.telegram_handle.replace(/^@/, "") : "Member"); }
 function handleLink(h) { if (!h) return ""; const clean = esc(h.replace(/^@/, "")); return `<a href="https://t.me/${clean}" target="_blank" rel="noopener">@${clean}</a>`; }
 function coinLink(id) { return `https://www.coingecko.com/en/coins/${encodeURIComponent(id)}`; }
+// Stroke icons for .icon-btn (inherit currentColor). Use these instead of emoji in buttons.
+const ICON = {
+  plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg>',
+  upload: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5"/><path d="M5 15v4h14v-4"/></svg>',
+  scale: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M6 7h12"/><path d="M3 14l3-7 3 7a3 3 0 0 1-6 0zM15 14l3-7 3 7a3 3 0 0 1-6 0z"/></svg>',
+  target: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>',
+  arrow: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  moon: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+};
 function coinIcon(c) {
   const ab = esc((c.symbol || "?").slice(0, 3).toUpperCase());
   return c.image ? `<img src="${esc(c.image)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'${ab}'}))">` : `<span class="ph">${ab}</span>`;
@@ -96,7 +107,7 @@ function coinLabel(id) { return symOf(id); }
 const ATT = {
   MAX: 50 * 1024 * 1024, ACCEPT: "image/*,audio/*,video/*,application/pdf", picks: {}, signed: {},
   pickerHtml(id) {
-    return `<div class="att-pick" id="${id}"><label class="btn small att-btn">📎 Attach chart, voice note or video<input type="file" multiple accept="${this.ACCEPT}" hidden></label><div class="att-list"></div></div>`;
+    return `<div class="att-pick" id="${id}"><label class="btn small att-btn">Attach chart, voice note or video<input type="file" multiple accept="${this.ACCEPT}" hidden></label><div class="att-list"></div></div>`;
   },
   bind(id) {
     const root = document.getElementById(id); if (!root) return;
