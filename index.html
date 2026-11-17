@@ -2345,9 +2345,6 @@ async function viewUpdates(v) {
     <h2 class="section-h">📰 Weekly summary</h2>
     <div class="card">${latest ? `<div class="muted" style="font-size:12px">${fmtDate(latest.created_at, false)} · ${esc(CONFIG.REVIEWER_NAME)}${isAdmin() ? ` · <button class="link-btn" data-del-up="${esc(latest.id)}">Remove</button>` : ""}</div><h2 style="margin:6px 0 8px">${esc(latest.title)}</h2><div style="white-space:pre-wrap">${esc(latest.body || "")}</div>`
       : `<div class="empty" style="padding:16px">No weekly summary posted yet.</div>`}</div>
-    <div class="card" style="margin-top:16px"><h2>Model coins this week <span class="muted" style="font-weight:400;font-size:13px">· tap a coin for its chart</span></h2>
-      ${coinRows.length ? `<div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Price</th><th class="r">24h</th><th class="r">7d</th><th class="r hide-sm">Market cap</th></tr></thead><tbody>
-      ${coinRows.map(({ id, i }) => `<tr data-chart="${esc(id)}" style="cursor:pointer" title="Show ${esc(symOf(id))} chart"><td>${coinCell({ coin_id: id, symbol: i.symbol, name: i.name, image: i.image })}</td><td class="r num">${fmtPrice(i.price)}</td><td class="r num ${signCls(i.change24)}">${fmtPct(i.change24)}</td><td class="r num ${signCls(i.change7)}">${i.change7 == null ? "—" : fmtPct(i.change7)}</td><td class="r num hide-sm">${i.mcap ? fmtUsd(i.mcap, { compact: true }) : "—"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">No price data.</div>`}</div>
     ${weeklies.length > 1 ? `<div class="card" style="margin-top:16px"><h2>Past summaries</h2>${weeklies.slice(1, 12).map(w => `<details class="past"><summary><b>${esc(w.title)}</b> <span class="muted">· ${fmtDate(w.created_at, false)}</span></summary><div style="white-space:pre-wrap;margin-top:6px">${esc(w.body || "")}</div></details>`).join("")}</div>` : ""}
     ${isAdmin() ? `<div class="two-col" style="margin-top:16px">
       <div class="card"><h2>Post an urgent bid</h2>
@@ -2364,7 +2361,6 @@ async function viewUpdates(v) {
         <div class="hint">Everyone linked on Telegram gets a ping with the first lines.</div></div>
     </div>` : ""}`;
   paintPriceChart();
-  v.querySelectorAll("[data-chart]").forEach(tr => tr.onclick = () => { S.pcCoin = tr.dataset.chart; paintPriceChart(); $("#pc-card").scrollIntoView({ behavior: "smooth", block: "start" }); });
   $("#reload").onclick = async () => { await CG.ensure(["bitcoin", "ethereum", ...modelCoinIds(m)], 0); CG.hist = {}; render(); };
   v.querySelectorAll("[data-del-up]").forEach(b => b.onclick = () => confirmModal("Remove this post?", "It disappears for everyone. Telegram messages already sent stay in their chats.", async () => { await api.deleteUpdate(b.dataset.delUp); render(); }));
   if (!isAdmin()) return;
