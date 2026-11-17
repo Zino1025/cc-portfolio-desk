@@ -42,7 +42,7 @@ css/app.css: THEME 1 (tokens), LAYOUT 73, CONTROLS 104, TABLES 135, CHART 157, T
 - Colors: `var(--text)` primary, `var(--muted)` secondary, `var(--strong)` icons. No new grays or hex colors in JS/inline styles; add a token in THEME if truly needed (light and dark).
 - Dividers: 1px `var(--track)`. No visible borders anywhere (`--border` is transparent on purpose). Status = tinted background, not a colored border.
 - Cards: no border, layered shadows: `--sh-1` normal cards, `--sh-2` hero and modals. Radius by depth: 18 hero/modal, 16 card, 14 nested/CTA, 12 inputs/small.
-- Buttons: never flat fills. Text buttons = `.btn` / `.btn.primary`. Icon buttons = `.icon-btn` (38 `.sm`, 40, 46 `.lg`) with an `ICON` svg and an `aria-label`. No emoji in buttons.
+- Buttons: never flat fills. Text buttons = `.btn` / `.btn.primary`. Icon buttons = `.icon-btn` (38 `.sm`, 40, 46 `.lg`) with an `ICON` svg and an `aria-label`. No emoji in buttons. Icon + text buttons: icon side gets less padding than the text side (CSS handles it when the svg is a direct first/last child).
 - Old token names (`--text-primary`, `--text-secondary`, `--grid`, `--shadow`…) still work but don't use them in new code.
 
 ## Design review (after every feature, before pushing)
