@@ -124,7 +124,7 @@ async function portfolioHistory(txs, days) {
   const val = (id) => cur.holdings.find(h => h.coin_id === id)?.value || 0;
   const ids = [...new Set(sorted.map(t => t.coin_id))].sort((a, b) => val(b) - val(a)).slice(0, 12);
   const series = {}; let ok = 0;
-  for (const id of ids) { try { series[id] = await CG.chart(id, days); if (series[id].length) ok++; } catch (e) {} }
+  await Promise.all(ids.map(async (id) => { try { series[id] = await CG.chart(id, days); if (series[id].length) ok++; } catch (e) {} }));
   if (!ok) return null;
   const N = 90, pos = {}, pts = []; let j = 0, realized = 0;
   for (let i = 0; i < N; i++) {

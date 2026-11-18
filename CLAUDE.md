@@ -3,7 +3,7 @@
 Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dkay reviews each portfolio and leaves feedback. Plain HTML/JS, no build step. Hosted on GitHub Pages (pushing to `main` = deploying). Backend: Supabase project `cc-portfolio`. Opens inside Telegram as a Mini App via @CCPortfolioManagerBot.
 
 ## Files
-- `index.html`: shell only (CDN libraries + links to the CSS and the JS files below).
+- `index.html`: shell only (CDN libraries + links to the CSS and the JS files below). Every script is `defer`, and library versions are pinned so phones cache them; keep both when adding one.
 - `css/app.css`: all styles (~25 KB).
 - `js/*.js`: app logic, split into 10 plain `<script>` files (not modules), each under ~37 KB. See the map below. Open only the file you need.
 - `supabase/functions/*`: backups of the deployed Edge Functions (see their README).
@@ -24,7 +24,7 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 ## JS map (load order = order in index.html; numbers are approximate starting lines)
 | File | Sections |
 |---|---|
-| `core.js` | CONFIG 1 (Supabase URL/publishable key, REVIEWER_NAME), UTILITIES 9 (formatters, `openModal`/`confirmModal`, `coinSearch`, `plural`), ATTACHMENTS 160 (photos, voice notes incl. in-app recording, videos, PDFs on Dkay's posts and both sides of the thread), COINGECKO 268, PORTFOLIO MATH 346 (average cost, `applyTx`), DATA LAYER 384 (all Supabase reads/writes), STATE 444 |
+| `core.js` | CONFIG 1 (Supabase URL/publishable key, REVIEWER_NAME), UTILITIES 9 (formatters, `openModal`/`confirmModal`, `coinSearch`, `plural`), ATTACHMENTS 160 (photos, voice notes incl. in-app recording, videos, PDFs on Dkay's posts and both sides of the thread), COINGECKO 268 (last prices saved on the device as `cc-prices` so the portfolio paints instantly), PORTFOLIO MATH 346 (average cost, `applyTx`), DATA LAYER 384 (all Supabase reads/writes), STATE 444 |
 | `charts.js` | CHARTS 1 (donut + allocation rewind), DELTA-STYLE CHARTS 53 (portfolio history), share card PNG 220, live prices 239 (Coinbase BTC/ETH + MEXC via `prices` function, CoinGecko fallback), chart helpers 288 (price tag, axes, hold-to-scrub: header shows the held point, no tooltips), price charts 330 (BTC, ETH, group coins) |
 | `shell.js` | SHELL 1 (tabs, navigation), MEMBER: OVERVIEW 57 |
 | `trades.js` | MEMBER: TRADES 1 (export: Desk backup or Koinly tax file), money in/out 111 (`cash_flows`), trade modal 141 |
@@ -33,7 +33,7 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 | `market.js` | ADMIN: MODEL EDITOR 1, MARKET UPDATES 79 (weekly summary + urgent bids) |
 | `exit-plan.js` | EXIT PLAN 1 (steps store their price in `st.at` for the hourly TP-hit pings) |
 | `admin.js` | ADMIN: BROADCAST 1, ADMIN DATA 77, REVIEW QUEUE 99, MEMBER DETAIL 157, GROUP INSIGHTS 302 |
-| `boot.js` | AUTH 1, BOOT 51 (calls `boot()` at the end), TELEGRAM MINI APP 85 (tg-link on every open + CC group gate), MOBILE KEYBOARD 107 (adds `enterkeyhint="done"` to every input, so don't write it in markup) |
+| `boot.js` | AUTH 1, BOOT 51 (startup reads in parallel; group data and tg-link run after the first paint; calls `boot()` at the end), TELEGRAM MINI APP (tg-link on every open + CC group gate), MOBILE KEYBOARD 107 (adds `enterkeyhint="done"` to every input, so don't write it in markup) |
 
 css/app.css: THEME 1 (tokens), LAYOUT 73, CONTROLS 101, TABLES 133, CHART 156, THREAD 167, MODAL/AUTH 196, DELTA-STYLE COMPONENTS 278, CALM COMPONENTS (end: `.icon-btn`, `.acts`, `.section-head`, `.cta-card`). Icons: `ICON` in core.js.
 

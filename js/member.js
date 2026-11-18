@@ -40,7 +40,7 @@ async function viewFeedback(v) {
       </div>
     </div>`;
   pinThreadBottom($("#thread"));
-  if (unreadCount()) { S.me = await api.updateProfile(S.me.id, { feedback_seen_at: new Date().toISOString() }); renderShellBadgesOnly(); }
+  if (unreadCount()) { S.me = await api.updateProfile(S.me.id, { feedback_seen_at: new Date().toISOString() }); paintBadge("feedback", 0); }
   $("#req") && ($("#req").onclick = async () => {
     const q = $("#req-q").value.trim();
     S.me = await api.updateProfile(S.me.id, { review_requested: true, review_question: q || null, review_requested_at: new Date().toISOString() });
@@ -64,9 +64,6 @@ async function viewFeedback(v) {
 }
 function bindMsgDelete(v, after) {
   v.querySelectorAll("[data-delmsg]").forEach(b => b.onclick = () => confirmModal("Delete message?", "It will be removed for both of you.", async () => { await api.deleteMessage(b.dataset.delmsg); after(); }));
-}
-function renderShellBadgesOnly() {
-  const a = document.querySelector('nav.tabs a[href="#feedback"] .badge'); if (a) a.remove();
 }
 
 /* ===================== PROJECTIONS ===================== */
@@ -390,12 +387,12 @@ async function markAlertsSeen() {
   const keys = alertKeys();
   if (keys.every(k => (S.me.alerts_seen || []).includes(k))) return;
   try { S.me = await api.updateProfile(S.me.id, { alerts_seen: keys }); } catch (e) { S.me.alerts_seen = keys; }
-  paintAlertBadge();
+  paintBadge("updates", alertCount());
 }
-function paintAlertBadge() {
-  const a = document.querySelector('nav.tabs a[href="#updates"]'); if (!a) return;
+function paintBadge(route, n) {
+  const a = document.querySelector(`nav.tabs a[href="#${route}"]`); if (!a) return;
   a.querySelector(".badge")?.remove();
-  const n = alertCount(); if (n) a.insertAdjacentHTML("beforeend", `<span class="badge">${n}</span>`);
+  if (n) a.insertAdjacentHTML("beforeend", `<span class="badge">${n}</span>`);
 }
 /** Suggested $ for an urgent bid: fill the member's gap on that coin, paid from dry powder if they have it. */
 function bidSuggestion(coinId) {

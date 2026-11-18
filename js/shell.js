@@ -79,8 +79,10 @@ function holdingsTable(pf, editable = false) {
     ${pf.estimated ? `<div class="hint">* No live CoinGecko price found; valued at your last trade price.</div>` : ""}`;
 }
 async function viewOverview(v) {
-  v.innerHTML = `<div class="spinner"></div>`;
-  await CG.ensure([...S.txs.map(t => t.coin_id), ...modelCoinIds()]);
+  // Paint straight away from saved prices when every coin has one; fetch fresh ones behind it and repaint once.
+  const ids = [...S.txs.map(t => t.coin_id), ...modelCoinIds()], stale = ids.some(id => !(Date.now() - (CG.cache[id]?.at || 0) < 60000));
+  if (ids.every(id => CG.cache[id]?.price != null)) { if (stale) CG.ensure(ids).then(() => !CG.offline && currentRoute() === "overview" && !document.querySelector(".overlay") && render()); }
+  else { v.innerHTML = `<div class="spinner"></div>`; await CG.ensure(ids); }
   const pf = computePortfolio(S.txs);
   const has = pf.holdings.length, ex = exitStatus(S.me).state;
   v.innerHTML = `

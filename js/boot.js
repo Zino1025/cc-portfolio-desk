@@ -49,18 +49,15 @@ function renderAuth(mode = "signin", msg = "") {
 }
 
 /* ===================== BOOT ===================== */
-async function loadMe() {
-  S.proj = null;
-  S.me = await api.me();
-  S.email = await api.email();
-  S.txs = await api.transactions(S.me.id);
-  S.msgs = await api.messages(S.me.id);
-  S.flows = await api.flows(S.me.id).catch(() => []);
-  try { const st = await api.getSetting("model"); S.model = st?.value?.version === 2 ? { ...DEFAULT_MODEL, ...st.value } : null; S.modelUpdatedAt = st?.updated_at || null; } catch (e) { S.model = null; }
-  try { S.updates = await api.updates(); } catch (e) { S.updates = []; }
-  CG.ensure(modelCoinIds()).then(() => paintAlertBadge()).catch(() => {});
-  S.admin.loadedAt = 0;
-  if (isAdmin()) await loadAdmin(true);
+// All startup reads run in parallel. Group data (Dkay) loads in the background; admin views await it themselves.
+async function loadMe(user) {
+  S.proj = null; S.email = user.email; S.admin.loadedAt = 0;
+  let st;
+  [S.me, S.txs, S.msgs, S.flows, st, S.updates] = await Promise.all([api.me(), api.transactions(user.id), api.messages(user.id),
+    api.flows(user.id).catch(() => []), api.getSetting("model").catch(() => null), api.updates().catch(() => [])]);
+  S.model = st?.value?.version === 2 ? { ...DEFAULT_MODEL, ...st.value } : null; S.modelUpdatedAt = st?.updated_at || null;
+  CG.ensure(modelCoinIds()).then(() => paintBadge("updates", alertCount())).catch(() => {});
+  if (isAdmin()) loadAdmin(true).then(() => paintBadge("members", openReviewCount())).catch(() => {});
 }
 let recovering = false, authListening = false;
 async function boot() {
@@ -70,13 +67,14 @@ async function boot() {
     const s = await api.session();
     if (recovering) return;
     if (!s) return renderAuth();
-    await loadMe();
-    await tgLink();
-    if (!isAdmin() && S.me.in_group === false) return renderGate();
+    await loadMe(s.user);
+    const gated = () => !isAdmin() && S.me.in_group === false;
+    if (gated()) return renderGate();
     // Members always open on their portfolio, whatever page they were on last time.
     if (!isAdmin() && location.hash !== "#overview") history.replaceState(null, "", location.pathname + location.search + "#overview");
     render();
     LIVE.start();
+    tgLink().then(() => gated() && renderGate());   // re-checks group membership without holding up the first paint
   } catch (e) {
     $("#app").innerHTML = `<div class="auth-wrap"><div class="card" style="max-width:440px"><h2>Couldn't load</h2><p class="secondary">${esc(e.message || e)}</p><button class="btn" onclick="location.reload()">Retry</button></div></div>`;
   }

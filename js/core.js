@@ -268,7 +268,9 @@ function canonIds(data) {
 /* ===================== COINGECKO ===================== */
 const CG = {
   base: "https://api.coingecko.com/api/v3",
-  cache: {},          // id -> { price, change24, mcap, image, symbol, name, at }
+  // id -> { price, change24, mcap, image, symbol, name, at }. Starts from the last session's prices (kept on the device), marked stale.
+  cache: (() => { try { const c = JSON.parse(localStorage.getItem("cc-prices")) || {}; for (const k in c) c[k] = { ...c[k], at: 0, liveAt: 0 }; return c; } catch (e) { return {}; } })(),
+  save() { try { localStorage.setItem("cc-prices", JSON.stringify(Object.fromEntries(Object.entries(this.cache).filter(([, v]) => !v.sample)))); } catch (e) {} },
   offline: false,
   async get(path, retry = 1, wait = 2500) {
     const r = await fetch(this.base + path);
@@ -298,7 +300,7 @@ const CG = {
           this.cache[r.id] = { price: r.current_price, change24: r.price_change_percentage_24h, change7: r.price_change_percentage_7d_in_currency ?? null, mcap: r.market_cap, image: r.image, symbol: r.symbol, name: r.name, at: now, cgPrice: r.current_price,
             ...(fresh ? { price: prev.price, change24: prev.change24 ?? r.price_change_percentage_24h, liveAt: prev.liveAt, src: prev.src } : {}) };
         }
-        this.offline = false;
+        this.offline = false; this.save();
       } catch (e) {
         this.offline = true;
         for (const id of batch) if (SAMPLE_PRICES[id] && !this.cache[id]) this.cache[id] = { ...SAMPLE_PRICES[id], at: now, sample: true };
@@ -398,7 +400,6 @@ const api = (() => {
     async updatePassword(pw) { ok(await sb.auth.updateUser({ password: pw })); },
     async signOut() { await sb.auth.signOut(); },
     async me() { const s = await this.session(); return ok(await sb.from("profiles").select("*").eq("id", s.user.id).single()); },
-    async email() { const s = await this.session(); return s?.user?.email; },
     async transactions(userId) { return fetchAll(() => sb.from("transactions").select("*").eq("user_id", userId).order("executed_at")); },
     async addTx(tx) { return ok(await sb.from("transactions").insert(tx).select().single()); },
     async updateTx(id, tx) { return ok(await sb.from("transactions").update(tx).eq("id", id).select().single()); },

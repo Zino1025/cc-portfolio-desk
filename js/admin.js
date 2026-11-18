@@ -75,11 +75,12 @@ function openBroadcast() {
 }
 
 /* ===================== ADMIN DATA ===================== */
-async function loadAdmin(force = false) {
-  if (!force && Date.now() - S.admin.loadedAt < 30000) return;
-  const [profiles, txs, meta] = await Promise.all([api.allProfiles(), api.allTransactions(), api.allMessageMeta()]);
-  S.admin = { profiles, txs, meta, loadedAt: Date.now() };
-  await CG.ensure(txs.map(t => t.coin_id));
+let adminLoading = null;   // shared, so the background load at startup and the first admin view don't fetch twice
+function loadAdmin(force = false) {
+  if (!force && Date.now() - S.admin.loadedAt < 30000) return Promise.resolve();
+  return adminLoading ||= Promise.all([api.allProfiles(), api.allTransactions(), api.allMessageMeta()])
+    .then(([profiles, txs, meta]) => { S.admin = { profiles, txs, meta, loadedAt: Date.now() }; return CG.ensure(txs.map(t => t.coin_id)); })
+    .finally(() => { adminLoading = null; });
 }
 function memberRows(includeAdmins = false) {
   const txBy = {}, metaBy = {};
