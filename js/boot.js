@@ -11,9 +11,9 @@ function renderAuth(mode = "signin", msg = "") {
         <button class="btn primary" id="a-go" style="width:100%">Save password</button>` : `
       <div class="seg" style="width:100%;margin-bottom:16px"><button style="flex:1" class="${mode === "signin" ? "on" : ""}" data-m="signin">Sign in</button><button style="flex:1" class="${mode === "signup" ? "on" : ""}" data-m="signup">Create account</button></div>
       ${mode === "signup" ? `
-        <label class="field"><span>Display name</span><input type="text" enterkeyhint="done" id="a-name" maxlength="60" autocomplete="nickname"></label>
-        <label class="field"><span>Telegram handle</span><input type="text" enterkeyhint="done" id="a-tg" maxlength="40" placeholder="@yourhandle"></label>` : ""}
-      <label class="field"><span>Email</span><input type="email" enterkeyhint="done" id="a-email" autocomplete="email"></label>
+        <label class="field"><span>Display name</span><input type="text" id="a-name" maxlength="60" autocomplete="nickname"></label>
+        <label class="field"><span>Telegram handle</span><input type="text" id="a-tg" maxlength="40" placeholder="@yourhandle"></label>` : ""}
+      <label class="field"><span>Email</span><input type="email" id="a-email" autocomplete="email"></label>
       <label class="field"><span>Password</span><input type="password" enterkeyhint="go" id="a-pw" minlength="8" autocomplete="${mode === "signup" ? "new-password" : "current-password"}"></label>
       <label class="showpw"><input type="checkbox" data-showpw="a-pw"> Show password</label>
       <div class="err" id="a-err">${esc(msg)}</div>
@@ -65,8 +65,8 @@ async function loadMe() {
 let recovering = false, authListening = false;
 async function boot() {
   try {
-    if (!DEMO && typeof window.supabase === "undefined") throw new Error("Couldn't load Supabase library. Check your connection.");
-    if (!DEMO && !authListening && (authListening = true)) api.onAuthChange((ev) => { if (ev === "PASSWORD_RECOVERY") { recovering = true; renderAuth("recover"); } });
+    if (!sb) throw new Error("Couldn't load Supabase library. Check your connection.");
+    if (!authListening && (authListening = true)) api.onAuthChange((ev) => { if (ev === "PASSWORD_RECOVERY") { recovering = true; renderAuth("recover"); } });
     const s = await api.session();
     if (recovering) return;
     if (!s) return renderAuth();
@@ -81,22 +81,22 @@ async function boot() {
     $("#app").innerHTML = `<div class="auth-wrap"><div class="card" style="max-width:440px"><h2>Couldn't load</h2><p class="secondary">${esc(e.message || e)}</p><button class="btn" onclick="location.reload()">Retry</button></div></div>`;
   }
 }
-setInterval(() => { if (S.me && !document.hidden && ["overview"].includes(currentRoute())) { CG.ensure(S.txs.map(t => t.coin_id)).then(() => { if (currentRoute() === "overview" && !document.querySelector(".overlay")) render(); }); } }, 60000);
+setInterval(() => { if (S.me && !document.hidden && currentRoute() === "overview") { CG.ensure(S.txs.map(t => t.coin_id)).then(() => { if (currentRoute() === "overview" && !document.querySelector(".overlay")) render(); }); } }, 60000);
 /* ===================== TELEGRAM MINI APP ===================== */
-const TG = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData) ? window.Telegram.WebApp : null;
+const TG = window.Telegram?.WebApp?.initData ? window.Telegram.WebApp : null;
 function tgTheme() { try { if (!localStorage.getItem("cc-theme")) document.documentElement.dataset.theme = TG.colorScheme === "dark" ? "dark" : "light"; } catch (e) {} }
 if (TG) { try { TG.ready(); TG.expand(); tgTheme(); TG.onEvent("themeChanged", tgTheme); document.documentElement.classList.add("in-telegram"); } catch (e) {}
   // Scrolling to the very top/bottom of a long page shouldn't minimise or close the Mini App.
   try {
-    if (TG.isVersionAtLeast && TG.isVersionAtLeast("7.7")) TG.disableVerticalSwipes();
+    if (TG.isVersionAtLeast?.("7.7")) TG.disableVerticalSwipes();
     else if (TG.enableClosingConfirmation) TG.enableClosingConfirmation();   // older Telegram: at least ask before closing
   } catch (e) {}
 }
 // Every open from Telegram: link the chat and re-check CC group membership.
 async function tgLink() {
   try {
-    const u = TG && TG.initDataUnsafe && TG.initDataUnsafe.user;
-    if (!u || api.demo || !sb || !S.me) return;
+    const u = TG?.initDataUnsafe?.user;
+    if (!u || !S.me) return;
     const { data, error } = await sb.functions.invoke("tg-link", { body: { initData: TG.initData } });
     if (!error && data && data.ok) Object.assign(S.me, { telegram_chat_id: u.id, in_group: data.in_group ?? S.me.in_group });
   } catch (e) {}

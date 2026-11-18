@@ -17,25 +17,21 @@ function unreadCount() {
 }
 function openReviewCount() { return S.admin.profiles.filter(p => p.review_requested && p.role !== "admin").length; }
 
-function renderShell() {
-  const route = currentRoute();
-  const unread = unreadCount();
-  const demoBar = api.demo ? `<div class="banner">Demo mode with sample members<span id="price-src">${CG.offline ? " and sample prices (CoinGecko unreachable here)" : ""}</span>. Viewing as
-      <select id="demo-user" style="width:auto;padding:3px 6px;margin-left:4px">${["u1","u2","u3","u4","dkay"].map(id => `<option value="${id}" ${api.currentId() === id ? "selected" : ""}>${id === "dkay" ? CONFIG.REVIEWER_NAME + " (reviewer)" : "Member: " + ({u1:"Alex",u2:"Mo",u3:"Sara",u4:"Jules"})[id]}</option>`).join("")}</select></div>` : "";
+function render() {
+  const route = currentRoute(), badge = (n) => n ? `<span class="badge">${n}</span>` : "";
+  const counts = { feedback: unreadCount(), members: openReviewCount(), updates: alertCount() };
   $("#app").innerHTML = `
-    ${demoBar}
     <header class="top"><div class="top-inner">
       <div class="brand"><span class="logo">${esc(CONFIG.GROUP_NAME)}</span><span class="hide-sm">Portfolio Desk</span></div>
       <nav class="tabs">${routes().map(([k, l]) => k === "sep" ? `<span class="sep"></span>` :
-        `<a href="#${k}" class="${route === k || (k === "members" && route.startsWith("member-")) ? "active" : ""}">${esc(l)}${k === "feedback" && unread ? `<span class="badge">${unread}</span>` : ""}${k === "members" && openReviewCount() ? `<span class="badge">${openReviewCount()}</span>` : ""}${k === "updates" && alertCount() ? `<span class="badge">${alertCount()}</span>` : ""}</a>`).join("")}</nav>
+        `<a href="#${k}" class="${route === k || (k === "members" && route.startsWith("member-")) ? "active" : ""}">${esc(l)}${badge(counts[k])}</a>`).join("")}</nav>
       <div class="user-chip"><span class="hide-sm secondary">${esc(memberName(S.me))}</span>
         <button class="icon-btn sm" id="theme-btn" title="Toggle light/dark" aria-label="Toggle theme">${ICON.moon}</button>
-        ${api.demo ? "" : `<button class="btn small" id="signout">Sign out</button>`}</div>
+        <button class="btn small" id="signout">Sign out</button></div>
     </div></header>
     <main id="view"></main>`;
   $("#theme-btn").onclick = toggleTheme;
-  $("#signout") && ($("#signout").onclick = async () => { LIVE.stop(); await api.signOut(); location.hash = ""; boot(); });
-  $("#demo-user") && ($("#demo-user").onchange = async (e) => { api.setUser(e.target.value); location.hash = ""; S.proj = null; await loadMe(); render(); });
+  $("#signout").onclick = async () => { LIVE.stop(); await api.signOut(); location.hash = ""; boot(); };
   const act = $("nav.tabs a.active"); act && act.scrollIntoView({ block: "nearest", inline: "center" });
   renderView(route);
 }
@@ -48,25 +44,14 @@ function toggleTheme() {
 }
 document.addEventListener("change", (e) => { const id = e.target && e.target.dataset ? e.target.dataset.showpw : null; if (id) { const el = document.getElementById(id); if (el) el.type = e.target.checked ? "text" : "password"; } });
 try { const t = localStorage.getItem("cc-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
-
-function render() { renderShell(); }
 window.addEventListener("hashchange", () => { if (location.hash !== "#trades") S.tradeFilter = null; S.me && render(); });
 
-async function renderView(route) {
+function renderView(route) {
   Object.values(S.charts).forEach(c => c.destroy()); S.charts = {}; clearInterval(S.pcTimer);
   const v = $("#view");
-  if (route === "overview") return viewOverview(v);
-  if (route === "trades") return viewTrades(v);
-  if (route === "projections") return viewProjections(v);
-  if (route === "rebalance") return viewRebalance(v);
-  if (route === "exit") return viewExit(v);
-  if (route === "updates") return viewUpdates(v);
-  if (route === "model") return isAdmin() ? viewModel(v) : viewOverview(v);
-  if (route === "feedback") return viewFeedback(v);
-  if (route === "profile") return viewProfile(v);
-  if (route === "members") return viewMembers(v);
-  if (route === "insights") return viewInsights(v);
   if (route.startsWith("member-")) return viewMemberDetail(v, route.slice(7));
+  ({ overview: viewOverview, trades: viewTrades, projections: viewProjections, rebalance: viewRebalance, exit: viewExit, updates: viewUpdates, model: viewModel,
+     feedback: viewFeedback, profile: viewProfile, members: viewMembers, insights: viewInsights })[route](v);
 }
 
 /* ===================== MEMBER: OVERVIEW ===================== */
@@ -110,7 +95,7 @@ async function viewOverview(v) {
       <a class="act" href="#exit"><span class="icon-btn lg">${ICON.target}</span>${ex === "edited" ? "Re-commit" : "Exit plan"}${ex === "committed" ? `<span class="d">committed</span>` : ""}</a>
     </div>
     ${has ? `<div class="ov-grid">${donutCard("pie-me", "Allocation", true)}${perfCard("perf-me")}</div>` : ""}
-    <div class="section-head"><h2>Holdings</h2>${has ? `<span class="muted">${has} coin${has > 1 ? "s" : ""}</span>` : ""}</div>
+    <div class="section-head"><h2>Holdings</h2>${has ? `<span class="muted">${plural(has, "coin")}</span>` : ""}</div>
     <div class="card hl-card">${holdingsTable(pf, true)}</div>
     ${reviewNudge()}`;
   if (has) { renderDonut("pie-me", pf.holdings, "Total", pf.totals.value); bindRewind("pie-me", S.txs, pf.holdings, pf.totals.value); renderPerf("perf-me", pf.holdings); paintHero(S.txs); }

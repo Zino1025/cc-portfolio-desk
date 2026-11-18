@@ -17,7 +17,7 @@ function threadHtml(msgs, viewerId, memberId, names) {
     const who = fromReviewer ? (names?.[m.author_id] || CONFIG.REVIEWER_NAME) : (mine ? "You" : names?.[m.author_id] || "Member");
     const kindTag = m.kind && m.kind !== "note" && m.kind !== "reply" ? `<span class="tag">${esc(m.kind)}</span>` : "";
     const coinTag = m.coin_id ? `<a class="tag" href="${coinLink(m.coin_id)}" target="_blank" rel="noopener">${esc((CG.info(m.coin_id)?.symbol || m.coin_id).toUpperCase())}</a>` : "";
-    return `<div class="msg ${mine ? "mine" : ""} ${fromReviewer ? "reviewer" : ""}"><div class="meta"><b>${esc(who)}</b>${kindTag}${coinTag}<span>${ago(m.created_at)}</span>${mine ? `<button class="link-btn" data-delmsg="${esc(m.id)}" style="font-size:12px;color:var(--text-muted)">delete</button>` : ""}</div>${esc(m.body)}${ATT.html(m.attachments)}</div>`;
+    return `<div class="msg ${mine ? "mine" : ""} ${fromReviewer ? "reviewer" : ""}"><div class="meta"><b>${esc(who)}</b>${kindTag}${coinTag}<span>${ago(m.created_at)}</span>${mine ? `<button class="link-btn" data-delmsg="${esc(m.id)}" style="font-size:12px;color:var(--muted)">delete</button>` : ""}</div>${esc(m.body)}${ATT.html(m.attachments)}</div>`;
   }).join("");
 }
 async function viewFeedback(v) {
@@ -60,7 +60,7 @@ async function viewFeedback(v) {
       render();
     } catch (e) { toast(e.message || "Couldn't send"); btn.disabled = false; btn.textContent = "Send"; }
   };
-  bindMsgDelete(v, () => render());
+  bindMsgDelete(v, render);
 }
 function bindMsgDelete(v, after) {
   v.querySelectorAll("[data-delmsg]").forEach(b => b.onclick = () => confirmModal("Delete message?", "It will be removed for both of you.", async () => { await api.deleteMessage(b.dataset.delmsg); after(); }));
@@ -91,23 +91,9 @@ function projRowCalc(r) {
   return { now, qty, cost, target, valueNow, valueProj, gainVsNow: valueProj - valueNow, profit: valueProj - cost, roi: cost > 0 ? (valueProj - cost) / cost * 100 : 0, mult: now > 0 ? target / now : 0, mcapAtTarget: mcap && now > 0 ? mcap * target / now : null };
 }
 function openCoinPicker(onPick) {
-  const ov = document.createElement("div"); ov.className = "overlay";
-  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><h2>Add a coin <button class="x" aria-label="Close">×</button></h2>
-    <div class="search-wrap"><input type="search" enterkeyhint="done" id="pick-q" placeholder="Search coin" autocomplete="off"><div class="dropdown hidden" id="pick-dd"></div></div>
-    </div>`;
-  document.body.appendChild(ov);
-  const close = () => ov.remove();
-  ov.querySelector(".x").onclick = close; ov.addEventListener("click", e => { if (e.target === ov) close(); });
-  const q = $("#pick-q", ov), dd = $("#pick-dd", ov); q.focus();
-  q.oninput = debounce(async () => {
-    let s = q.value.trim(); const m = s.match(/coingecko\.com\/(?:[a-z]{2}\/)?coins\/([a-z0-9-]+)/i); if (m) s = m[1];
-    if (s.length < 2) { dd.classList.add("hidden"); return; }
-    dd.classList.remove("hidden"); dd.innerHTML = `<div class="opt muted">Searching…</div>`;
-    const res = await CG.search(s);
-    if (!res.length) { dd.innerHTML = `<div class="opt muted">No coins found.</div>`; return; }
-    dd.innerHTML = res.map((c, i) => `<div class="opt" data-i="${i}">${coinCell({ ...c, coin_id: c.id }, true)}<span class="muted" style="font-size:12px">${c.rank ? "#" + c.rank : ""}</span></div>`).join("");
-    dd.querySelectorAll(".opt[data-i]").forEach(o => o.onclick = () => { close(); onPick(res[+o.dataset.i]); });
-  }, 350);
+  const { ov, close } = openModal(`<div class="search-wrap"><input type="search" id="pick-q" placeholder="Search coin" autocomplete="off"><div class="dropdown hidden" id="pick-dd"></div></div>`, { title: "Add a coin" });
+  const q = $("#pick-q", ov); q.focus();
+  coinSearch(q, $("#pick-dd", ov), (c) => { close(); onPick(c); });
 }
 async function viewProjections(v) {
   if (!S.proj) S.proj = { rows: S.txs.length ? projFromPortfolio() : [] };
@@ -120,7 +106,7 @@ async function viewProjections(v) {
       <div class="toolbar" style="margin:0">
         <span class="secondary" style="font-size:13px">Apply to all coins:</span>
         <div class="chips">${PROJ_MULTS.map(m => `<button class="chip" data-mall="${m}">${m}×</button>`).join("")}</div>
-        <input type="text" enterkeyhint="done" inputmode="decimal" id="pj-mall" placeholder="Custom ×" style="width:110px">
+        <input type="text" inputmode="decimal" id="pj-mall" placeholder="Custom ×" style="width:110px">
         <button class="btn small" id="pj-mall-go">Apply</button>
         <button class="link-btn" id="pj-reset">Reset targets to today's price</button>
       </div>
@@ -129,7 +115,7 @@ async function viewProjections(v) {
     <div id="pj-wi"></div>
     <div class="card" style="margin-bottom:16px"><h2>Coins</h2><div id="pj-table"></div></div>
     <div id="pj-chart" style="max-width:440px"></div>`;
-  const rerender = () => paintProj();
+  const rerender = paintProj;
   $("#pj-add").onclick = () => openCoinPicker(async c => {
     if (!S.proj.rows.some(r => r.coin_id === c.id && !r.own)) S.proj.rows.push({ id: uid(), coin_id: c.id, symbol: c.symbol, name: c.name, image: c.image, own: false, qty: 0, cost: 0, invest: "1000", entry: "", target: "", mult: "" });
     await CG.ensure([c.id]); rerender();
@@ -164,15 +150,15 @@ function paintProj() {
     ${rows.map((r, i) => { const c = calcs[i]; return `<tr data-row="${esc(r.id)}">
       <td data-l="Coin">${coinCell(r)}</td>
       <td data-l="Amount">${r.own ? `<div class="num">${fmtQty(c.qty)}</div><div class="muted" style="font-size:12px">paid ${fmtUsd(c.cost)}</div>`
-        : `<input type="text" enterkeyhint="done" inputmode="decimal" data-f="invest" value="${esc(r.invest)}" placeholder="$ to invest" style="width:110px"><div class="muted" style="font-size:12px">${c.qty ? "= " + fmtQty(c.qty) + " coins" : "USD"}</div>
-           <input type="text" enterkeyhint="done" inputmode="decimal" data-f="entry" value="${esc(r.entry)}" placeholder="buy at ${esc(fmtPrice(c.now))}" style="width:110px;margin-top:4px">`}</td>
+        : `<input type="text" inputmode="decimal" data-f="invest" value="${esc(r.invest)}" placeholder="$ to invest" style="width:110px"><div class="muted" style="font-size:12px">${c.qty ? "= " + fmtQty(c.qty) + " coins" : "USD"}</div>
+           <input type="text" inputmode="decimal" data-f="entry" value="${esc(r.entry)}" placeholder="buy at ${esc(fmtPrice(c.now))}" style="width:110px;margin-top:4px">`}</td>
       <td class="r num" data-l="Price">${fmtPrice(c.now)}<div class="muted" style="font-size:12px">${fmtUsd(c.valueNow)}</div></td>
-      <td data-l="Target"><input type="text" enterkeyhint="done" inputmode="decimal" data-f="target" value="${esc(r.target !== "" ? r.target : (r.mult !== "" ? +c.target.toPrecision(6) : ""))}" placeholder="${esc(fmtPrice(c.now))}" style="width:115px">
+      <td data-l="Target"><input type="text" inputmode="decimal" data-f="target" value="${esc(r.target !== "" ? r.target : (r.mult !== "" ? +c.target.toPrecision(6) : ""))}" placeholder="${esc(fmtPrice(c.now))}" style="width:115px">
         ${c.mcapAtTarget ? `<div class="muted" style="font-size:11px">MC ${fmtUsd(c.mcapAtTarget, { compact: true })}</div>` : ""}</td>
-      <td data-l="Multiple"><input type="text" enterkeyhint="done" inputmode="decimal" data-f="mult" value="${esc(r.mult !== "" ? r.mult : (r.target !== "" && c.now > 0 ? +c.mult.toFixed(2) : ""))}" placeholder="1" style="width:64px"></td>
+      <td data-l="Multiple"><input type="text" inputmode="decimal" data-f="mult" value="${esc(r.mult !== "" ? r.mult : (r.target !== "" && c.now > 0 ? +c.mult.toFixed(2) : ""))}" placeholder="1" style="width:64px"></td>
       <td class="r num" data-l="Projected">${fmtUsd(c.valueProj)}</td>
       <td class="r num ${signCls(c.profit)}" data-l="Profit">${fmtUsd(c.profit)}<div style="font-size:12px">${c.cost > 0 ? fmtPct(c.roi) : ""}</div></td>
-      <td class="pj-rm"><button class="link-btn" data-rm="${esc(r.id)}" style="color:var(--text-muted)" aria-label="Remove">✕</button></td>
+      <td class="pj-rm"><button class="link-btn" data-rm="${esc(r.id)}" style="color:var(--muted)" aria-label="Remove">✕</button></td>
     </tr>`; }).join("")}
     <tr class="pj-total">
       <td data-l="Coin"><b>Portfolio total</b></td>
@@ -249,19 +235,19 @@ async function viewProfile(v) {
   v.innerHTML = `
     <div class="page-head"><div><h1>Profile</h1></div></div>
     <div class="card" style="max-width:560px">
-      <label class="field"><span>Display name</span><input type="text" enterkeyhint="done" id="p-name" maxlength="60" value="${esc(p.display_name || "")}"></label>
-      <label class="field"><span>Telegram handle</span><input type="text" enterkeyhint="done" id="p-tg" maxlength="40" value="${esc(p.telegram_handle || "")}" placeholder="@yourhandle"></label>
-      ${api.demo ? "" : `<div class="secondary" style="font-size:13px;margin:-4px 0 12px">${p.telegram_chat_id ? "Telegram notifications on" : "Telegram notifications off. Open the app from the CC bot to turn them on."}</div>`}
+      <label class="field"><span>Display name</span><input type="text" id="p-name" maxlength="60" value="${esc(p.display_name || "")}"></label>
+      <label class="field"><span>Telegram handle</span><input type="text" id="p-tg" maxlength="40" value="${esc(p.telegram_handle || "")}" placeholder="@yourhandle"></label>
+      <div class="secondary" style="font-size:13px;margin:-4px 0 12px">${p.telegram_chat_id ? "Telegram notifications on" : "Telegram notifications off. Open the app from the CC bot to turn them on."}</div>
       <label class="field"><span>Risk appetite</span><select id="p-risk" class="as-seg">${["", "low", "medium", "high", "degen"].map(r => `<option value="${r}" ${p.risk_level === r || (!p.risk_level && !r) ? "selected" : ""}>${r ? r[0].toUpperCase() + r.slice(1) : "Choose…"}</option>`).join("")}</select></label>
       <label class="field"><span>Date you joined ${esc(CONFIG.GROUP_NAME)} <span class="muted">(optional)</span></span><input type="date" id="p-joined" max="${todayISO()}" value="${esc(p.cc_joined_on || "")}"></label>
       <label class="field"><span>Goal &amp; time horizon</span><textarea id="p-goal" maxlength="500" placeholder="e.g. Long-term hold, 2 years, want to 3x">${esc(p.goal || "")}</textarea></label>
       <div class="err" id="p-err"></div>
       <button class="btn primary" id="p-save">Save profile</button>
-      ${api.demo ? "" : `<hr style="border:none;border-top:1px solid var(--grid);margin:20px 0">
+      <hr style="border:none;border-top:1px solid var(--track);margin:20px 0">
       <div class="secondary" style="font-size:13px;margin-bottom:8px">Signed in as ${esc(S.email || "")}</div>
       <label class="field"><span>New password</span><input type="password" enterkeyhint="go" id="p-pw" minlength="8" autocomplete="new-password"></label>
       <label class="showpw"><input type="checkbox" data-showpw="p-pw"> Show password</label>
-      <button class="btn" id="p-pw-save">Change password</button>`}
+      <button class="btn" id="p-pw-save">Change password</button>
     </div>`;
   $("#p-save").onclick = async () => {
     try {
@@ -271,10 +257,10 @@ async function viewProfile(v) {
       toast("Profile saved"); render();
     } catch (e) { $("#p-err").textContent = e.message; }
   };
-  $("#p-pw-save") && ($("#p-pw-save").onclick = async () => {
+  $("#p-pw-save").onclick = async () => {
     const pw = $("#p-pw").value; if (pw.length < 8) return $("#p-err").textContent = "Password needs 8+ characters.";
     try { await api.updatePassword(pw); toast("Password changed"); $("#p-pw").value = ""; } catch (e) { $("#p-err").textContent = e.message; }
-  });
+  };
 }
 
 /* ===================== MODEL PORTFOLIO (Dkay's target mix) ===================== */
@@ -282,8 +268,8 @@ async function viewProfile(v) {
 const DEFAULT_MODEL = {
   version: 2,
   fixed: [
-    { coin: "tectum", label: "Tectum (TET)", pct: 40 },
-    { coin: "solidus-aitech", label: "AITECH (ACN)", pct: 30 },
+    { coin: "tectum", pct: 40 },
+    { coin: "solidus-aitech", pct: 30 },
   ],
   flex: [
     { coin: "paal-ai", max: 30 },
@@ -381,7 +367,6 @@ function modelPlan(pf, m, prefs, { newMoney = 0 } = {}) {
   }
   return { T, rows, baseNow, needSum, money, others, otherVal, cashNow };
 }
-function myPrefs() { return S.me?.model_prefs || {}; }
 function planFor(p, pf, opts) { return modelPlan(pf, getModel(), p?.model_prefs || {}, opts); }
 
 /* ===================== MARKET ALERTS ===================== */
@@ -435,12 +420,12 @@ async function groupTotals() {
   return { value, change24: chg, change24Pct: value - chg > 0 ? chg / (value - chg) * 100 : 0, members: rows[0]?.members || 0 };
 }
 function groupKpi(g) {
-  return `<div class="card kpi"><div class="label">${esc(CONFIG.GROUP_NAME)} group total</div><div class="value num">${fmtUsd(g.value, { compact: g.value >= 1e6 })}</div><div class="sub num ${signCls(g.change24)}">${fmtPct(g.change24Pct)} 24h · ${g.members} member${g.members === 1 ? "" : "s"}</div></div>`;
+  return `<div class="card kpi"><div class="label">${esc(CONFIG.GROUP_NAME)} group total</div><div class="value num">${fmtUsd(g.value, { compact: g.value >= 1e6 })}</div><div class="sub num ${signCls(g.change24)}">${fmtPct(g.change24Pct)} 24h · ${plural(g.members, "member")}</div></div>`;
 }
 
 /* ===================== MEMBER: REBALANCE (add-only) ===================== */
 function planTable(plan, m) {
-  const drift = m.drift ?? 2, buying = plan.money > 0;
+  const drift = m.drift, buying = plan.money > 0;
   const fmtAct = (r) => {
     if (r.action >= 0.5) return `<span class="tag buy">Add</span> <b class="num">${fmtUsd(r.action)}</b>${r.qty ? `<div class="muted num" style="font-size:12px">≈ ${fmtQty(r.qty)} ${esc(r.symbol)}</div>` : ""}`;
     if (r.nowPct - r.target >= drift) return `<span class="muted">Over target · hold</span>`;
@@ -458,10 +443,10 @@ function planTable(plan, m) {
 }
 function mixSliders(m, mix) {
   const pool = poolSize(m);
-  return m.fixed.map(f => `<div class="bucket"><div class="bucket-head"><b>${esc(coinLabel(f.coin))}</b><span class="num"><b>${num(f.pct).toFixed(0)}%</b> <span class="muted">fixed</span></span></div></div>`).join("") +
+  return m.fixed.map(f => `<div class="bucket"><div class="bucket-head"><b>${esc(symOf(f.coin))}</b><span class="num"><b>${num(f.pct).toFixed(0)}%</b> <span class="muted">fixed</span></span></div></div>`).join("") +
     `<div class="bucket" style="border-bottom:none;padding-bottom:0"><div class="bucket-head"><b>Flexible ${pool}%</b></div></div>` +
     m.flex.map(f => `<div class="bucket flex">
-      <div class="bucket-head"><span>${esc(coinLabel(f.coin))}</span><span class="num"><b id="fx-${esc(f.coin)}">${num(mix[f.coin]).toFixed(1)}%</b> <span class="muted">max ${Math.min(num(f.max) || pool, pool)}%</span></span></div>
+      <div class="bucket-head"><span>${esc(symOf(f.coin))}</span><span class="num"><b id="fx-${esc(f.coin)}">${num(mix[f.coin]).toFixed(1)}%</b> <span class="muted">max ${Math.min(num(f.max) || pool, pool)}%</span></span></div>
       <input type="range" class="range" min="0" max="${Math.min(num(f.max) || pool, pool)}" step="0.5" value="${num(mix[f.coin])}" data-flex="${esc(f.coin)}" aria-label="${esc(symOf(f.coin))} share of the flexible ${pool}%">
     </div>`).join("");
 }
@@ -470,14 +455,14 @@ async function viewRebalance(v) {
   const m = getModel();
   await CG.ensure([...S.txs.map(t => t.coin_id), ...modelCoinIds(m)]);
   S.reb ||= { newMoney: 0 };
-  let prefs = JSON.parse(JSON.stringify(myPrefs()));
+  let prefs = JSON.parse(JSON.stringify(S.me.model_prefs || {}));
   const save = debounce(async () => {
     try { S.me = await api.updateProfile(S.me.id, { model_prefs: prefs }); } catch (e) { toast("Couldn't save: " + e.message); }
   }, 700);
   const paint = () => {
     const pf = computePortfolio(S.txs);
     const plan = modelPlan(pf, m, prefs, { newMoney: S.reb.newMoney });
-    const drift = m.drift ?? 2;
+    const drift = m.drift;
     const tgt = Object.entries(plan.T.coins).filter(([, p]) => p > 0).map(([id, p]) => ({ symbol: symOf(id), name: CG.info(id)?.name || id, value: p, alloc: p }));
     $("#reb-body").innerHTML = `
       <div class="kpis">
@@ -505,7 +490,7 @@ async function viewRebalance(v) {
       </div>
       <div>
         <div class="card" style="margin-bottom:16px">
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;flex-wrap:wrap"><b>New money to add</b> <span>$<input type="text" enterkeyhint="done" inputmode="decimal" id="newm" value="${S.reb.newMoney || ""}" placeholder="0" style="width:130px"></span></label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;flex-wrap:wrap"><b>New money to add</b> <span>$<input type="text" inputmode="decimal" id="newm" value="${S.reb.newMoney || ""}" placeholder="0" style="width:130px"></span></label>
         </div>
         <div id="reb-body"></div>
       </div>
@@ -528,9 +513,9 @@ async function viewRebalance(v) {
 function driftCard(p, pf) {
   if (!pf.holdings.length) return "";
   const m = getModel(), plan = planFor(p, pf, {});
-  const off = plan.rows.filter(r => Math.abs(r.nowPct - r.target) >= (m.drift ?? 2));
+  const off = plan.rows.filter(r => Math.abs(r.nowPct - r.target) >= m.drift);
   return `<div class="card" style="margin-top:16px"><h2>Model drift <span class="muted" style="font-weight:400;font-size:13px">· their mix: ${esc(mixLabel(m, p.model_prefs || {}))} (${m.flex.map(f => `${esc(symOf(f.coin))} ${num(plan.T.mix[f.coin]).toFixed(0)}%`).join(", ")})${plan.others.length ? ` · ${fmtUsd(plan.otherVal)} outside the model` : ""}</span></h2>
-    ${off.length ? "" : `<div class="secondary" style="margin-bottom:8px">On target: every position is within ${m.drift ?? 2}% of the model.</div>`}
+    ${off.length ? "" : `<div class="secondary" style="margin-bottom:8px">On target: every position is within ${m.drift}% of the model.</div>`}
     ${planTable(plan, m)}</div>`;
 }
 

@@ -37,7 +37,7 @@ function coinTradesHtml(g) {
   return `<div class="tc ${open ? "open" : ""}" data-tc="${esc(g.id)}">
     <button class="tc-head" type="button" data-toggle="${esc(g.id)}" aria-expanded="${open}">
       ${coinCell({ ...g, coin_id: g.id })}
-      <div class="tc-stats num"><div>${g.h ? fmtUsd(g.value) : "Sold"}</div>${g.pnl != null ? `<div class="${signCls(g.pnl)}" style="font-size:12px">${fmtUsd(g.pnl)} (${fmtPct(g.pnlPct)})</div>` : `<div class="muted" style="font-size:12px">${g.txs.length} trade${g.txs.length === 1 ? "" : "s"}</div>`}</div>
+      <div class="tc-stats num"><div>${g.h ? fmtUsd(g.value) : "Sold"}</div>${g.pnl != null ? `<div class="${signCls(g.pnl)}" style="font-size:12px">${fmtUsd(g.pnl)} (${fmtPct(g.pnlPct)})</div>` : `<div class="muted" style="font-size:12px">${plural(g.txs.length, "trade")}</div>`}</div>
       <span class="tc-chev" aria-hidden="true">›</span>
     </button>
     <div class="tc-sum">
@@ -47,7 +47,7 @@ function coinTradesHtml(g) {
       ${sumCell("Trades", `${g.txs.length}`)}
     </div>
     ${open ? `<div class="tc-tx">${g.txs.map(t => `<button type="button" class="tc-row tc-tap" data-edit="${esc(t.id)}">
-        <div class="main"><div style="font-weight:550">${t.side === "sell" ? "Sell" : "Buy"}</div><div class="meta">${new Date(t.executed_at).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</div></div>
+        <div class="main"><div style="font-weight:550">${t.side === "sell" ? "Sell" : "Buy"}</div><div class="meta">${fmtDay(t.executed_at)}</div></div>
         <div class="r num" style="flex:none"><div class="${t.side === "sell" ? "bad" : "good"}">${t.side === "sell" ? "−" : "+"} ${fmtQty(t.quantity)} ${esc(String(g.symbol || "").toUpperCase())}</div><div>${fmtUsd(num(t.quantity) * num(t.price_usd))}</div></div>
       </button>`).join("")}
       <div class="tc-row" style="justify-content:flex-end"><button class="link-btn" data-addfor="${esc(g.id)}">+ Add trade for ${esc(String(g.symbol || "").toUpperCase())}</button></div></div>` : ""}
@@ -60,7 +60,7 @@ async function viewTrades(v) {
   const view = S.tradeView || "coin", groups = view === "coin" ? tradesByCoin() : [];
   const coins = [...new Map(S.txs.map(t => [t.coin_id, t])).values()].sort((a, b) => String(a.name).localeCompare(b.name));
   v.innerHTML = `
-    <div class="page-head"><div><h1>Trades</h1><div class="secondary">${S.txs.length} trade${S.txs.length === 1 ? "" : "s"} · ${coins.length} coin${coins.length === 1 ? "" : "s"}</div></div>
+    <div class="page-head"><div><h1>Trades</h1><div class="secondary">${plural(S.txs.length, "trade")} · ${plural(coins.length, "coin")}</div></div>
       <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end"><button class="btn" id="csv">Export</button><button class="btn" id="import-shot">Import</button><button class="btn primary" id="add">+ Add trade</button></div></div>
     <div class="tr-tools">
       <div class="seg"><button class="${view === "coin" ? "on" : ""}" data-view="coin">By coin</button><button class="${view === "all" ? "on" : ""}" data-view="all">All trades</button><button class="${view === "flows" ? "on" : ""}" data-view="flows">Money in/out</button></div>
@@ -84,10 +84,9 @@ async function viewTrades(v) {
   v.querySelectorAll("[data-toggle]").forEach(b => b.onclick = () => { const id = b.dataset.toggle; S.tradeOpen.has(id) ? S.tradeOpen.delete(id) : S.tradeOpen.add(id); render(); });
   v.querySelectorAll("[data-addfor]").forEach(b => b.onclick = () => openTradeModal(null, b.dataset.addfor));
   v.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => openTradeModal(S.txs.find(t => t.id === b.dataset.edit)));
-  v.querySelectorAll("[data-del]").forEach(b => b.onclick = () => confirmModal("Delete this trade?", "This can't be undone.", async () => {
-    await api.deleteTx(b.dataset.del); S.txs = S.txs.filter(t => t.id !== b.dataset.del); toast("Trade deleted"); render();
-  }));
+  v.querySelectorAll("[data-del]").forEach(b => b.onclick = () => deleteTrade(b.dataset.del));
 }
+const deleteTrade = (id) => confirmModal("Delete this trade?", "This can't be undone.", async () => { await api.deleteTx(id); S.txs = S.txs.filter(t => t.id !== id); toast("Trade deleted"); render(); });
 // Desk backup = re-importable here. Tax file = Koinly universal format (Koinly, CoinLedger and most tax tools read it).
 function exportCsv(tax) {
   const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`, sym = (t) => String(t.symbol || "").toUpperCase();
@@ -118,22 +117,19 @@ function flowsHtml() {
   const t = flowTotals(), rows = [...S.flows].sort((a, b) => new Date(b.at) - new Date(a.at));
   return `<div class="card">
     <div class="hero-stats" style="border:none;margin:0;padding:0 0 12px"><div><div class="l">Deposited</div><div class="v num">${fmtUsd(t.dep)}</div></div><div><div class="l">Withdrawn</div><div class="v num">${fmtUsd(t.wd)}</div></div><div><div class="l">Net in</div><div class="v num">${fmtUsd(t.net)}</div></div></div>
-    ${rows.length ? `<div class="tc-tx">${rows.map(f => `<div class="tc-row"><div class="main"><div style="font-weight:550">${f.kind === "deposit" ? "Deposit" : "Withdrawal"}</div><div class="meta">${new Date(f.at).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}${f.note ? " · " + esc(f.note) : ""}</div></div>
+    ${rows.length ? `<div class="tc-tx">${rows.map(f => `<div class="tc-row"><div class="main"><div style="font-weight:550">${f.kind === "deposit" ? "Deposit" : "Withdrawal"}</div><div class="meta">${fmtDay(f.at)}${f.note ? " · " + esc(f.note) : ""}</div></div>
       <div class="r num" style="flex:none;display:flex;align-items:center;gap:10px"><span class="${f.kind === "deposit" ? "good" : "bad"}">${f.kind === "deposit" ? "+" : "−"} ${fmtUsd(f.amount_usd)}</span><button class="link-btn" data-fdel="${esc(f.id)}" aria-label="Delete">✕</button></div></div>`).join("")}</div>`
       : `<div class="empty"><div class="big">Nothing logged yet</div>Log the money you put in and take out, so new money isn't counted as profit.</div>`}
     <button class="btn primary" id="flow-add" style="margin-top:12px">Log deposit or withdrawal</button></div>`;
 }
 function openFlowModal() {
-  const ov = document.createElement("div"); ov.className = "overlay";
-  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><h2>Money in / out <button class="x" aria-label="Close">×</button></h2>
+  const { ov, close } = openModal(`
     <div style="margin-bottom:16px"><div class="seg" id="f-kind"><button data-k="deposit" class="buy on">Deposit</button><button data-k="withdrawal" class="sell">Withdrawal</button></div></div>
-    <label class="field"><span>Amount ($)</span><input type="text" inputmode="decimal" enterkeyhint="done" id="f-amt" placeholder="0.00"></label>
+    <label class="field"><span>Amount ($)</span><input type="text" inputmode="decimal" id="f-amt" placeholder="0.00"></label>
     <label class="field"><span>Date</span><input type="date" id="f-at" max="${todayISO()}" value="${todayISO()}"></label>
-    <label class="field"><span>Note <span class="muted">(optional)</span></span><input type="text" enterkeyhint="done" id="f-note" maxlength="300"></label>
-    <div class="err" id="f-err"></div><button class="btn primary" id="f-save" style="width:100%">Save</button></div>`;
-  document.body.appendChild(ov);
-  const close = () => ov.remove(); let kind = "deposit";
-  ov.querySelector(".x").onclick = close; ov.addEventListener("click", e => { if (e.target === ov) close(); });
+    <label class="field"><span>Note <span class="muted">(optional)</span></span><input type="text" id="f-note" maxlength="300"></label>
+    <div class="err" id="f-err"></div><button class="btn primary" id="f-save" style="width:100%">Save</button>`, { title: "Money in / out" });
+  let kind = "deposit";
   ov.querySelectorAll("#f-kind button").forEach(b => b.onclick = () => { kind = b.dataset.k; ov.querySelectorAll("#f-kind button").forEach(x => x.classList.toggle("on", x === b)); });
   $("#f-save", ov).onclick = async () => {
     const amount_usd = decOr0($("#f-amt", ov).value); if (!(amount_usd > 0)) return $("#f-err", ov).textContent = "Enter an amount.";
@@ -147,31 +143,24 @@ function openTradeModal(existing, presetCoinId) {
   const t = existing ? { ...existing } : { side: "buy", executed_at: new Date().toISOString(), fee_usd: 0 };
   const src = existing || (presetCoinId && S.txs.find(x => x.coin_id === presetCoinId));
   let coin = src ? { id: src.coin_id, name: src.name, symbol: src.symbol, image: CG.info(src.coin_id)?.image } : null;
-  const ov = document.createElement("div");
-  ov.className = "overlay";
-  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
-    <h2>${existing ? "Edit trade" : "Add trade"} <button class="x" aria-label="Close">×</button></h2>
+  const { ov, close } = openModal(`
     <div style="margin-bottom:16px"><div class="seg" id="side"><button data-s="buy" class="buy">Buy</button><button data-s="sell" class="sell">Sell</button></div></div>
     <div class="field-div"><span>Coin</span><div id="coin-slot"></div></div>
     <div class="row">
-      <label class="field"><span>Quantity</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="qty" value="${existing ? esc(+Number(existing.quantity).toPrecision(12)) : ""}" placeholder="0.00"></label>
-      <label class="field"><span>Price per coin</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="price" value="${existing ? esc(+Number(existing.price_usd).toPrecision(6)) : ""}" placeholder="$0.00"></label>
+      <label class="field"><span>Quantity</span><input type="text" inputmode="decimal" autocomplete="off" id="qty" value="${existing ? esc(+Number(existing.quantity).toPrecision(12)) : ""}" placeholder="0.00"></label>
+      <label class="field"><span>Price per coin</span><input type="text" inputmode="decimal" autocomplete="off" id="price" value="${existing ? esc(+Number(existing.price_usd).toPrecision(6)) : ""}" placeholder="$0.00"></label>
     </div>
-    <label class="field"><span>Total</span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="total" placeholder="$0.00"></label>
+    <label class="field"><span>Total</span><input type="text" inputmode="decimal" autocomplete="off" id="total" placeholder="$0.00"></label>
     <label class="field"><span>Date</span><input type="datetime-local" id="when" value="${toLocalInput(t.executed_at)}"></label>
     ${num(t.fee_usd) || t.note ? "" : `<button class="link-btn more-btn" type="button" id="show-extra">+ Add fee or note</button>`}
     <div id="extra" class="${num(t.fee_usd) || t.note ? "" : "hidden"}">
-      <label class="field"><span>Fee <span class="muted">(optional)</span></span><input type="text" enterkeyhint="done" inputmode="decimal" autocomplete="off" id="fee" value="${num(t.fee_usd) ? esc(t.fee_usd) : ""}" placeholder="$0.00"></label>
+      <label class="field"><span>Fee <span class="muted">(optional)</span></span><input type="text" inputmode="decimal" autocomplete="off" id="fee" value="${num(t.fee_usd) ? esc(t.fee_usd) : ""}" placeholder="$0.00"></label>
       <label class="field"><span>Notes <span class="muted">(optional)</span></span><textarea id="note" maxlength="500">${esc(t.note || "")}</textarea></label>
     </div>
     <div class="err" id="trade-err"></div>
     <div class="row" style="justify-content:space-between;align-items:center">${existing ? `<button class="link-btn" id="del-trade" type="button" style="color:var(--bad)">Delete</button>` : "<span></span>"}
-      <div class="row" style="flex:none;gap:8px"><button class="btn" id="cancel" style="flex:none">Cancel</button><button class="btn primary" id="save" style="flex:none">${existing ? "Save" : "Add trade"}</button></div></div>
-  </div>`;
-  document.body.appendChild(ov);
-  const close = () => ov.remove();
-  ov.querySelector(".x").onclick = close; $("#cancel", ov).onclick = close;
-  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+      <div class="row" style="flex:none;gap:8px"><button class="btn" id="cancel" style="flex:none">Cancel</button><button class="btn primary" id="save" style="flex:none">${existing ? "Save" : "Add trade"}</button></div></div>`, { title: existing ? "Edit trade" : "Add trade" });
+  $("#cancel", ov).onclick = close;
   $("#show-extra", ov) && ($("#show-extra", ov).onclick = (e) => { e.target.remove(); $("#extra", ov).classList.remove("hidden"); $("#fee", ov).focus(); });
   let side = t.side;
   const paintSide = () => ov.querySelectorAll("#side button").forEach(b => b.classList.toggle("on", b.dataset.s === side));
@@ -194,21 +183,9 @@ function openTradeModal(existing, presetCoinId) {
       if (!existing) prefillPrice();
       return;
     }
-    slot.innerHTML = `<div class="search-wrap"><input type="search" enterkeyhint="done" id="coin-q" placeholder="Search coin" autocomplete="off"><div class="dropdown hidden" id="coin-dd"></div></div>`;
-    const q = $("#coin-q", ov), dd = $("#coin-dd", ov);
-    q.focus();
-    const run = debounce(async () => {
-      let s = q.value.trim();
-      const m = s.match(/coingecko\.com\/(?:[a-z]{2}\/)?coins\/([a-z0-9-]+)/i);
-      if (m) s = m[1];
-      if (s.length < 2) { dd.classList.add("hidden"); return; }
-      dd.classList.remove("hidden"); dd.innerHTML = `<div class="opt muted">Searching…</div>`;
-      const res = await CG.search(s);
-      if (!res.length) { dd.innerHTML = `<div class="opt muted">No coins found. Try the ticker or paste the CoinGecko page link.</div>`; return; }
-      dd.innerHTML = res.map((c, i) => `<div class="opt" data-i="${i}">${coinCell({ ...c, coin_id: c.id }, true)}<span class="muted" style="font-size:12px">${c.rank ? "#" + c.rank : ""}</span></div>`).join("");
-      dd.querySelectorAll(".opt[data-i]").forEach(o => o.onclick = () => { coin = res[+o.dataset.i]; paintCoin(); });
-    }, 350);
-    q.oninput = run;
+    slot.innerHTML = `<div class="search-wrap"><input type="search" id="coin-q" placeholder="Search coin" autocomplete="off"><div class="dropdown hidden" id="coin-dd"></div></div>`;
+    const q = $("#coin-q", ov); q.focus();
+    coinSearch(q, $("#coin-dd", ov), (c) => { coin = c; paintCoin(); }, { none: "No coins found. Try the ticker or paste the CoinGecko page link." });
   }
   // New trades: fill in the coin's price on the chosen date (until the user types their own).
   async function prefillPrice() {
@@ -219,9 +196,7 @@ function openTradeModal(existing, presetCoinId) {
   $("#when", ov).addEventListener("change", prefillPrice);
   paintCoin();
 
-  $("#del-trade", ov) && ($("#del-trade", ov).onclick = () => { close(); confirmModal("Delete this trade?", "This can't be undone.", async () => {
-    await api.deleteTx(existing.id); S.txs = S.txs.filter(x => x.id !== existing.id); toast("Trade deleted"); render();
-  }); });
+  $("#del-trade", ov) && ($("#del-trade", ov).onclick = () => { close(); deleteTrade(existing.id); });
 
   $("#save", ov).onclick = async () => {
     const err = $("#trade-err", ov); err.textContent = "";

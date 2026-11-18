@@ -12,12 +12,12 @@ const DEFAULT_TPS = [
   { sym: "INDEXY", label: "INDEXY", lo: 0.0001, hi: 0.0004 },
 ];
 const EXIT_PLEDGES = [
-  ["initials", "I'll take my initial investment out early.", "“Should have initials out here at least” (475681)"],
-  ["steps", "I'll sell in steps, not all at the top.", "“You wanna sell early, on time, and late” (210100)"],
-  ["macro", "I'll take profits at the big macro levels.", "“Always best to take profits at macro levels rather than micro levels” (266873)"],
-  ["goal", "I've set my money goal now, and I won't move my targets up.", "“Set your targets now and gtfo when you hit your financial goal” (256997)"],
-  ["spot", "Spot only, no leverage.", "“This is why I don't let you guys do leverage” (370024)"],
-  ["risk", "My risk goes into buying before and during the moves, not into waiting for higher at the end.", "(475419)"],
+  ["initials", "I'll take my initial investment out early."],
+  ["steps", "I'll sell in steps, not all at the top."],
+  ["macro", "I'll take profits at the big macro levels."],
+  ["goal", "I've set my money goal now, and I won't move my targets up."],
+  ["spot", "Spot only, no leverage."],
+  ["risk", "My risk goes into buying before and during the moves, not into waiting for higher at the end."],
 ];
 const EXIT_STRATEGIES = [
   ["initials", "Initials first", "Get your money back at the first target, then ladder out and keep a moonbag."],
@@ -36,8 +36,7 @@ function tpLevels(tp) {
   return L;
 }
 function tpFor(coinId, symbol) {
-  const sym = String(symbol || "").toUpperCase();
-  const tps = getTps();
+  const sym = String(symbol || "").toUpperCase(), tps = getTps();
   return tps.find(t => t.coin && t.coin === coinId) || tps.find(t => sym && t.sym === sym) || null;
 }
 const round5 = (v) => Math.max(0, Math.round(v / 5) * 5);
@@ -95,6 +94,7 @@ function exitStatus(p) {
   if (ep.updated_at && new Date(ep.updated_at) > new Date(ep.committed_at)) return { state: "edited", label: "Exit plan edited, not re-committed" };
   return { state: "committed", label: "Exit plan committed " + ago(ep.committed_at) };
 }
+const exitTag = (st, style) => `<span class="tag ${{ committed: "buy", edited: "req" }[st.state] || "flag"}" style="${style}">${st.state === "committed" ? "✓ " : ""}${esc(st.label)}</span>`;
 const fp = (v) => { const n = num(v); return n >= 1 ? "$" + (+n.toPrecision(4)).toLocaleString("en-US") : fmtPrice(n).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1"); };
 function tpLadderBar(tp, price, avg) {
   const L = tpLevels(tp); if (!L.length) return "";
@@ -137,8 +137,8 @@ async function viewExit(v) {
       <div class="table-wrap"><table class="exit-steps"><thead><tr><th class="drag" aria-label="Order"></th><th>Sell at</th><th class="r">${narrow ? "%" : "% of bag"}</th><th class="r hide-sm">Price</th><th class="r">${narrow ? "≈ $" : "≈ Cash out"}</th><th class="r hide-sm">Total so far</th><th></th></tr></thead><tbody>
         ${cp.steps.map((st, i) => { const r = calc.rows.find(x => x.idx === i) || {}; return `<tr data-row="${i}">
           <td class="drag"><span class="drag-h" data-drag="${i}" tabindex="0" role="button" aria-label="Drag to reorder (or use arrow keys)" title="Drag to reorder">⠿</span></td>
-          <td class="sell"><select data-i="${i}" data-f="k" style="min-width:150px">${lvlOpts(st)}</select>${st.k === "custom" ? `<input type="text" enterkeyhint="done" inputmode="decimal" data-i="${i}" data-f="price" value="${st.price || ""}" placeholder="$ price" class="ex-price">` : ""}</td>
-          <td class="r"><input type="text" enterkeyhint="done" inputmode="decimal" data-i="${i}" data-f="pct" value="${num(st.pct)}" style="width:${narrow ? 48 : 62}px;text-align:right">%</td>
+          <td class="sell"><select data-i="${i}" data-f="k" style="min-width:150px">${lvlOpts(st)}</select>${st.k === "custom" ? `<input type="text" inputmode="decimal" data-i="${i}" data-f="price" value="${st.price || ""}" placeholder="$ price" class="ex-price">` : ""}</td>
+          <td class="r"><input type="text" inputmode="decimal" data-i="${i}" data-f="pct" value="${num(st.pct)}" style="width:${narrow ? 48 : 62}px;text-align:right">%</td>
           <td class="r num hide-sm">${fmtPrice(stepPrice(tp, st))}${c.h?.avg ? `<div class="muted" style="font-size:12px">${(stepPrice(tp, st) / c.h.avg).toFixed(1)}× your avg</div>` : ""}</td>
           <td class="r num">${c.h ? (narrow ? "$" + Math.round(c.h.qty * num(st.pct) / 100 * stepPrice(tp, st)).toLocaleString("en-US") : fmtUsd(c.h.qty * num(st.pct) / 100 * stepPrice(tp, st))) : "—"}</td>
           <td class="r num hide-sm">${r.cum != null && c.h ? fmtUsd(r.cum) : "—"}${r.cum != null && calc.initialsAt != null && calc.rows[calc.initialsAt] === r ? `<div class="good" style="font-size:12px">✓ initials back</div>` : ""}</td>
@@ -163,27 +163,27 @@ async function viewExit(v) {
       </ul></div>
     <div class="two-col" style="margin-top:16px">
       <div class="card"><h2>Your money goal</h2>
-        <label class="field"><span>Total I want to cash out ($)</span><input type="text" enterkeyhint="done" inputmode="decimal" id="ex-goal" value="${plan.goal || ""}" placeholder="e.g. 50000"></label>
+        <label class="field"><span>Total I want to cash out ($)</span><input type="text" inputmode="decimal" id="ex-goal" value="${plan.goal || ""}" placeholder="e.g. 50000"></label>
         <div id="ex-sum"></div>
       </div>
       <div class="card"><h2>Commit</h2>
-        <div id="ex-pledges">${EXIT_PLEDGES.map(([k, t, q]) => `<label class="pledge"><input type="checkbox" data-pledge="${k}" ${plan.pledges[k] ? "checked" : ""}><span>${esc(t)}</span></label>`).join("")}</div>
+        <div id="ex-pledges">${EXIT_PLEDGES.map(([k, t]) => `<label class="pledge"><input type="checkbox" data-pledge="${k}" ${plan.pledges[k] ? "checked" : ""}><span>${esc(t)}</span></label>`).join("")}</div>
         <button class="btn primary" id="ex-commit" style="margin-top:10px">Commit to my exit plan</button>
         <div class="err" id="ex-err"></div>
       </div>
     </div>
-    ${api.demo ? "" : `<div class="card" style="margin-top:16px"><label class="pledge" style="margin:0"><input type="checkbox" id="ex-ping" ${S.me.tp_alerts ? "checked" : ""}><span>Ping me in Telegram when a coin hits one of my sell steps</span></label></div>`}
+    <div class="card" style="margin-top:16px"><label class="pledge" style="margin:0"><input type="checkbox" id="ex-ping" ${S.me.tp_alerts ? "checked" : ""}><span>Ping me in Telegram when a coin hits one of my sell steps</span></label></div>
     <h2 class="section-h">Your coins</h2>
     <div class="grid" id="ex-coins">${coins.map(coinCard).join("")}</div>
     <div class="card" style="margin-top:16px"><h2>Add a coin</h2>
       <div class="add-coin"><select id="ex-add-sel" aria-label="Coin with ${esc(CONFIG.REVIEWER_NAME)}'s targets"></select><button class="btn" id="ex-add-btn">Add</button></div>
-      <div class="search-wrap" style="margin-top:10px"><input type="search" enterkeyhint="done" id="ex-add-q" placeholder="Search coin" autocomplete="off"><div class="dropdown hidden" id="ex-add-dd"></div></div>
+      <div class="search-wrap" style="margin-top:10px"><input type="search" id="ex-add-q" placeholder="Search coin" autocomplete="off"><div class="dropdown hidden" id="ex-add-dd"></div></div>
     </div>
     ${getTps().some(t => !t.main) ? `<div class="card" style="margin-top:16px"><h2>Other coins ${esc(CONFIG.REVIEWER_NAME)} has targets for</h2><div class="secondary" style="font-size:13px">${getTps().filter(t => !t.main).map(t => `${esc(t.sym)}: ${tpLevels(t).filter(l => l.k !== "mid").map(l => fmtPrice(l.price)).join(" / ")}`).join(" · ")}</div><div class="hint">Not part of the main five. They show up above if you hold or add them.</div></div>` : ""}`;
   const paintStatus = () => {
     if (!$("#ex-status") || !v.isConnected) return;
     const st = exitStatus({ exit_plan: { ...plan, updated_at: dirty ? new Date().toISOString() : plan.updated_at } });
-    $("#ex-status").innerHTML = `<span class="tag ${st.state === "committed" ? "buy" : st.state === "edited" ? "req" : "flag"}" style="font-size:12px">${st.state === "committed" ? "✓ " : ""}${esc(st.label)}</span>`;
+    $("#ex-status").innerHTML = exitTag(st, "font-size:12px");
     $("#ex-commit").textContent = st.state === "committed" ? "Re-commit (no changes)" : st.state === "edited" ? "Re-commit my updated plan" : "Commit to my exit plan";
   };
   const paintSummary = () => {
@@ -280,22 +280,14 @@ async function viewExit(v) {
   };
   $("#ex-add-btn").onclick = () => { const sel = $("#ex-add-sel"); if (!sel.value) return sel.focus(); addCoin(sel.value, sel.selectedOptions[0]?.dataset.sym); };
   { const q = $("#ex-add-q"), dd = $("#ex-add-dd");
-    const run = debounce(async () => {
-      let s = q.value.trim(); const m = s.match(/coingecko\.com\/(?:[a-z]{2}\/)?coins\/([a-z0-9-]+)/i); if (m) s = m[1];
-      if (s.length < 2) { dd.classList.add("hidden"); return; }
-      dd.classList.remove("hidden"); dd.innerHTML = `<div class="opt muted">Searching…</div>`;
-      const res = (await CG.search(s)).filter(c => !STABLE_IDS.includes(c.id));
-      if (!res.length) { dd.innerHTML = `<div class="opt muted">No coins found.</div>`; return; }
-      dd.innerHTML = res.map((c, i) => `<div class="opt" data-i="${i}">${coinCell({ ...c, coin_id: c.id }, true)}<span class="muted" style="font-size:12px">${coins.some(x => x.id === c.id) ? "in your plan" : tpFor(c.id, c.symbol) ? "has targets" : c.rank ? "#" + c.rank : ""}</span></div>`).join("");
-      dd.querySelectorAll(".opt[data-i]").forEach(o => o.onclick = () => { const c = res[+o.dataset.i]; q.value = ""; dd.classList.add("hidden"); q.blur(); addCoin(c.id, c.symbol); });
-    }, 350);
-    q.oninput = run;
+    coinSearch(q, dd, (c) => { q.value = ""; dd.classList.add("hidden"); q.blur(); addCoin(c.id, c.symbol); },
+      { filter: c => !STABLE_IDS.includes(c.id), tag: c => coins.some(x => x.id === c.id) ? "in your plan" : tpFor(c.id, c.symbol) ? "has targets" : c.rank ? "#" + c.rank : "" });
   }
   $("#ex-goal").oninput = debounce(e => { plan.goal = Math.max(0, decOr0(e.target.value)) || null; touch(); }, 300);
-  $("#ex-ping") && ($("#ex-ping").onchange = async (e) => {
+  $("#ex-ping").onchange = async (e) => {
     try { S.me = await api.updateProfile(S.me.id, { tp_alerts: e.target.checked }); if (e.target.checked) { touch(); toast(S.me.telegram_chat_id ? "You'll get a ping when a step is hit" : "Open the Desk from the CC bot once so it can message you"); } }
     catch (err) { e.target.checked = !e.target.checked; toast("Couldn't save: " + err.message); }
-  });
+  };
   v.querySelectorAll("[data-pledge]").forEach(cb => cb.onchange = () => { plan.pledges[cb.dataset.pledge] = cb.checked; touch(); });
   $("#ex-commit").onclick = async () => {
     const missing = EXIT_PLEDGES.filter(([k]) => !plan.pledges[k]);
@@ -319,7 +311,7 @@ function exitCard(p, pf) {
     const h = pf.holdings.find(x => x.coin_id === id), tp = tpFor(id, h?.symbol || cp.sym), k = exitCalc(tp, cp, h);
     return `<tr><td><b>${esc(symOf(id))}</b></td><td>${k.rows.map(r => `${r.pct}% @ ${fmtPrice(r.price)}`).join(" · ") || "—"}</td><td class="r num">${k.keep}%</td><td class="r num">${h ? fmtUsd(k.total, { compact: k.total >= 1e6 }) : "—"}</td><td>${h?.cost ? (k.initialsAt != null ? '<span class="good">yes</span>' : '<span class="bad">no</span>') : "—"}</td></tr>`;
   }).join("");
-  return `<div class="card" style="margin-top:16px"><h2>Exit plan <span class="tag ${st.state === "committed" ? "buy" : st.state === "edited" ? "req" : "flag"}" style="margin-left:6px">${esc(st.label)}</span></h2>
+  return `<div class="card" style="margin-top:16px"><h2>Exit plan ${exitTag(st, "margin-left:6px")}</h2>
     <div class="secondary" style="margin-bottom:8px">Money goal: <b>${ep.goal ? fmtUsd(ep.goal) : "not set"}</b> · rules agreed: ${EXIT_PLEDGES.filter(([k]) => ep.pledges?.[k]).length}/${EXIT_PLEDGES.length}</div>
     <div class="table-wrap"><table><thead><tr><th>Coin</th><th>Steps</th><th class="r">Moonbag</th><th class="r">≈ Cash out</th><th>Initials back</th></tr></thead><tbody>${lines}</tbody></table></div></div>`;
 }

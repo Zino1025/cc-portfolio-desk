@@ -24,26 +24,26 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 ## JS map (load order = order in index.html; numbers are approximate starting lines)
 | File | Sections |
 |---|---|
-| `core.js` | CONFIG 1 (Supabase URL/publishable key, REVIEWER_NAME), UTILITIES 14, ATTACHMENTS 93 (photos, voice notes incl. in-app recording, videos, PDFs on Dkay's posts and both sides of the thread), COINGECKO 170, PORTFOLIO MATH 248 (average cost), DATA LAYER 287 (all Supabase reads/writes), STATE 452 |
-| `charts.js` | CHARTS 1 (donut + allocation rewind), DELTA-STYLE CHARTS 50 (portfolio history, share card PNG), live prices 171 (Coinbase BTC/ETH + MEXC via `prices` function, CoinGecko fallback), chart helpers 220 (price tag, axes, hold-to-scrub: header shows the held point, no tooltips), price charts 246 (BTC, ETH, group coins) |
-| `shell.js` | SHELL 1 (tabs, navigation), MEMBER: OVERVIEW 71 |
-| `trades.js` | MEMBER: TRADES 1 (export: Desk backup or Koinly tax file), money in/out 110 (`cash_flows`), trade modal 165 |
-| `trade-import.js` | Screenshot import 1, CSV import 132 |
-| `member.js` | FEEDBACK THREAD 1, PROJECTIONS 55 (incl. What if chart: past value of these coins + dashed line to target, portfolio or per coin), MEMBER: PROFILE 184, MODEL PORTFOLIO 218 (Dkay's target mix), MARKET ALERTS 325 (badge = unseen alerts, `profiles.alerts_seen`; opening Market updates clears it), GROUP TOTAL 354, MEMBER: REBALANCE 366 (add-only) |
-| `market.js` | ADMIN: MODEL EDITOR 1, MARKET UPDATES 81 (weekly summary + urgent bids) |
+| `core.js` | CONFIG 1 (Supabase URL/publishable key, REVIEWER_NAME), UTILITIES 9 (formatters, `openModal`/`confirmModal`, `coinSearch`, `plural`), ATTACHMENTS 160 (photos, voice notes incl. in-app recording, videos, PDFs on Dkay's posts and both sides of the thread), COINGECKO 268, PORTFOLIO MATH 346 (average cost, `applyTx`), DATA LAYER 384 (all Supabase reads/writes), STATE 444 |
+| `charts.js` | CHARTS 1 (donut + allocation rewind), DELTA-STYLE CHARTS 53 (portfolio history), share card PNG 220, live prices 239 (Coinbase BTC/ETH + MEXC via `prices` function, CoinGecko fallback), chart helpers 288 (price tag, axes, hold-to-scrub: header shows the held point, no tooltips), price charts 330 (BTC, ETH, group coins) |
+| `shell.js` | SHELL 1 (tabs, navigation), MEMBER: OVERVIEW 57 |
+| `trades.js` | MEMBER: TRADES 1 (export: Desk backup or Koinly tax file), money in/out 111 (`cash_flows`), trade modal 141 |
+| `trade-import.js` | Screenshot import 1, CSV import 120 |
+| `member.js` | FEEDBACK THREAD 1, PROJECTIONS 72 (incl. What if chart: past value of these coins + dashed line to target, portfolio or per coin), MEMBER: PROFILE 232, MODEL PORTFOLIO 266 (Dkay's target mix), MARKET ALERTS 372 (badge = unseen alerts, `profiles.alerts_seen`; opening Market updates clears it), GROUP TOTAL 414, MEMBER: REBALANCE 426 (add-only) |
+| `market.js` | ADMIN: MODEL EDITOR 1, MARKET UPDATES 79 (weekly summary + urgent bids) |
 | `exit-plan.js` | EXIT PLAN 1 (steps store their price in `st.at` for the hourly TP-hit pings) |
-| `admin.js` | ADMIN: BROADCAST 1, ADMIN DATA 83, REVIEW QUEUE 105, MEMBER DETAIL 164, GROUP INSIGHTS 312 |
-| `boot.js` | AUTH 1, BOOT 53 (calls `boot()` at the end), TELEGRAM MINI APP 85 (tg-link on every open + CC group gate), MOBILE KEYBOARD 103 |
+| `admin.js` | ADMIN: BROADCAST 1, ADMIN DATA 77, REVIEW QUEUE 99, MEMBER DETAIL 157, GROUP INSIGHTS 302 |
+| `boot.js` | AUTH 1, BOOT 51 (calls `boot()` at the end), TELEGRAM MINI APP 85 (tg-link on every open + CC group gate), MOBILE KEYBOARD 107 (adds `enterkeyhint="done"` to every input, so don't write it in markup) |
 
-css/app.css: THEME 1 (tokens), LAYOUT 73, CONTROLS 104, TABLES 135, CHART 157, THREAD 168, MODAL/AUTH 190, DELTA-STYLE COMPONENTS 274, CALM COMPONENTS (end: `.icon-btn`, `.acts`, `.section-head`, `.cta-card`). Icons: `ICON` in core.js.
+css/app.css: THEME 1 (tokens), LAYOUT 73, CONTROLS 101, TABLES 133, CHART 156, THREAD 167, MODAL/AUTH 196, DELTA-STYLE COMPONENTS 278, CALM COMPONENTS (end: `.icon-btn`, `.acts`, `.section-head`, `.cta-card`). Icons: `ICON` in core.js.
 
 ## Design system (every screen, every change)
 - Font: Inter Tight. Title (h1) 22/28 600 −0.7px. Section header (h2) 19/24 600 −0.6px. Body 14.5/18 400 +0.3px. Captions 13px. All headings and big numbers get negative letter-spacing. Weights 400/500/600 only.
 - Colors: `var(--text)` primary, `var(--muted)` secondary, `var(--strong)` icons. No new grays or hex colors in JS/inline styles; add a token in THEME if truly needed (light and dark).
-- Dividers: 1px `var(--track)`. No visible borders anywhere (`--border` is transparent on purpose). Status = tinted background, not a colored border.
+- Dividers: 1px `var(--track)`. No visible borders anywhere. Status = tinted background, not a colored border.
 - Cards: no border, layered shadows: `--sh-1` normal cards, `--sh-2` hero and modals. Radius by depth: 18 hero/modal, 16 card, 14 nested/CTA, 12 inputs/small.
+- Modals: use `openModal()` / `confirmModal()` from core.js, never build the overlay by hand.
 - Buttons: never flat fills. Text buttons = `.btn` / `.btn.primary`. Icon buttons = `.icon-btn` (38 `.sm`, 40, 46 `.lg`) with an `ICON` svg and an `aria-label`. No emoji in buttons. Icon + text buttons: icon side gets less padding than the text side (CSS handles it when the svg is a direct first/last child).
-- Old token names (`--text-primary`, `--text-secondary`, `--grid`, `--shadow`…) still work but don't use them in new code.
 
 ## Design review (after every feature, before pushing)
 Build first, then check the new screen fits the rest of the app:

@@ -1,9 +1,8 @@
 /* ===================== ADMIN: BROADCAST ===================== */
 // One message, delivered privately into each chosen member's own Feedback thread (and pinged on Telegram).
 function openBroadcast() {
-  const rows = memberRows();
-  const m = getModel();
-  const offTarget = (r) => r.pf.holdings.length && planFor(r.p, r.pf, {}).rows.some(x => Math.abs(x.nowPct - x.target) >= (m.drift ?? 2));
+  const rows = memberRows(), m = getModel();
+  const offTarget = (r) => r.pf.holdings.length && planFor(r.p, r.pf, {}).rows.some(x => Math.abs(x.nowPct - x.target) >= m.drift);
   const coins = {};
   for (const r of rows) for (const h of r.pf.holdings) (coins[h.coin_id] ||= { id: h.coin_id, symbol: (h.symbol || "").toUpperCase(), n: 0 }).n++;
   // The big five (model coins) are always on the list, first, even with 0 holders.
@@ -12,29 +11,25 @@ function openBroadcast() {
   const AUD = [
     ["all", "All members", () => true],
     ["holders", "Members holding a coin…", (r, c) => r.pf.holdings.some(h => h.coin_id === c)],
-    ["off", "Off the model by more than " + (m.drift ?? 2) + "%", offTarget],
+    ["off", "Off the model by more than " + m.drift + "%", offTarget],
     ["requested", "Open review requests", (r) => r.p.review_requested],
     ["empty", "No trades logged yet", (r) => !r.txs.length],
     ["noexit", "No exit plan committed yet", (r) => exitStatus(r.p).state !== "committed"],
     ["pick", "Pick members…", (r, c, picked) => picked.has(r.p.id)],
   ];
   const picked = new Set();
-  const ov = document.createElement("div"); ov.className = "overlay";
-  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="max-width:560px"><h2>Broadcast <button class="x" aria-label="Close">×</button></h2>
+  const { ov, close } = openModal(`
     <label class="field"><span>Send to</span><select id="bc-aud">${AUD.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join("")}</select></label>
-    <label class="field hidden" id="bc-coin-wrap"><span>Coin</span><select id="bc-coin">${coinList.map((c, i) => `${i === big.length && i ? `<option disabled>──────────</option>` : ""}<option value="${esc(c.id)}">${big.includes(c.id) ? "★ " : ""}${esc(c.symbol)} · ${c.n} holder${c.n === 1 ? "" : "s"}</option>`).join("")}</select></label>
-    <div class="hidden" id="bc-pick" style="margin-bottom:12px"><input type="search" enterkeyhint="done" id="bc-q" placeholder="Search members" style="margin-bottom:6px">
-      <div id="bc-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;padding:4px 8px"></div></div>
+    <label class="field hidden" id="bc-coin-wrap"><span>Coin</span><select id="bc-coin">${coinList.map((c, i) => `${i === big.length && i ? `<option disabled>──────────</option>` : ""}<option value="${esc(c.id)}">${big.includes(c.id) ? "★ " : ""}${esc(c.symbol)} · ${plural(c.n, "holder")}</option>`).join("")}</select></label>
+    <div class="hidden" id="bc-pick" style="margin-bottom:12px"><input type="search" id="bc-q" placeholder="Search members" style="margin-bottom:6px">
+      <div id="bc-list" style="max-height:200px;overflow-y:auto;border-radius:9px;padding:4px 8px"></div></div>
     <label class="field"><span>Type</span><select id="bc-kind" class="as-seg"><option value="note">Note</option><option value="suggestion">Suggestion</option></select></label>
     <label class="field"><span>Message</span><textarea id="bc-body" rows="6" maxlength="4000" placeholder="Hey {name}, quick heads-up…"></textarea></label>
     <div class="hint" style="margin-top:-6px">Type <b>{name}</b> and each member sees their own name.</div>
     <div class="callout" id="bc-count" style="margin:12px 0"></div>
     <div class="err" id="bc-err"></div>
-    <div class="row" style="justify-content:flex-end"><button class="btn" id="bc-cancel" style="flex:none">Cancel</button><button class="btn primary" id="bc-send" style="flex:none">Send</button></div></div>`;
-  document.body.appendChild(ov);
-  const close = () => ov.remove();
-  ov.querySelector(".x").onclick = close; $("#bc-cancel", ov).onclick = close;
-  ov.addEventListener("click", e => { if (e.target === ov) close(); });
+    <div class="row" style="justify-content:flex-end"><button class="btn" id="bc-cancel" style="flex:none">Cancel</button><button class="btn primary" id="bc-send" style="flex:none">Send</button></div>`, { title: "Broadcast", style: "max-width:560px" });
+  $("#bc-cancel", ov).onclick = close;
   const targets = () => {
     const a = $("#bc-aud", ov).value, fn = AUD.find(x => x[0] === a)[2], c = $("#bc-coin", ov).value;
     return rows.filter(r => fn(r, c, picked));
@@ -42,12 +37,12 @@ function openBroadcast() {
   const paintList = () => {
     const q = $("#bc-q", ov).value.toLowerCase();
     $("#bc-list", ov).innerHTML = rows.filter(r => !q || memberName(r.p).toLowerCase().includes(q) || (r.p.telegram_handle || "").toLowerCase().includes(q))
-      .map(r => `<label style="display:flex;gap:8px;align-items:center;padding:5px 0;cursor:pointer"><input type="checkbox" data-id="${esc(r.p.id)}" ${picked.has(r.p.id) ? "checked" : ""} style="width:auto"> ${esc(memberName(r.p))} <span class="muted" style="font-size:12px">${r.p.telegram_handle ? "@" + esc(r.p.telegram_handle.replace(/^@/, "")) : ""}</span></label>`).join("") || `<div class="muted" style="padding:6px 0">No members match.</div>`;
+      .map(r => `<label style="display:flex;gap:8px;align-items:center;padding:5px 0;cursor:pointer"><input type="checkbox" data-id="${esc(r.p.id)}" ${picked.has(r.p.id) ? "checked" : ""} style="width:auto"> ${esc(memberName(r.p))} <span class="muted" style="font-size:12px">${esc(atHandle(r.p.telegram_handle))}</span></label>`).join("") || `<div class="muted" style="padding:6px 0">No members match.</div>`;
     $("#bc-list", ov).querySelectorAll("[data-id]").forEach(cb => cb.onchange = () => { cb.checked ? picked.add(cb.dataset.id) : picked.delete(cb.dataset.id); paintCount(); });
   };
   const paintCount = () => {
     const t = targets(), tg = t.filter(r => r.p.telegram_chat_id).length;
-    $("#bc-count", ov).innerHTML = t.length ? `<b>${t.length}</b> member${t.length === 1 ? "" : "s"} will get this privately${api.demo ? "" : ` · <b>${tg}</b> on Telegram`}.${t.length <= 6 ? `\n${t.map(r => esc(memberName(r.p))).join(", ")}` : ""}` : "Nobody matches yet.";
+    $("#bc-count", ov).innerHTML = t.length ? `<b>${t.length}</b> member${t.length === 1 ? "" : "s"} will get this privately · <b>${tg}</b> on Telegram.${t.length <= 6 ? `\n${t.map(r => esc(memberName(r.p))).join(", ")}` : ""}` : "Nobody matches yet.";
     $("#bc-send", ov).textContent = t.length ? `Send to ${t.length}` : "Send";
     $("#bc-send", ov).disabled = !t.length;
   };
@@ -67,12 +62,12 @@ function openBroadcast() {
     const btn = $("#bc-send", ov); btn.disabled = true; btn.textContent = "Sending…";
     try {
       const kind = $("#bc-kind", ov).value;
-      const out = t.map(r => ({ member_id: r.p.id, kind, body: body.replace(/\{name\}/gi, r.p.display_name || (r.p.telegram_handle ? "@" + r.p.telegram_handle.replace(/^@/, "") : "there")) }));
+      const out = t.map(r => ({ member_id: r.p.id, kind, body: body.replace(/\{name\}/gi, r.p.display_name || atHandle(r.p.telegram_handle) || "there") }));
       for (let i = 0; i < out.length; i += 100) {
         const saved = await api.addMessages(out.slice(i, i + 100));
         for (const s of saved) S.admin.meta.push({ member_id: s.member_id, author_id: s.author_id, created_at: s.created_at, kind: s.kind });
       }
-      close(); toast(`Sent to ${t.length} member${t.length === 1 ? "" : "s"}`); render();
+      close(); toast(`Sent to ${plural(t.length, "member")}`); render();
     } catch (e) { $("#bc-err", ov).textContent = e.message || String(e); btn.disabled = false; paintCount(); }
   };
   paintCount();
@@ -119,7 +114,7 @@ async function viewMembers(v) {
     </div>
     <div class="card">
       <div class="toolbar">
-        <input type="search" enterkeyhint="done" id="mq" placeholder="Search name or @handle" value="${esc(S.memberQuery)}">
+        <input type="search" id="mq" placeholder="Search name or @handle" value="${esc(S.memberQuery)}">
         <div class="chips" id="mf">${[["all","All"],["requested","Requested"],["unanswered","Unanswered"],["stale","Not reviewed 30d"],["concentrated","Concentrated 50%+"]].map(([k,l]) => `<button class="chip ${S.memberFilter === k ? "on" : ""}" data-f="${k}">${l}</button>`).join("")}</div>
         <select id="ms">${[["review","Sort: requests first"],["value","Sort: value"],["pnl","Sort: P&L %"],["activity","Sort: recent activity"]].map(([k,l]) => `<option value="${k}" ${S.memberSort === k ? "selected" : ""}>${l}</option>`).join("")}</select>
       </div>
@@ -141,7 +136,7 @@ async function viewMembers(v) {
       (b.p.review_requested - a.p.review_requested) || (b.newFromMember - a.newFromMember) || String(a.p.review_requested_at).localeCompare(String(b.p.review_requested_at)) || b.pf.totals.value - a.pf.totals.value);
     $("#mtable").innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>Member</th><th class="r">Value</th><th class="r">P&amp;L</th><th class="hide-sm">Top holding</th><th class="r hide-sm">Coins</th><th class="hide-sm">Last reviewed</th><th class="hide-sm">Activity</th></tr></thead><tbody>
       ${rows.map(r => `<tr class="click" data-id="${esc(r.p.id)}">
-        <td class="wrap"><div style="font-weight:600">${esc(memberName(r.p))}${r.p.role === "admin" ? ` <span class="tag">${r.p.id === S.me.id ? "you" : "admin"}</span>` : ""}</div><div class="muted" style="font-size:13px">${r.p.telegram_handle ? "@" + esc(r.p.telegram_handle.replace(/^@/, "")) : ""}${r.p.risk_level ? " · " + esc(r.p.risk_level) + " risk" : ""}</div><div class="chips" style="margin-top:6px;gap:4px">${r.p.review_requested ? `<span class="tag req">Review requested ${ago(r.p.review_requested_at)}</span>` : ""}${r.newFromMember ? ` <span class="tag">${r.newFromMember} new msg</span>` : ""}${r.concentrated ? ` <span class="tag flag">${r.top.alloc.toFixed(0)}% in ${esc((r.top.symbol || "").toUpperCase())}</span>` : ""}${r.pf.holdings.length && exitStatus(r.p).state !== "committed" ? ` <span class="tag">no exit plan</span>` : ""}</div></td>
+        <td class="wrap"><div style="font-weight:600">${esc(memberName(r.p))}${r.p.role === "admin" ? ` <span class="tag">${r.p.id === S.me.id ? "you" : "admin"}</span>` : ""}</div><div class="muted" style="font-size:13px">${esc(atHandle(r.p.telegram_handle))}${r.p.risk_level ? " · " + esc(r.p.risk_level) + " risk" : ""}</div><div class="chips" style="margin-top:6px;gap:4px">${r.p.review_requested ? `<span class="tag req">Review requested ${ago(r.p.review_requested_at)}</span>` : ""}${r.newFromMember ? ` <span class="tag">${r.newFromMember} new msg</span>` : ""}${r.concentrated ? ` <span class="tag flag">${r.top.alloc.toFixed(0)}% in ${esc((r.top.symbol || "").toUpperCase())}</span>` : ""}${r.pf.holdings.length && exitStatus(r.p).state !== "committed" ? ` <span class="tag">no exit plan</span>` : ""}</div></td>
         <td class="r num">${fmtUsd(r.pf.totals.value)}</td>
         <td class="r num ${signCls(r.pf.totals.pnl)}">${r.pf.totals.cost ? fmtPct(r.pf.totals.pnlPct) : "—"}</td>
         <td class="hide-sm">${r.top ? `${esc((r.top.symbol || "").toUpperCase())} <span class="muted">${r.top.alloc.toFixed(0)}%</span>` : '<span class="muted">—</span>'}</td>
@@ -200,7 +195,7 @@ async function viewMemberDetail(v, id) {
       <div class="card"><h2>Thread</h2><div class="thread" id="thread">${threadHtml(msgs, S.me.id, p.id, names)}</div></div>
     </div>
     <div class="card" style="margin-top:16px" id="notes-card"><div class="card-h"><h2>Member profile</h2><span class="muted" style="font-size:12px">Private</span></div>
-      <div class="secondary" style="font-size:13px;margin:-4px 0 10px">${r.txs.length} trade${r.txs.length === 1 ? "" : "s"} logged${r.txs.length ? ` · first ${ago(r.txs[0].executed_at)} · latest ${ago(r.txs.at(-1).executed_at)}` : ""} · signed up to the desk ${ago(p.created_at)}</div>
+      <div class="secondary" style="font-size:13px;margin:-4px 0 10px">${plural(r.txs.length, "trade")} logged${r.txs.length ? ` · first ${ago(r.txs[0].executed_at)} · latest ${ago(r.txs.at(-1).executed_at)}` : ""} · signed up to the desk ${ago(p.created_at)}</div>
       <div class="row" style="align-items:flex-end;margin-bottom:6px">
         <label class="field" style="margin-bottom:0"><span>Joined ${esc(CONFIG.GROUP_NAME)} <span class="muted">(optional)</span></span><input type="date" id="cc-joined" max="${todayISO()}" value="${esc(p.cc_joined_on || "")}"></label>
         <button class="btn" id="cc-joined-save" style="flex:none">Save date</button></div>
@@ -249,7 +244,7 @@ async function viewMemberDetail(v, id) {
   $("#send").onclick = () => send(false);
   $("#send-mark").onclick = () => send(true);
   $("#mark").onclick = async () => { await markReviewed(); toast("Marked reviewed"); render(); };
-  bindMsgDelete(v, async () => { render(); });
+  bindMsgDelete(v, render);
 }
 
 /* Owner's private notes on a member (member_notes table, admin-only RLS). */
@@ -283,17 +278,14 @@ async function bindMemberNotes(p, names) {
 
 function removeMemberModal(p) {
   const name = memberName(p);
-  const ov = document.createElement("div"); ov.className = "overlay";
-  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="max-width:400px"><h2>Remove ${esc(name)}?</h2>
+  const { ov, close } = openModal(`<h2>Remove ${esc(name)}?</h2>
     <p class="secondary">Their account, trades, exit plan and messages are deleted for good, and they can't open the app anymore. They could sign up again later as a new member.</p>
-    <label class="field"><span>Type <b>REMOVE</b> to confirm</span><input type="text" id="rm-confirm" autocomplete="off" autocapitalize="characters" enterkeyhint="done"></label>
+    <label class="field"><span>Type <b>REMOVE</b> to confirm</span><input type="text" id="rm-confirm" autocomplete="off" autocapitalize="characters"></label>
     <div class="err" id="rm-err"></div>
-    <div class="row" style="justify-content:flex-end"><button class="btn" id="rm-no" style="flex:none">Cancel</button><button class="btn danger" id="rm-yes" style="flex:none" disabled>Remove</button></div></div>`;
-  document.body.appendChild(ov);
+    <div class="row" style="justify-content:flex-end"><button class="btn" id="rm-no" style="flex:none">Cancel</button><button class="btn danger" id="rm-yes" style="flex:none" disabled>Remove</button></div>`, { style: "max-width:400px" });
   const inp = $("#rm-confirm", ov), yes = $("#rm-yes", ov);
   inp.oninput = () => { yes.disabled = inp.value.trim().toUpperCase() !== "REMOVE"; };
-  $("#rm-no", ov).onclick = () => ov.remove();
-  ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
+  $("#rm-no", ov).onclick = close;
   yes.onclick = async () => {
     yes.disabled = true; yes.textContent = "Removing…";
     try {
@@ -301,7 +293,7 @@ function removeMemberModal(p) {
       S.admin.profiles = S.admin.profiles.filter(x => x.id !== p.id);
       S.admin.txs = S.admin.txs.filter(t => t.user_id !== p.id);
       S.admin.meta = S.admin.meta.filter(m => m.member_id !== p.id);
-      ov.remove(); toast(`${name} removed`); location.hash = "members";
+      close(); toast(`${name} removed`); location.hash = "members";
     } catch (e) { yes.disabled = false; yes.textContent = "Remove"; $("#rm-err", ov).textContent = e.message || "Couldn't remove. Try again."; }
   };
   setTimeout(() => inp.focus(), 50);

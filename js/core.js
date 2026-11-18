@@ -1,15 +1,10 @@
-/* =====================================================================
-   CONFIG: fill these in after creating your Supabase project.
-   Leave SUPABASE_URL empty to run in DEMO mode (sample data, no logins).
-   ===================================================================== */
+/* ===================== CONFIG ===================== */
 const CONFIG = {
   SUPABASE_URL: "https://euoozfbbihtxrmafupeg.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_RK-nD_oFF3KHWQM2leIsrw_OW2kASrj",   // publishable key (safe in browser; RLS protects data)
-  COINGECKO_DEMO_KEY: "",    // optional free key from coingecko.com/en/api (raises rate limits)
   REVIEWER_NAME: "Dkay",
   GROUP_NAME: "CC",
 };
-const DEMO = !CONFIG.SUPABASE_URL;
 
 /* ===================== UTILITIES ===================== */
 const $ = (s, r = document) => r.querySelector(s);
@@ -66,7 +61,7 @@ function uid() { return (crypto.randomUUID ? crypto.randomUUID() : Math.random()
 // Telegram's in-app browser blocks downloads, so there the bot sends the file (CSV or PNG data URL) to the member's chat.
 async function saveFile(content, filename) {
   const png = content.startsWith("data:image/png");
-  if (TG && sb && !api.demo) {
+  if (TG) {
     toast("Sending to your Telegram chat…");
     const { data, error } = await sb.functions.invoke("tg-link", { body: { initData: TG.initData, [png ? "png" : "csv"]: png ? content.split(",")[1] : content, filename } });
     return toast(!error && data && data.ok ? "Sent. Check your chat with the bot." : "Couldn't send. Open the bot chat, tap Start, then try again.");
@@ -77,6 +72,35 @@ async function saveFile(content, filename) {
 }
 function toast(msg) { document.querySelector(".toast")?.remove(); const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const fmtDay = (d) => new Date(d).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+/** Open a modal; `title` adds a header with a close button. Tapping the backdrop closes it. Returns { ov, close }. */
+function openModal(inner, { title, style = "", backdrop = true } = {}) {
+  const ov = document.createElement("div"); ov.className = "overlay";
+  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="${style}">${title ? `<h2>${title} <button class="x" aria-label="Close">×</button></h2>` : ""}${inner}</div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove();
+  if (backdrop) ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  if (title) ov.querySelector(".x").onclick = close;
+  return { ov, close };
+}
+function confirmModal(title, body, onYes, { yes = "Confirm", alt } = {}) {
+  const { ov, close } = openModal(`<h2>${esc(title)}</h2><p class="secondary">${esc(body)}</p><div class="row" style="justify-content:flex-end"><button class="btn" style="flex:none" id="no">${alt ? esc(alt[0]) : "Cancel"}</button><button class="btn primary" style="flex:none" id="yes">${esc(yes)}</button></div>`, { style: "max-width:380px" });
+  $("#no", ov).onclick = () => { close(); alt && alt[1](); };
+  $("#yes", ov).onclick = async () => { close(); await onYes(); };
+}
+/** CoinGecko search box: input + .dropdown. Accepts a ticker, name or CoinGecko page link. tag(c) = right-hand label. */
+function coinSearch(q, dd, onPick, { filter = () => true, tag = (c) => (c.rank ? "#" + c.rank : ""), none = "No coins found." } = {}) {
+  q.oninput = debounce(async () => {
+    let s = q.value.trim(); const m = s.match(/coingecko\.com\/(?:[a-z]{2}\/)?coins\/([a-z0-9-]+)/i); if (m) s = m[1];
+    if (s.length < 2) return dd.classList.add("hidden");
+    dd.classList.remove("hidden"); dd.innerHTML = `<div class="opt muted">Searching…</div>`;
+    const res = (await CG.search(s)).filter(filter);
+    if (!res.length) { dd.innerHTML = `<div class="opt muted">${none}</div>`; return; }
+    dd.innerHTML = res.map((c, i) => `<div class="opt" data-i="${i}">${coinCell({ ...c, coin_id: c.id }, true)}<span class="muted" style="font-size:12px">${tag(c)}</span></div>`).join("");
+    dd.querySelectorAll(".opt[data-i]").forEach(o => o.onclick = () => onPick(res[+o.dataset.i]));
+  }, 350);
+}
 
 /* Short dropdowns -> tap segments (LukeW: dropdowns are the UI of last resort).
    Any <select class="as-seg"> gets a .seg row of buttons; the select stays (hidden) as the source of truth,
@@ -97,7 +121,8 @@ function enhanceSegSelects(root) {
 new MutationObserver(() => enhanceSegSelects()).observe(document.documentElement, { childList: true, subtree: true });
 const SERIES = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8"];
 const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-function memberName(p) { return p?.display_name || (p?.telegram_handle ? "@" + p.telegram_handle.replace(/^@/, "") : "Member"); }
+const atHandle = (h) => h ? "@" + h.replace(/^@/, "") : "";
+function memberName(p) { return p?.display_name || atHandle(p?.telegram_handle) || "Member"; }
 function handleLink(h) { if (!h) return ""; const clean = esc(h.replace(/^@/, "")); return `<a href="https://t.me/${clean}" target="_blank" rel="noopener">@${clean}</a>`; }
 function coinLink(id) { return `https://www.coingecko.com/en/coins/${encodeURIComponent(id)}`; }
 // Stroke icons for .icon-btn (inherit currentColor). Use these instead of emoji in buttons.
@@ -121,19 +146,16 @@ function coinIcon(c) {
 }
 /** Coins are shown by ticker (TET, ACN, PAAL…). showName adds the full name underneath, only where it helps tell coins apart (search results). */
 function coinCell(c, showName = false) {
-  const img = c.image ? `<img src="${esc(c.image)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'${esc((c.symbol||'?').slice(0,3).toUpperCase())}'}))">` : `<span class="ph">${esc((c.symbol || "?").slice(0, 3).toUpperCase())}</span>`;
   const sym = String(c.symbol || "").toUpperCase(), name = c.name || c.coin_id || "";
   const main = sym || name, sub = showName && sym && name && name.toUpperCase() !== sym ? name : "";
-  return `<div class="coin">${img}<div><div style="font-weight:600">${esc(main)}</div>${sub ? `<div class="sym" style="text-transform:none">${esc(sub)}</div>` : ""}</div></div>`;
+  return `<div class="coin">${coinIcon(c)}<div><div style="font-weight:600">${esc(main)}</div>${sub ? `<div class="sym" style="text-transform:none">${esc(sub)}</div>` : ""}</div></div>`;
 }
 
-/** "Tectum (TET)", but just "PAAL AI" / "Velo" when the name already says the ticker. */
 /** Ticker only: "TET", "PAAL". Falls back to the name when there's no ticker; "Tectum (TET)" → "TET". */
 function nameSym(name, sym) {
   sym = String(sym || "").trim().toUpperCase(); if (sym) return sym;
   name = String(name || "").trim(); const m = name.match(/\(([^)]+)\)\s*$/); return m ? m[1].toUpperCase() : name;
 }
-function coinLabel(id) { return symOf(id); }
 
 /* ===================== ATTACHMENTS (charts, voice notes, videos, PDFs) =====================
    Stored in the private Supabase bucket "attachments"; shown through short-lived signed links.
@@ -201,7 +223,6 @@ const ATT = {
       const f = files[i]; onStep && onStep(i + 1, files.length);
       const safe = f.name.normalize("NFKD").replace(/[^\w.\-]+/g, "_").slice(-80) || "file";
       const path = `${prefix}/${uid()}/${safe}`;
-      if (api.demo || !sb) { out.push({ path, name: f.name, type: f.type, size: f.size, url: URL.createObjectURL(f) }); continue; }
       const { error } = await sb.storage.from("attachments").upload(path, f, { contentType: f.type, upsert: false });
       if (error) throw new Error(`Couldn't upload ${f.name}: ${error.message}`);
       out.push({ path, name: f.name, type: f.type, size: f.size });
@@ -220,7 +241,7 @@ const ATT = {
   },
   /** Fill in signed links for any attachment elements on the page. */
   async hydrate(root = document) {
-    const els = [...root.querySelectorAll("[data-att-path],[data-att-href]")]; if (!els.length || !sb) return;
+    const els = [...root.querySelectorAll("[data-att-path],[data-att-href]")]; if (!els.length) return;
     const now = Date.now(), need = [...new Set(els.map(e => e.dataset.attPath || e.dataset.attHref))].filter(p => !(this.signed[p] && this.signed[p].exp > now));
     if (need.length) {
       const { data } = await sb.storage.from("attachments").createSignedUrls(need, 3600);
@@ -249,10 +270,9 @@ const CG = {
   base: "https://api.coingecko.com/api/v3",
   cache: {},          // id -> { price, change24, mcap, image, symbol, name, at }
   offline: false,
-  headers() { return CONFIG.COINGECKO_DEMO_KEY ? { "x-cg-demo-api-key": CONFIG.COINGECKO_DEMO_KEY } : {}; },
-  async get(path, retry = 1) {
-    const r = await fetch(this.base + path, { headers: this.headers() });
-    if (r.status === 429 && retry > 0) { await new Promise(res => setTimeout(res, 2500)); return this.get(path, retry - 1); }   // free plan rate limit: wait and try once more
+  async get(path, retry = 1, wait = 2500) {
+    const r = await fetch(this.base + path);
+    if (r.status === 429 && retry > 0) { await new Promise(res => setTimeout(res, wait)); return this.get(path, retry - 1, wait + 2500); }   // free plan rate limit: wait and try again
     if (!r.ok) throw new Error("CoinGecko " + r.status);
     return r.json();
   },
@@ -281,16 +301,15 @@ const CG = {
         this.offline = false;
       } catch (e) {
         this.offline = true;
-        const ps = document.getElementById("price-src"); if (ps) ps.textContent = " and sample prices (CoinGecko unreachable here)";
         for (const id of batch) if (SAMPLE_PRICES[id] && !this.cache[id]) this.cache[id] = { ...SAMPLE_PRICES[id], at: now, sample: true };
       }
     }
   },
-  async search(q) {
+  async search(q, n = 12, retry = 1) {
     try {
-      const d = await this.get(`/search?query=${encodeURIComponent(q)}`);
+      const d = await this.get(`/search?query=${encodeURIComponent(q)}`, retry);
       this.offline = false;
-      return (d.coins || []).slice(0, 12).map(c => ({ id: c.id, name: c.name, symbol: c.symbol, image: c.thumb, rank: c.market_cap_rank }));
+      return (d.coins || []).slice(0, n).map(c => ({ id: c.id, name: c.name, symbol: c.symbol, image: c.thumb, rank: c.market_cap_rank }));
     } catch (e) {
       this.offline = true;
       const ql = q.toLowerCase();
@@ -310,7 +329,7 @@ const CG = {
   },
   info(id) { return this.cache[id]; },
 };
-// Used only if CoinGecko can't be reached (demo / offline). Illustrative, not live.
+// Used only if CoinGecko can't be reached. Illustrative, not live.
 const SAMPLE_PRICES = {
   "bitcoin":         { name: "Bitcoin", symbol: "btc", price: 95000, change24: 1.2, rank: 1 },
   "ethereum":        { name: "Ethereum", symbol: "eth", price: 3200, change24: -0.8, rank: 2 },
@@ -325,26 +344,25 @@ const SAMPLE_PRICES = {
 };
 
 /* ===================== PORTFOLIO MATH (average cost) ===================== */
+/** Apply one trade to a position {qty, cost}; returns the realized P&L. */
+function applyTx(h, t) {
+  const q = num(t.quantity), p = num(t.price_usd), fee = num(t.fee_usd);
+  if (t.side === "buy") { h.qty += q; h.cost += q * p + fee; return 0; }
+  const sq = Math.min(q, h.qty), avg = h.qty > 0 ? h.cost / h.qty : 0;
+  h.cost -= sq * avg; h.qty -= sq;
+  if (h.qty < 1e-12) { h.qty = 0; h.cost = 0; }
+  return sq * p - fee - sq * avg;
+}
 function computePortfolio(txs) {
   const byCoin = {};
   const sorted = [...txs].sort((a, b) => new Date(a.executed_at) - new Date(b.executed_at));
   let realizedTotal = 0;
   for (const t of sorted) {
     const h = byCoin[t.coin_id] ||= { coin_id: t.coin_id, symbol: t.symbol, name: t.name, qty: 0, cost: 0, realized: 0, firstBuy: null, lastTx: null, lastPrice: 0, trades: 0 };
-    const q = num(t.quantity), p = num(t.price_usd), fee = num(t.fee_usd);
-    h.trades++; h.lastTx = t.executed_at; h.lastPrice = p;
+    h.trades++; h.lastTx = t.executed_at; h.lastPrice = num(t.price_usd);
     if (t.symbol) h.symbol = t.symbol; if (t.name) h.name = t.name;
-    if (t.side === "buy") {
-      h.qty += q; h.cost += q * p + fee;
-      if (!h.firstBuy) h.firstBuy = t.executed_at;
-    } else {
-      const sellQ = Math.min(q, h.qty);
-      const avg = h.qty > 0 ? h.cost / h.qty : 0;
-      const r = sellQ * p - fee - sellQ * avg;
-      h.realized += r; realizedTotal += r;
-      h.cost -= sellQ * avg; h.qty -= sellQ;
-      if (h.qty < 1e-12) { h.qty = 0; h.cost = 0; }
-    }
+    if (t.side === "buy" && !h.firstBuy) h.firstBuy = t.executed_at;
+    const r = applyTx(h, t); h.realized += r; realizedTotal += r;
   }
   let value = 0, cost = 0, chg = 0, estimated = false;
   const holdings = [];
@@ -364,11 +382,8 @@ function computePortfolio(txs) {
 }
 
 /* ===================== DATA LAYER ===================== */
-let sb = null;
-const api = DEMO ? makeDemoApi() : makeSupabaseApi();
-
-function makeSupabaseApi() {
-  sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+const sb = window.supabase?.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);   // missing if the CDN failed; boot() reports it
+const api = (() => {
   const ok = ({ data, error }) => { if (error) throw error; return canonIds(data); };
   async function fetchAll(build) {
     const size = 1000; let from = 0, out = [];
@@ -422,117 +437,9 @@ function makeSupabaseApi() {
       const { error } = await sb.rpc("admin_remove_member", { target: id });
       if (error) throw new Error(/admin_remove_member|schema cache|does not exist/i.test(error.message) ? "Removing members isn't set up yet. Run supabase/admin_remove_member.sql in the Supabase SQL Editor once." : error.message);
     },
-    onAuthChange(cb) { sb.auth.onAuthStateChange((ev, s) => cb(ev, s)); },
+    onAuthChange(cb) { sb.auth.onAuthStateChange(cb); },
   };
-}
-
-function makeDemoApi() {
-  const now = Date.now(), d = (days, h = 12) => new Date(now - days * 86400000 + (h - 12) * 3600000).toISOString();
-  const P = (id, name, tg, role, risk, goal, extra = {}) => ({ id, display_name: name, telegram_handle: tg, role, risk_level: risk, goal, review_requested: false, review_question: null, review_requested_at: null, last_reviewed_at: null, feedback_seen_at: null, created_at: d(90), ...extra });
-  const store = {
-    profiles: [
-      P("dkay", "Dkay", "dkay", "admin", "high", "Run the group"),
-      P("u1", "Alex", "alexcc", "member", "high", "Grow $5k to $25k by end of 2027", { review_requested: true, review_question: "Am I too heavy in PAAL? Thinking about adding more VELO before Q4.", review_requested_at: d(1, 9) }),
-      P("u2", "Mo", "mo_trades", "member", "degen", "Short-term flips", { last_reviewed_at: d(40) }),
-      P("u3", "Sara", "sara.k", "member", "medium", "Long-term hold, 3+ years", { last_reviewed_at: d(6) }),
-      P("u4", "Jules", "jules", "member", "low", "Learning, small bags"),
-    ],
-    transactions: [],
-    messages: [],
-    settings: {},
-    updates: [
-      { id: "w1", kind: "weekly", author_id: "dkay", title: "Weekly update", body: "Quiet week overall. TET is getting hit hard, so watch the bid zone. ACN holding up well after the migration.\n\nPlan: stick to the model, keep some dry powder, don't chase green candles.", created_at: d(2, 18) },
-      { id: "x1", kind: "urgent", author_id: "dkay", coin_id: "tectum", title: "TET flushed into support, start bidding", body: "Scale in, don't go all in at once.", buy_low: 1.05, buy_high: 1.25, created_at: d(0, 9), expires_at: new Date(now + 2 * 86400000).toISOString() },
-    ],
-  };
-  const tx = (user_id, coin_id, side, quantity, price_usd, executed_at, fee_usd = 0, exchange = "MEXC") => {
-    const c = SAMPLE_PRICES[coin_id];
-    store.transactions.push({ id: uid(), user_id, coin_id, symbol: c.symbol, name: c.name, side, quantity, price_usd, fee_usd, executed_at, exchange, note: null });
-  };
-  tx("u1", "bitcoin", "buy", 0.02, 88000, d(60, 10), 2, "Coinbase");
-  tx("u1", "ethereum", "buy", 0.5, 3400, d(45, 15), 1.5, "Coinbase");
-  tx("u1", "paal-ai", "buy", 15000, 0.11, d(30, 21));
-  tx("u1", "paal-ai", "buy", 10000, 0.07, d(12, 8));
-  tx("u1", "velo", "buy", 40000, 0.009, d(9, 19));
-  tx("u2", "octo-gaming", "buy", 800000, 0.003, d(25, 2));
-  tx("u2", "octo-gaming", "sell", 200000, 0.005, d(10, 14));
-  tx("u2", "solana", "buy", 3, 165, d(7, 11), 0.5, "Binance");
-  tx("u2", "velo", "buy", 25000, 0.013, d(3, 22));
-  tx("u3", "bitcoin", "buy", 0.05, 72000, d(80, 9), 5, "Kraken");
-  tx("u3", "ethereum", "buy", 1.2, 2900, d(70, 9), 3, "Kraken");
-  tx("u3", "solana", "buy", 10, 150, d(50, 16), 1, "Kraken");
-  tx("u3", "solidus-aitech", "buy", 20000, 0.025, d(20, 20));
-  tx("u3", "tectum", "buy", 300, 1.5, d(15, 13));
-  tx("u3", "ethereum", "sell", 0.2, 3500, d(5, 10), 1, "Kraken");
-  tx("u4", "bitcoin", "buy", 0.003, 93000, d(4, 18), 1, "Coinbase");
-  tx("u4", "paal-ai", "buy", 2000, 0.085, d(2, 20));
-  tx("u3", "tether", "buy", 1500, 1, d(10, 12), 0, "Kraken");
-  tx("u1", "tectum", "buy", 400, 1.4, d(20, 12));
-  tx("dkay", "bitcoin", "buy", 0.4, 60000, d(85, 8), 10, "Binance");
-  tx("dkay", "velo", "buy", 300000, 0.006, d(40, 23));
-  tx("dkay", "solidus-aitech", "buy", 150000, 0.02, d(33, 12));
-  const msg = (member_id, author_id, kind, body, created_at, coin_id = null) => store.messages.push({ id: uid(), member_id, author_id, kind, body, created_at, coin_id });
-  msg("u3", "dkay", "suggestion", "Nice spread. Your ETH entries were clean. Keep adding to ACN on dips once the migration dust settles.", d(6, 17), "solidus-aitech");
-  msg("u3", "u3", "reply", "Got it, thanks! Holding.", d(6, 18));
-  msg("u2", "dkay", "suggestion", "OTK is ~70% of your bag. Consider taking another chunk off into SOL or stables, you're one bad week from a big drawdown.", d(40, 12), "octo-gaming");
-  msg("u1", "u1", "question", "Am I too heavy in PAAL? Thinking about adding more VELO before Q4.", d(1, 9));
-
-  let currentId = "u1";
-  const clone = (o) => JSON.parse(JSON.stringify(o));
-  const pause = () => new Promise(r => setTimeout(r, 60));
-  return {
-    demo: true,
-    setUser(id) { currentId = id; },
-    currentId: () => currentId,
-    async session() { return { user: { id: currentId } }; },
-    async signIn() {}, async signUp() { return true; }, async signOut() {}, async resetPassword() {}, async updatePassword() {},
-    async me() { return clone(store.profiles.find(p => p.id === currentId)); },
-    async email() { return currentId + "@demo.cc"; },
-    async transactions(userId) { await pause(); return clone(store.transactions.filter(t => t.user_id === userId)); },
-    async addTx(t) { const row = { ...t, id: uid(), user_id: currentId }; store.transactions.push(row); return clone(row); },
-    async updateTx(id, t) { const i = store.transactions.findIndex(x => x.id === id); store.transactions[i] = { ...store.transactions[i], ...t }; return clone(store.transactions[i]); },
-    async deleteTx(id) { store.transactions = store.transactions.filter(x => x.id !== id); },
-    async addTxs(rows) { return rows.map(t => { const row = { ...t, id: uid(), user_id: currentId }; store.transactions.push(row); return clone(row); }); },
-    async flows(userId) { return clone((store.flows ||= []).filter(f => f.user_id === userId)); },
-    async addFlow(f) { const row = { ...f, id: uid(), user_id: currentId }; (store.flows ||= []).push(row); return clone(row); },
-    async deleteFlow(id) { store.flows = (store.flows || []).filter(f => f.id !== id); },
-    async parseScreenshots(imgs, hint) { await pause(); await new Promise(r => setTimeout(r, 1200));
-      if (hint === "trades") return { source_app: "CoinGecko", currency: "USD", warnings: [], holdings: [], trades: [
-        { name: "Tectum", symbol: "TET", side: "buy", quantity: 518.992, total_usd: 155.357, price_usd: 155.357 / 518.992, date: "2026-10-26", coingecko_id_guess: "tectum" },
-        { name: "Tectum", symbol: "TET", side: "buy", quantity: 428.76, total_usd: 127.373, price_usd: 127.373 / 428.76, date: "2026-10-11", coingecko_id_guess: "tectum" },
-        { name: "Tectum", symbol: "TET", side: "buy", quantity: 500, total_usd: 132.536, price_usd: 132.536 / 500, date: "2026-10-07", coingecko_id_guess: "tectum" },
-        { name: "Tectum", symbol: "TET", side: "buy", quantity: 601.8, total_usd: null, price_usd: null, paid: { amount: 0.05, currency: "ETH" }, date: "2026-04-01", coingecko_id_guess: "tectum" } ] };
-      return { source_app: "CoinGecko", currency: "USD", warnings: ["Demo mode: these are sample results, not your screenshot."],
-      holdings: [ { name: "Paal AI", symbol: "PAAL", quantity: 5200, avg_buy_price: 0.21, current_price: null, value: null, coingecko_id_guess: "paal-ai" },
-                  { name: "Ethereum", symbol: "ETH", quantity: 0.8, avg_buy_price: 2850, current_price: null, value: null, coingecko_id_guess: "ethereum" },
-                  { name: "Velo", symbol: "VELO", quantity: 42000, avg_buy_price: null, current_price: null, value: null, coingecko_id_guess: null } ] }; },
-    async updateProfile(id, patch) { const p = store.profiles.find(x => x.id === id); Object.assign(p, patch); return clone(p); },
-    async messages(memberId) { return clone(store.messages.filter(m => m.member_id === memberId).sort((a, b) => a.created_at.localeCompare(b.created_at))); },
-    async notes(memberId) { return clone((store.notes ||= []).filter(n => n.member_id === memberId).sort((a, b) => b.created_at.localeCompare(a.created_at))); },
-    async addNote(n) { const row = { id: uid(), author_id: currentId, created_at: new Date().toISOString(), ...n }; (store.notes ||= []).push(row); return clone(row); },
-    async deleteNote(id) { store.notes = (store.notes || []).filter(n => n.id !== id); },
-    async addMessage(m) { const row = { id: uid(), author_id: currentId, created_at: new Date().toISOString(), coin_id: null, ...m }; store.messages.push(row); return clone(row); },
-    async addMessages(rows) { return rows.map(m => { const row = { id: uid(), author_id: currentId, created_at: new Date().toISOString(), coin_id: null, ...m }; store.messages.push(row); return clone(row); }); },
-    async deleteMessage(id) { store.messages = store.messages.filter(m => m.id !== id); },
-    async allProfiles() { await pause(); return clone(store.profiles); },
-    async removeMember(id) { store.profiles = store.profiles.filter(p => p.id !== id); store.transactions = store.transactions.filter(t => t.user_id !== id); store.messages = store.messages.filter(m => m.member_id !== id && m.author_id !== id); store.notes = (store.notes || []).filter(n => n.member_id !== id); },
-    async allTransactions() { return clone(store.transactions); },
-    async allMessageMeta() { return clone(store.messages.map(({ member_id, author_id, created_at, kind }) => ({ member_id, author_id, created_at, kind }))); },
-    async getSetting(key) { return store.settings[key] ? clone(store.settings[key]) : null; },
-    async setSetting(key, value) { store.settings[key] = { value: clone(value), updated_at: new Date().toISOString() }; return clone(store.settings[key]); },
-    async updates() { return clone([...store.updates].sort((a, b) => b.created_at.localeCompare(a.created_at))); },
-    async addUpdate(u) { const row = { id: uid(), author_id: currentId, created_at: new Date().toISOString(), coin_id: null, body: null, buy_low: null, buy_high: null, expires_at: null, ...u }; store.updates.push(row); return clone(row); },
-    async deleteUpdate(id) { store.updates = store.updates.filter(u => u.id !== id); },
-    async groupHoldings() {
-      const admins = new Set(store.profiles.filter(p => p.role === "admin").map(p => p.id)), q = {};
-      for (const t of store.transactions) { if (admins.has(t.user_id)) continue; const k = t.user_id + "|" + t.coin_id; q[k] = (q[k] || 0) + (t.side === "buy" ? 1 : -1) * num(t.quantity); }
-      const by = {}, users = new Set();
-      for (const [k, v] of Object.entries(q)) if (v > 0) { const [u, c] = k.split("|"); users.add(u); (by[c] ||= { coin_id: c, qty: 0, holders: 0 }); by[c].qty += v; by[c].holders++; }
-      return Object.values(by).map(r => ({ ...r, members: users.size }));
-    },
-    onAuthChange() {},
-  };
-}
+})();
 
 /* ===================== STATE ===================== */
 const S = {

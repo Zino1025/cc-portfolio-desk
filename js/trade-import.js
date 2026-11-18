@@ -24,13 +24,7 @@ async function screenshotSlices(file) {
   }
   return out;
 }
-async function importSearch(q) {
-  for (let i = 0; i < 3; i++) {
-    try { const d = await CG.get(`/search?query=${encodeURIComponent(q)}`); return (d.coins || []).slice(0, 8).map(c => ({ id: c.id, name: c.name, symbol: c.symbol, image: c.thumb, rank: c.market_cap_rank })); }
-    catch (e) { if (!/429/.test(e.message) || i === 2) return []; await new Promise(r => setTimeout(r, 2500 * (i + 1))); }
-  }
-  return [];
-}
+const importSearch = (q) => CG.search(q, 8, 2);
 const normName = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 async function matchImportedCoins(rows, onProgress) {
   // Rows of the same coin (e.g. a transaction history) are matched once and share the result.
@@ -109,14 +103,8 @@ async function usdRateOn(cur, date) {
   if (key in importRateCache) return importRateCache[key];
   const ex = await exchangeDayPrice(cur, date);
   if (ex > 0) return (importRateCache[key] = ex);
-  let id = IMPORT_BASE_IDS[cur];
-  if (!id) id = (await importSearch(cur)).find(c => c.symbol.toUpperCase() === cur)?.id;
-  let rate = null;
-  if (id) for (let i = 0; i < 3; i++) {
-    try { rate = await CG.historical(id, new Date(date + "T12:00")); break; }
-    catch (e) { if (!/429/.test(e.message) || i === 2) break; await new Promise(r => setTimeout(r, 2500 * (i + 1))); }
-  }
-  return (importRateCache[key] = rate);
+  const id = IMPORT_BASE_IDS[cur] || (await importSearch(cur)).find(c => c.symbol.toUpperCase() === cur)?.id;
+  return (importRateCache[key] = id ? await CG.historical(id, new Date(date + "T12:00")) : null);
 }
 async function convertPaidTrades(rows) {
   for (const r of rows) {
@@ -252,13 +240,10 @@ function downloadCsvTemplate() {
 }
 
 function openImportModal() {
-  const ov = document.createElement("div"); ov.className = "overlay";
-  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true" style="max-width:560px"><h2>Import coins <button class="x" aria-label="Close">×</button></h2><div id="imp-body"></div></div>`;
-  document.body.appendChild(ov);
+  const { ov } = openModal(`<div id="imp-body"></div>`, { title: "Import coins", style: "max-width:560px", backdrop: false });
   let busy = false;
-  const close = () => { if (!busy || confirm("Stop the import?")) ov.remove(); };
-  ov.querySelector(".x").onclick = close;
-  const body = $("#imp-body", ov);
+  ov.querySelector(".x").onclick = () => { if (!busy || confirm("Stop the import?")) ov.remove(); };
+  const body = $("#imp-body", ov), status = (t) => body.innerHTML = `<div class="spinner"></div><p class="secondary" style="text-align:center">${t}</p>`;
   let result = null, rows = [], mode = "holdings";
   const dayKey = (d) => { const x = new Date(d); return `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`; };
   // Transaction already logged (same coin, side, day and amount)? Untick it.
@@ -282,7 +267,7 @@ function openImportModal() {
   function stepPick(msg = "") {
     body.innerHTML = `
       <label class="btn primary" style="display:flex;justify-content:center;cursor:pointer">Choose screenshots<input type="file" id="imp-file" accept="image/*" multiple style="display:none"></label>
-      <div style="display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:var(--text-muted);font-size:12px"><span style="flex:1;border-top:1px solid var(--grid)"></span>or<span style="flex:1;border-top:1px solid var(--grid)"></span></div>
+      <div style="display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:var(--muted);font-size:12px"><span style="flex:1;border-top:1px solid var(--track)"></span>or<span style="flex:1;border-top:1px solid var(--track)"></span></div>
       <label class="btn" style="display:flex;justify-content:center;cursor:pointer">Upload a CSV file<input type="file" id="imp-csv" accept=".csv,text/csv,.txt,text/plain" style="display:none"></label>
       <div class="hint">Delta, CoinStats, CoinTracker or Koinly files work. <button class="link-btn" type="button" id="imp-tpl" style="font-size:12px">Download template</button></div>
       <div class="err" id="imp-err">${esc(msg)}</div>`;
@@ -293,13 +278,11 @@ function openImportModal() {
 
   async function runCsv(file) {
     if (file.size > 2e6) return stepPick("That CSV is too big (max 2 MB).");
-    busy = true;
-    body.innerHTML = `<div class="spinner"></div><p class="secondary" style="text-align:center">Reading CSV…</p>`;
+    busy = true; status("Reading CSV…");
     try { result = csvToImport(await file.text()); await prepareRows(); }
     catch (e) { busy = false; stepPick(e.message || "Couldn't read that CSV."); }
   }
   async function prepareRows() {
-    const status = (t) => body.innerHTML = `<div class="spinner"></div><p class="secondary" style="text-align:center">${t}</p>`;
     mode = (result.trades || []).length ? "trades" : "holdings";
     rows = mode === "trades"
       ? result.trades.map(t => ({ name: t.name, symbol: t.symbol, quantity: t.quantity, avg_buy_price: t.price_usd, total_usd: t.total_usd, current_price: null, coingecko_id_guess: t.coingecko_id_guess, side: t.side, date: t.date, time: t.time, paid: t.paid || null, fee: t.fee, exchange: t.exchange, note: t.note, include: true }))
@@ -316,7 +299,6 @@ function openImportModal() {
   async function run(files) {
     if (files.length > IMPORT_MAX_FILES) return stepPick(`Pick up to ${IMPORT_MAX_FILES} screenshots at a time.`);
     busy = true;
-    const status = (t) => body.innerHTML = `<div class="spinner"></div><p class="secondary" style="text-align:center">${t}</p>`;
     try {
       status("Preparing screenshots…");
       let slices = [];
@@ -336,9 +318,7 @@ function openImportModal() {
     if (nonUsd) warns.unshift(`Prices in this screenshot look like ${result.currency}, not USD. Buy prices were left out, so enter them in USD.`);
     if (nonUsd) rows.forEach(r => { r.avg_buy_price = null; });
     body.innerHTML = `
-      <p class="secondary" style="margin-top:0">${mode === "trades"
-        ? `Found <b>${rows.length}</b> transaction${rows.length === 1 ? "" : "s"}${isCsv ? " in your CSV" : src ? ` in your ${esc(src)} screenshot` : ""}.`
-        : `Found <b>${rows.length}</b> coin${rows.length === 1 ? "" : "s"}${isCsv ? " in your CSV" : src ? ` in your ${esc(src)} screenshot` : ""}.`}</p>
+      <p class="secondary" style="margin-top:0">Found <b>${rows.length}</b> ${mode === "trades" ? "transaction" : "coin"}${rows.length === 1 ? "" : "s"}${isCsv ? " in your CSV" : src ? ` in your ${esc(src)} screenshot` : ""}.</p>
       ${warns.length ? `<div class="card" style="padding:10px 12px;margin-bottom:12px;font-size:13px">⚠️ ${warns.map(esc).join("<br>⚠️ ")}</div>` : ""}
       <div id="imp-rows"></div>
       <div class="row" style="margin-top:6px">
@@ -381,8 +361,8 @@ function openImportModal() {
               ${r.dup ? `<div class="hint" style="margin-bottom:6px">Looks already logged (same coin, day and amount), so it's unticked.</div>` : ""}
               ${r.preCC ? `<div class="hint" style="margin-bottom:6px">Before CC started (June 2023), so it's unticked. Tick it if you still want it.</div>` : ""}
               <div class="row">
-                <label class="field" style="margin-bottom:0"><span>Quantity</span><input type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-qty="${i}" value="${r.quantity != null ? esc(+Number(r.quantity).toPrecision(10)) : ""}"></label>
-                <label class="field" style="margin-bottom:0"><span>Price per coin (USD)</span><input type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-price="${i}" value="${r.avg_buy_price != null ? esc(+Number(r.avg_buy_price).toPrecision(8)) : ""}">${r.paid ? paidHint : tot ? `<div class="hint">Total ${fmtUsd(tot)}</div>` : ""}</label>
+                <label class="field" style="margin-bottom:0"><span>Quantity</span><input type="text" inputmode="decimal" autocomplete="off" data-qty="${i}" value="${r.quantity != null ? esc(+Number(r.quantity).toPrecision(10)) : ""}"></label>
+                <label class="field" style="margin-bottom:0"><span>Price per coin (USD)</span><input type="text" inputmode="decimal" autocomplete="off" data-price="${i}" value="${r.avg_buy_price != null ? esc(+Number(r.avg_buy_price).toPrecision(8)) : ""}">${r.paid ? paidHint : tot ? `<div class="hint">Total ${fmtUsd(tot)}</div>` : ""}</label>
               </div>
             </div>
           </div></div>`;
@@ -396,8 +376,8 @@ function openImportModal() {
             <div class="muted" style="font-size:12px;margin:4px 0 6px">${isCsvR() ? "From CSV" : "From screenshot"}: ${esc(shot)}${r.value ? ` · ${fmtUsd(r.value)}` : ""}</div>
             ${flag}
             <div class="row" style="margin-top:6px">
-              <label class="field" style="margin-bottom:0"><span>Quantity</span><input type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-qty="${i}" value="${r.quantity != null ? esc(+Number(r.quantity).toPrecision(10)) : ""}" placeholder="0.00">${r.quantity_estimated ? `<div class="hint">Worked out from value ÷ price. Check it.</div>` : ""}</label>
-              <label class="field" style="margin-bottom:0"><span>Avg buy price (USD)</span><input type="text" inputmode="decimal" enterkeyhint="done" autocomplete="off" data-price="${i}" value="${r.avg_buy_price != null ? esc(+Number(r.avg_buy_price).toPrecision(8)) : ""}" placeholder="${r.match && CG.info(r.match.id)?.price ? "today: " + esc(fmtPrice(CG.info(r.match.id).price)) : "0.00"}">${priceHint}</label>
+              <label class="field" style="margin-bottom:0"><span>Quantity</span><input type="text" inputmode="decimal" autocomplete="off" data-qty="${i}" value="${r.quantity != null ? esc(+Number(r.quantity).toPrecision(10)) : ""}" placeholder="0.00">${r.quantity_estimated ? `<div class="hint">Worked out from value ÷ price. Check it.</div>` : ""}</label>
+              <label class="field" style="margin-bottom:0"><span>Avg buy price (USD)</span><input type="text" inputmode="decimal" autocomplete="off" data-price="${i}" value="${r.avg_buy_price != null ? esc(+Number(r.avg_buy_price).toPrecision(8)) : ""}" placeholder="${r.match && CG.info(r.match.id)?.price ? "today: " + esc(fmtPrice(CG.info(r.match.id).price)) : "0.00"}">${priceHint}</label>
             </div>
           </div>
         </div></div>`;
@@ -422,7 +402,7 @@ function openImportModal() {
       await CG.ensure([c.id]); paintRows();
     }));
     const n = rows.filter(r => r.include).length, btn = $("#imp-save", ov);
-    if (btn) { btn.textContent = n ? `Import ${n} ${mode === "trades" ? "trade" : "coin"}${n === 1 ? "" : "s"}` : "Nothing selected"; btn.disabled = !n; }
+    if (btn) { btn.textContent = n ? `Import ${plural(n, mode === "trades" ? "trade" : "coin")}` : "Nothing selected"; btn.disabled = !n; }
   }
 
   async function save() {
@@ -458,19 +438,10 @@ function openImportModal() {
     try {
       const saved = await api.addTxs(out);
       S.txs.push(...saved); ov.remove();
-      toast(`Imported ${saved.length} ${mode === "trades" ? "trade" : "coin"}${saved.length === 1 ? "" : "s"}`);
+      toast(`Imported ${plural(saved.length, mode === "trades" ? "trade" : "coin")}`);
       if (location.hash.replace("#", "") === "overview") render(); else location.hash = "overview";
     } catch (e) { btn.disabled = false; paintRows(); err.textContent = e.message || "Couldn't save. Try again."; }
   }
 
   stepPick();
 }
-function confirmModal(title, body, onYes, { yes = "Confirm", alt } = {}) {
-  const ov = document.createElement("div"); ov.className = "overlay";
-  ov.innerHTML = `<div class="modal" style="max-width:380px"><h2>${esc(title)}</h2><p class="secondary">${esc(body)}</p><div class="row" style="justify-content:flex-end"><button class="btn" style="flex:none" id="no">${alt ? esc(alt[0]) : "Cancel"}</button><button class="btn primary" style="flex:none" id="yes">${esc(yes)}</button></div></div>`;
-  document.body.appendChild(ov);
-  ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
-  $("#no", ov).onclick = () => { ov.remove(); alt && alt[1](); };
-  $("#yes", ov).onclick = async () => { ov.remove(); await onYes(); };
-}
-

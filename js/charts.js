@@ -16,7 +16,7 @@ function renderDonut(canvasId, holdings, totalLabel, totalValue, quick = false) 
       data: { labels: slices.map(s => s.label), datasets: [{ ...ds, borderColor: cssVar("--surface-1"), borderWidth: 3, hoverOffset: 4, borderRadius: 6 }] },
       options: {
         cutout: "74%", layout: { padding: 4 }, maintainAspectRatio: false, animation: { duration: 300 },
-        plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
+        plugins: { legend: { display: false }, tooltip: { ...tipStyle(),
           callbacks: { title: (it) => ch.$slices[it[0].dataIndex].label, label: (it) => `${fmtUsd(ch.$slices[it.dataIndex].value)} · ${ch.$slices[it.dataIndex].alloc.toFixed(1)}%` } } },
       },
     });
@@ -71,7 +71,6 @@ const EXCHANGE_CHART = {
     return out;
   },
   async mexc(id, days) {
-    if (api.demo || !sb) throw new Error("no relay");
     const [interval, limit] = days <= 1 ? ["15m", 96] : days <= 7 ? ["60m", 168] : days <= 30 ? ["4h", 180] : days <= 90 ? ["1d", 90] : days <= 500 ? ["1d", Math.ceil(days)] : ["1W", Math.ceil(days / 7) + 1];   // MEXC returns at most 500 candles, so long ranges use weekly ones
     const { data, error } = await sb.functions.invoke("prices", { body: { klines: { symbol: symOf(id), interval, limit } } });
     if (error || !data || !Array.isArray(data.prices)) throw error || new Error("no candles");
@@ -102,6 +101,9 @@ function rgba(hex, a) {
   if (h.length !== 6) return hex;
   return `rgba(${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)},${a})`;
 }
+/** Vertical fade under a line chart, in the line's color. */
+const fillGrad = (col, a) => (c) => { const ca = c.chart.chartArea; if (!ca) return "transparent"; const g = c.chart.ctx.createLinearGradient(0, ca.top, 0, ca.bottom); g.addColorStop(0, rgba(col, a)); g.addColorStop(1, rgba(col, 0)); return g; };
+const tipStyle = () => ({ backgroundColor: cssVar("--text"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false });
 const signed = (v) => (num(v) > 0 ? "+" : "") + fmtUsd(v);
 const arrow = (v) => num(v) > 0 ? "▲" : num(v) < 0 ? "▼" : "";
 /** Price at time t from a [[t, price], ...] series. Before the series starts (or no data): fallback, never today's price. */
@@ -129,9 +131,7 @@ async function portfolioHistory(txs, days) {
     const t = from + (now - from) * i / (N - 1);
     while (j < sorted.length && new Date(sorted[j].executed_at).getTime() <= t) {
       const x = sorted[j++], h = pos[x.coin_id] ||= { qty: 0, cost: 0, last: 0 };
-      const q = num(x.quantity), pr = num(x.price_usd), fee = num(x.fee_usd); h.last = pr;
-      if (x.side === "buy") { h.qty += q; h.cost += q * pr + fee; }
-      else { const sq = Math.min(q, h.qty), avg = h.qty > 0 ? h.cost / h.qty : 0; realized += sq * pr - fee - sq * avg; h.cost -= sq * avg; h.qty -= sq; if (h.qty < 1e-12) { h.qty = 0; h.cost = 0; } }
+      h.last = num(x.price_usd); realized += applyTx(h, x);
     }
     let value = 0, invested = 0; const by = {};
     for (const [id, h] of Object.entries(pos)) { if (h.qty <= 0) continue; value += by[id] = h.qty * priceAt(series[id], t, h.last || CG.info(id)?.price); invested += h.cost; }
@@ -161,16 +161,11 @@ function heroCard(pf, chartId = "hero", flows = null) {
 async function paintHero(txs, chartId = "hero") {
   const box = document.getElementById(chartId + "-chart"); if (!box) return;
   const days = S.histDays || 30, mode = S.heroMode || "value", tok = (S.heroTok = (S.heroTok || 0) + 1);
-  document.querySelectorAll(`[data-hero="${chartId}"] button`).forEach(b => b.onclick = () => {
-    S.histDays = +b.dataset.d;
-    b.parentElement.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
-    paintHero(txs, chartId);
+  const bindSeg = (sel, set) => document.querySelectorAll(sel + " button").forEach(b => b.onclick = () => {
+    set(b.dataset); b.parentElement.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); paintHero(txs, chartId);
   });
-  document.querySelectorAll(`[data-hero-mode="${chartId}"] button`).forEach(b => b.onclick = () => {
-    S.heroMode = b.dataset.m;
-    b.parentElement.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
-    paintHero(txs, chartId);
-  });
+  bindSeg(`[data-hero="${chartId}"]`, d => S.histDays = +d.d);
+  bindSeg(`[data-hero-mode="${chartId}"]`, d => S.heroMode = d.m);
   if (!S.charts[chartId]) box.innerHTML = `<div class="note">Loading chart…</div>`;
   const pts = await portfolioHistory(txs, days).catch(() => null);
   if (pts && pts.length) {   // end on the live numbers shown above
@@ -194,15 +189,14 @@ async function paintHero(txs, chartId = "hero") {
     if (per) per.innerHTML = `<span class="${signCls(gain)}">${signed(gain)}${base > 0 ? ` (${fmtPct(gain / base * 100)})` : ""}</span> · ${label}`;
   }
   const good = cssVar("--good"), bad = cssVar("--bad");
-  const grad = (c, color) => { const ca = c.chart.chartArea; if (!ca) return "transparent"; const g = c.chart.ctx.createLinearGradient(0, ca.top, 0, ca.bottom); g.addColorStop(0, rgba(color, 0.32)); g.addColorStop(1, rgba(color, 0)); return g; };
   const fmtT = (t) => new Date(t).toLocaleString(undefined, days <= 7 ? { month: "short", day: "numeric", hour: "numeric" } : { month: "short", day: "numeric", year: days > 90 ? "2-digit" : undefined });
   const ds = pnl
     ? { data: ys, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, tension: 0.35,
         segment: { borderColor: (c) => (c.p1.parsed.y < 0 ? bad : good) }, borderColor: col, pointHoverBackgroundColor: col,
         fill: { target: "origin", above: rgba(good, 0.18), below: rgba(bad, 0.18) } }
-    : { data: ys, borderColor: col, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: col, tension: 0.35, fill: true, backgroundColor: (c) => grad(c, col) };
+    : { data: ys, borderColor: col, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: col, tension: 0.35, fill: true, backgroundColor: fillGrad(col, 0.32) };
   const scales = readableScales(pts.map(p => p.t), days, (v) => (pnl && v > 0 ? "+" : "") + compactUsd(v));
-  if (pnl) scales.y.grid = { color: (c) => (c.tick.value === 0 ? cssVar("--text-muted") : cssVar("--grid")) };
+  if (pnl) scales.y.grid = { color: (c) => (c.tick.value === 0 ? cssVar("--muted") : cssVar("--track")) };
   // Hold on the chart: the header shows that point's value, change since the period start, and date. Let go: back to live.
   const head = ["label", "big", "chg"].map(k => document.getElementById(`${chartId}-${k}`)), live = head.map(e => e && e.innerHTML);
   const onScrub = (i) => {
@@ -278,7 +272,7 @@ const LIVE = {
     return [...ids].filter(Boolean);
   },
   async pollAlts() {
-    if (api.demo || !sb || document.hidden || Date.now() < this.altOff) return;
+    if (document.hidden || Date.now() < this.altOff) return;
     const ids = this.altIds(); if (!ids.length) return;
     const bySym = {}; ids.forEach(id => { const sy = symOf(id); if (sy && sy.length <= 12) (bySym[sy] ||= []).push(id); });
     try {
@@ -300,9 +294,10 @@ const lastTagPlugin = {
     ctx.save(); ctx.font = '600 12px "Inter Tight", system-ui, -apple-system, sans-serif';
     const w = ctx.measureText(text).width + 14, h = 22, x = Math.min(ca.right - w, pt.x - w / 2 > ca.left ? ca.right - w : ca.left), y = Math.max(ca.top, Math.min(ca.bottom - h, pt.y - h / 2));
     ctx.beginPath(); ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2); ctx.fillStyle = o.color; ctx.fill();
-    ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y - h - 6 > ca.top ? y - h - 6 : y + 10, w, h, 11); else ctx.rect(x, y - h - 6 > ca.top ? y - h - 6 : y + 10, w, h);
+    const ty = y - h - 6 > ca.top ? y - h - 6 : y + 10;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, ty, w, h, 11) : ctx.rect(x, ty, w, h);
     ctx.fillStyle = o.color; ctx.fill();
-    ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(text, x + 7, (y - h - 6 > ca.top ? y - h - 6 : y + 10) + h / 2);
+    ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(text, x + 7, ty + h / 2);
     ctx.restore();
   },
 };
@@ -310,8 +305,8 @@ const compactUsd = (v) => Math.abs(v) >= 1000 ? "$" + new Intl.NumberFormat("en-
 function readableScales(times, days, yFmt) {
   const fmtX = (t) => new Date(t).toLocaleString(undefined, days <= 1 ? { hour: "numeric", minute: "2-digit" } : days <= 7 ? { weekday: "short" } : days <= 90 ? { month: "short", day: "numeric" } : { month: "short", year: "2-digit" });
   return {
-    x: { grid: { display: false }, border: { display: false }, ticks: { color: cssVar("--text-muted"), font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 4, callback: (v, i) => fmtX(times[i]) } },
-    y: { position: "right", grace: "8%", grid: { color: cssVar("--grid") }, border: { display: false }, ticks: { color: cssVar("--text-muted"), font: { size: 11 }, maxTicksLimit: 4, callback: yFmt } },
+    x: { grid: { display: false }, border: { display: false }, ticks: { color: cssVar("--muted"), font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 4, callback: (v, i) => fmtX(times[i]) } },
+    y: { position: "right", grace: "8%", grid: { color: cssVar("--track") }, border: { display: false }, ticks: { color: cssVar("--muted"), font: { size: 11 }, maxTicksLimit: 4, callback: yFmt } },
   };
 }
 // Delta-style: press and drag on a line chart → onScrub(index) with a thin line and dot, no tooltip box; let go → onScrub(null).
@@ -341,7 +336,7 @@ function priceChartCard() {
   const days = S.pcDays || 1;
   return `<div class="card hero" id="pc-card">
     <div class="chips" id="pc-coins">${coins.map(id => `<button class="chip ${id === S.pcCoin ? "on" : ""}" data-c="${esc(id)}">${esc(symOf(id))}</button>`).join("")}</div>
-    <div class="hero-head" style="margin-top:14px"><div><div class="label"><b id="pc-sym" style="color:var(--text-primary)">${esc(symOf(S.pcCoin))}</b> <span id="pc-live"></span></div>
+    <div class="hero-head" style="margin-top:14px"><div><div class="label"><b id="pc-sym" style="color:var(--text)">${esc(symOf(S.pcCoin))}</b> <span id="pc-live"></span></div>
       <div class="big num" id="pc-price">—</div>
       <div class="chg" id="pc-chg"></div></div>
       <div class="periods" id="pc-periods">${PRICE_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
@@ -358,8 +353,7 @@ function pcHeader() {
   }
   el.textContent = live ? fmtPrice(info.price) : "—";
   $("#pc-live").innerHTML = live ? `<span style="color:var(--good)">● Live</span>` : `<span class="bad">Live price unavailable</span>`;
-  const ch = info.change24;
-  const per = S.pcPeriodChg;
+  const ch = info.change24, per = S.pcPeriodChg;
   $("#pc-chg").innerHTML = (live && ch != null ? `<span class="pill ${signCls(ch)}">${arrow(ch)} ${fmtPct(ch)}</span><span>24h</span>` : "") +
     (per && (S.pcDays || 1) !== 1 ? `<span class="pill ${signCls(per.chg)}" style="margin-left:6px">${arrow(per.chg)} ${fmtPct(per.chg)}</span><span>${per.label}</span>` : "");
 }
@@ -409,7 +403,7 @@ async function paintPriceChart() {
   S.charts.pc = new Chart(document.getElementById("pc-cv"), {
     type: "line", plugins: [lastTagPlugin, scrubPlugin],
     data: { labels: times, datasets: [{ data: data.map(p => p[1]), borderColor: col, borderWidth: 2.2, pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: col, tension: 0.2, fill: true,
-      backgroundColor: (c) => { const ca = c.chart.chartArea; if (!ca) return "transparent"; const g = c.chart.ctx.createLinearGradient(0, ca.top, 0, ca.bottom); g.addColorStop(0, rgba(col, 0.3)); g.addColorStop(1, rgba(col, 0)); return g; } }] },
+      backgroundColor: fillGrad(col, 0.3) }] },
     options: {
       ...scrubOptions(onScrub), animation: { duration: 300 }, layout: { padding: { left: 2, right: 2, top: 8 } },
       scales: readableScales(times, days, compactUsd),
@@ -433,10 +427,10 @@ function renderPerf(id, holdings) {
     options: {
       indexAxis: "y", maintainAspectRatio: false, animation: { duration: 300 },
       scales: {
-        x: { grid: { color: cssVar("--grid") }, border: { display: false }, ticks: { color: cssVar("--text-muted"), callback: (v) => v + "%" } },
-        y: { grid: { display: false }, border: { display: false }, ticks: { color: cssVar("--text-primary"), font: { weight: 600 } } },
+        x: { grid: { color: cssVar("--track") }, border: { display: false }, ticks: { color: cssVar("--muted"), callback: (v) => v + "%" } },
+        y: { grid: { display: false }, border: { display: false }, ticks: { color: cssVar("--text"), font: { weight: 600 } } },
       },
-      plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
+      plugins: { legend: { display: false }, tooltip: { ...tipStyle(),
         callbacks: { title: (it) => (hs[it[0].dataIndex].symbol || hs[it[0].dataIndex].coin_id).toUpperCase(), label: (it) => `${fmtPct(hs[it.dataIndex].pnlPct)} · ${signed(hs[it.dataIndex].pnl)}` } } },
     },
   });
