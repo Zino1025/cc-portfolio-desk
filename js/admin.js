@@ -139,10 +139,9 @@ async function viewMembers(v) {
       s === "pnl" ? b.pf.totals.pnlPct - a.pf.totals.pnlPct :
       s === "activity" ? String(b.lastActivity).localeCompare(String(a.lastActivity)) :
       (b.p.review_requested - a.p.review_requested) || (b.newFromMember - a.newFromMember) || String(a.p.review_requested_at).localeCompare(String(b.p.review_requested_at)) || b.pf.totals.value - a.pf.totals.value);
-    $("#mtable").innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>Member</th><th>Status</th><th class="r">Value</th><th class="r">P&amp;L</th><th class="hide-sm">Top holding</th><th class="r hide-sm">Coins</th><th class="hide-sm">Last reviewed</th><th class="hide-sm">Activity</th></tr></thead><tbody>
+    $("#mtable").innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>Member</th><th class="r">Value</th><th class="r">P&amp;L</th><th class="hide-sm">Top holding</th><th class="r hide-sm">Coins</th><th class="hide-sm">Last reviewed</th><th class="hide-sm">Activity</th></tr></thead><tbody>
       ${rows.map(r => `<tr class="click" data-id="${esc(r.p.id)}">
-        <td><div style="font-weight:600">${esc(memberName(r.p))}${r.p.role === "admin" ? ` <span class="tag">${r.p.id === S.me.id ? "you" : "admin"}</span>` : ""}</div><div class="muted" style="font-size:12px">${r.p.telegram_handle ? "@" + esc(r.p.telegram_handle.replace(/^@/, "")) : ""}${r.p.risk_level ? " · " + esc(r.p.risk_level) + " risk" : ""}</div></td>
-        <td>${r.p.review_requested ? `<span class="tag req">Review requested ${ago(r.p.review_requested_at)}</span>` : ""}${r.newFromMember ? ` <span class="tag">${r.newFromMember} new msg</span>` : ""}${r.concentrated ? ` <span class="tag flag">${r.top.alloc.toFixed(0)}% in ${esc((r.top.symbol || "").toUpperCase())}</span>` : ""}${r.pf.holdings.length && exitStatus(r.p).state !== "committed" ? ` <span class="tag">no exit plan</span>` : ""}</td>
+        <td class="wrap"><div style="font-weight:600">${esc(memberName(r.p))}${r.p.role === "admin" ? ` <span class="tag">${r.p.id === S.me.id ? "you" : "admin"}</span>` : ""}</div><div class="muted" style="font-size:13px">${r.p.telegram_handle ? "@" + esc(r.p.telegram_handle.replace(/^@/, "")) : ""}${r.p.risk_level ? " · " + esc(r.p.risk_level) + " risk" : ""}</div><div class="chips" style="margin-top:6px;gap:4px">${r.p.review_requested ? `<span class="tag req">Review requested ${ago(r.p.review_requested_at)}</span>` : ""}${r.newFromMember ? ` <span class="tag">${r.newFromMember} new msg</span>` : ""}${r.concentrated ? ` <span class="tag flag">${r.top.alloc.toFixed(0)}% in ${esc((r.top.symbol || "").toUpperCase())}</span>` : ""}${r.pf.holdings.length && exitStatus(r.p).state !== "committed" ? ` <span class="tag">no exit plan</span>` : ""}</div></td>
         <td class="r num">${fmtUsd(r.pf.totals.value)}</td>
         <td class="r num ${signCls(r.pf.totals.pnl)}">${r.pf.totals.cost ? fmtPct(r.pf.totals.pnlPct) : "—"}</td>
         <td class="hide-sm">${r.top ? `${esc((r.top.symbol || "").toUpperCase())} <span class="muted">${r.top.alloc.toFixed(0)}%</span>` : '<span class="muted">—</span>'}</td>
@@ -212,7 +211,7 @@ async function viewMemberDetail(v, id) {
     ${p.role !== "admin" && p.id !== S.me.id ? `<div class="card" style="margin-top:16px;background:color-mix(in srgb, var(--bad) 7%, var(--surface-1))">
       <h2>Remove member</h2>
       <p class="secondary" style="margin-top:0;font-size:13px">Deletes ${esc(memberName(p))}'s account, trades, exit plan and messages. They lose access to the app. This can't be undone.</p>
-      <button class="btn" id="remove-member" style="color:var(--bad)">Remove ${esc(memberName(p))}</button></div>` : ""}`;
+      <button class="btn" id="remove-member" style="color:var(--bad)">Remove member</button></div>` : ""}`;
   $("#remove-member") && ($("#remove-member").onclick = () => removeMemberModal(p));
   bindMemberNotes(p, names);
   $("#cc-joined-save").onclick = async () => {
