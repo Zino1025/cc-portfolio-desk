@@ -25,7 +25,7 @@ alter table public.profiles
   add column if not exists in_group boolean,
   add column if not exists group_checked_at timestamptz;
 
-create or replace function public.protect_profile_fields() returns trigger language plpgsql as $$
+create or replace function public.protect_profile_fields() returns trigger language plpgsql set search_path = public as $$
 begin
   -- auth.uid() is null for the SQL editor and for Edge Functions using the service role.
   if auth.uid() is not null and new.role is distinct from old.role and not public.is_admin() then
