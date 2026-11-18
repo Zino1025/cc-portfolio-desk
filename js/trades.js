@@ -144,7 +144,7 @@ function openTradeModal(existing, presetCoinId) {
     if (coin) {
       slot.innerHTML = `<div class="picked">${coinCell({ ...coin, coin_id: coin.id })}<button class="link-btn" type="button" id="change-coin">Change</button></div>`;
       $("#change-coin", ov).onclick = () => { coin = null; paintCoin(); };
-      if (!existing && !price.value) prefillCurrent();
+      if (!existing) prefillPrice();
       return;
     }
     slot.innerHTML = `<div class="search-wrap"><input type="search" enterkeyhint="done" id="coin-q" placeholder="Search coin" autocomplete="off"><div class="dropdown hidden" id="coin-dd"></div></div>`;
@@ -163,11 +163,13 @@ function openTradeModal(existing, presetCoinId) {
     }, 350);
     q.oninput = run;
   }
-  async function prefillCurrent() {
-    await CG.ensure([coin.id]);
-    const p = CG.info(coin.id)?.price;
-    if (p && !price.value && !priceTouched) { price.value = +p.toPrecision(6); syncTotal(); }
+  // New trades: fill in the coin's price on the chosen date (until the user types their own).
+  async function prefillPrice() {
+    if (priceTouched || !coin) return;
+    const p = await CG.historical(coin.id, $("#when", ov).value || Date.now()).catch(() => null);
+    if (!priceTouched) { price.value = p ? +p.toPrecision(6) : ""; syncTotal(); }
   }
+  $("#when", ov).addEventListener("change", prefillPrice);
   paintCoin();
 
   $("#del-trade", ov) && ($("#del-trade", ov).onclick = () => { close(); confirmModal("Delete this trade?", "This can't be undone.", async () => {

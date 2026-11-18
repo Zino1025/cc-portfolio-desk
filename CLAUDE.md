@@ -12,7 +12,7 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 ## How to work efficiently (read this first)
 1. Find the file and section in the map below, `grep -n` for the exact function, then `Read` only that range (offset/limit). Don't scan the repo.
 2. Line numbers drift. Search for the section header (e.g. `grep -n "MEMBER: TRADES" js/*.js`) instead of trusting them.
-3. Make targeted `Edit`s. Don't rewrite big blocks.
+3. Keep it lean: fix the existing code path with the fewest lines, reuse helpers, and delete whatever a change makes dead (functions, CSS, comments). No duplicate logic, no speculative code.
 4. Before committing: `for f in js/*.js; do node --check $f; done`.
 5. After changing `css/app.css` or any `js/*.js`, bump `?v=` on that file's tag in `index.html` to today's date (YYYYMMDD). Otherwise Telegram and browsers keep serving the cached old version.
 6. When adding a new section, use the same `/* ===== NAME ===== */` header style and add it to the map below. Load order matters: files share one global scope, but function declarations only hoist within their own file, so top-level code that runs immediately may only call things from the same or an earlier file. `boot()` runs last, from `boot.js`. A new file needs its own `<script>` tag in `index.html`, in the right place.

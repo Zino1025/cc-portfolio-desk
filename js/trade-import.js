@@ -409,11 +409,11 @@ function openImportModal() {
         if (at > new Date(Date.now() + 86400000)) return err.textContent = `The ${label} trade on ${r.date} is in the future.`;
         if (p == null) return err.textContent = `Enter the price for the ${label} ${r.side} on ${r.date}.`;
       }
-      if (p == null) { p = CG.info(r.match.id)?.price; usedToday = true; if (!(p > 0)) return err.textContent = `No live price for ${label} right now. Enter its buy price.`; }
+      if (p == null) { p = await CG.historical(r.match.id, at || Date.now()).catch(() => null); usedToday = true; if (!(p > 0)) return err.textContent = `No price found for ${label} on that date. Enter its buy price.`; }
       out.push({ coin_id: r.match.id, symbol: r.match.symbol, name: r.match.name, side: mode === "trades" ? r.side : "buy", quantity: q, price_usd: p, fee_usd: num(r.fee),
         executed_at: at.toISOString(), exchange: r.exchange || $("#imp-exch", ov).value.trim() || null,
-        note: r.note || (isCsvR() ? `Imported from CSV${usedToday ? " (no buy price; used price on import day)" : ""}`
-          : `Imported from ${result.source_app && !/unknown/i.test(result.source_app) ? result.source_app + " " : ""}screenshot${usedToday ? " (buy price not shown; used price on import day)" : ""}`) });
+        note: r.note || (isCsvR() ? `Imported from CSV${usedToday ? " (no buy price; used market price on that date)" : ""}`
+          : `Imported from ${result.source_app && !/unknown/i.test(result.source_app) ? result.source_app + " " : ""}screenshot${usedToday ? " (buy price not shown; used market price on that date)" : ""}`) });
     }
     const btn = $("#imp-save", ov); btn.disabled = true; btn.textContent = "Importing…";
     try {

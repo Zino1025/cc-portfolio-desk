@@ -284,13 +284,15 @@ const CG = {
         .map(([id, c]) => ({ id, name: c.name, symbol: c.symbol, rank: c.rank }));
     }
   },
-  /** Daily price (00:00 UTC) on a given date. */
+  /** Price on a given date: CoinGecko's daily price, else the nearest exchange candle (CoinGecko's free plan stops at 1 year). */
   async historical(id, date) {
-    const d = new Date(date);
-    if (Date.now() - d.getTime() < 24 * 3600 * 1000) { await this.ensure([id], 0); return this.cache[id]?.price ?? null; }
+    const d = new Date(date), t = d.getTime();
+    if (Date.now() - t < 864e5) { await this.ensure([id], 0); return this.cache[id]?.price ?? null; }
     const p = (n) => String(n).padStart(2, "0");
-    const res = await this.get(`/coins/${encodeURIComponent(id)}/history?date=${p(d.getUTCDate())}-${p(d.getUTCMonth()+1)}-${d.getUTCFullYear()}&localization=false`);
-    return res?.market_data?.current_price?.usd ?? null;
+    const res = await this.get(`/coins/${encodeURIComponent(id)}/history?date=${p(d.getUTCDate())}-${p(d.getUTCMonth()+1)}-${d.getUTCFullYear()}&localization=false`).catch(() => null);
+    if (res?.market_data?.current_price?.usd) return res.market_data.current_price.usd;
+    const s = await this.chart(id, Math.ceil((Date.now() - t) / 864e5) + 1).catch(() => null);
+    return s?.length && t >= s[0][0] - 7 * 864e5 ? s.reduce((b, x) => (Math.abs(x[0] - t) < Math.abs(b[0] - t) ? x : b))[1] : null;
   },
   info(id) { return this.cache[id]; },
 };

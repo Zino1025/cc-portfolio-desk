@@ -70,15 +70,6 @@ async function renderView(route) {
 }
 
 /* ===================== MEMBER: OVERVIEW ===================== */
-function kpiRow(pf) {
-  const t = pf.totals;
-  return `<div class="kpis">
-    <div class="card kpi"><div class="label">Portfolio value</div><div class="value num">${fmtUsd(t.value)}</div><div class="sub num ${signCls(t.change24Usd)}">${fmtUsd(t.change24Usd)} (${fmtPct(t.change24Pct)}) 24h</div></div>
-    <div class="card kpi"><div class="label">Invested</div><div class="value num">${fmtUsd(t.cost)}</div></div>
-    <div class="card kpi"><div class="label">Unrealized P&amp;L</div><div class="value num ${signCls(t.pnl)}">${fmtUsd(t.pnl)}</div><div class="sub num ${signCls(t.pnl)}">${fmtPct(t.pnlPct)}</div></div>
-    <div class="card kpi"><div class="label">Realized P&amp;L</div><div class="value num ${signCls(t.realized)}">${fmtUsd(t.realized)}</div></div>
-  </div>`;
-}
 function holdingsTable(pf, editable = false) {
   if (!pf.holdings.length) return `<div class="empty"><div class="big">No holdings yet</div>Add your first buy, or import everything at once from a screenshot or CSV file.${editable ? `<div style="margin-top:12px"><button class="btn primary" id="empty-import">Import screenshot or CSV</button></div>` : ""}</div>`;
   const list = `<div class="hl-list">${pf.holdings.map(h => `<div class="hl-row" ${editable ? `data-coin="${esc(h.coin_id)}"` : ""}>
