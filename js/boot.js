@@ -55,6 +55,7 @@ async function loadMe() {
   S.email = await api.email();
   S.txs = await api.transactions(S.me.id);
   S.msgs = await api.messages(S.me.id);
+  S.flows = await api.flows(S.me.id).catch(() => []);
   try { const st = await api.getSetting("model"); S.model = st?.value?.version === 2 ? { ...DEFAULT_MODEL, ...st.value } : null; S.modelUpdatedAt = st?.updated_at || null; } catch (e) { S.model = null; }
   try { S.updates = await api.updates(); } catch (e) { S.updates = []; }
   CG.ensure(modelCoinIds()).then(() => paintAlertBadge()).catch(() => {});
@@ -71,6 +72,7 @@ async function boot() {
     if (!s) return renderAuth();
     await loadMe();
     await tgLink();
+    if (!isAdmin() && S.me.in_group === false) return renderGate();
     // Members always open on their portfolio, whatever page they were on last time.
     if (!isAdmin() && location.hash !== "#overview") history.replaceState(null, "", location.pathname + location.search + "#overview");
     render();
@@ -90,13 +92,17 @@ if (TG) { try { TG.ready(); TG.expand(); tgTheme(); TG.onEvent("themeChanged", t
     else if (TG.enableClosingConfirmation) TG.enableClosingConfirmation();   // older Telegram: at least ask before closing
   } catch (e) {}
 }
+// Every open from Telegram: link the chat and re-check CC group membership.
 async function tgLink() {
   try {
     const u = TG && TG.initDataUnsafe && TG.initDataUnsafe.user;
-    if (!u || api.demo || !sb || !S.me || String(S.me.telegram_chat_id || "") === String(u.id)) return;
+    if (!u || api.demo || !sb || !S.me) return;
     const { data, error } = await sb.functions.invoke("tg-link", { body: { initData: TG.initData } });
-    if (!error && data && data.ok) S.me.telegram_chat_id = u.id;
+    if (!error && data && data.ok) Object.assign(S.me, { telegram_chat_id: u.id, in_group: data.in_group ?? S.me.in_group });
   } catch (e) {}
+}
+function renderGate() {
+  $("#app").innerHTML = `<div class="auth-wrap"><div class="card" style="max-width:440px"><h2>${esc(CONFIG.GROUP_NAME)} members only</h2><p class="secondary">This Telegram account isn't in the ${esc(CONFIG.GROUP_NAME)} group. Join it, then open the Desk again.</p><button class="btn primary" onclick="location.reload()">I've joined</button></div></div>`;
 }
 /* ===================== MOBILE KEYBOARD ===================== */
 // "Done"/Enter closes the keyboard (and commits the value) on every input; tapping outside does too.

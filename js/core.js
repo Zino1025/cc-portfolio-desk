@@ -63,15 +63,16 @@ function ago(d) {
 }
 function toLocalInput(d) { const dt = new Date(d); const p = (n) => String(n).padStart(2, "0"); return `${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())}T${p(dt.getHours())}:${p(dt.getMinutes())}`; }
 function uid() { return (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)); }
-// Telegram's in-app browser blocks downloads, so there the bot sends the file to the member's chat.
-async function saveCsv(csv, filename) {
+// Telegram's in-app browser blocks downloads, so there the bot sends the file (CSV or PNG data URL) to the member's chat.
+async function saveFile(content, filename) {
+  const png = content.startsWith("data:image/png");
   if (TG && sb && !api.demo) {
     toast("Sending to your Telegram chat…");
-    const { data, error } = await sb.functions.invoke("tg-link", { body: { initData: TG.initData, csv, filename } });
+    const { data, error } = await sb.functions.invoke("tg-link", { body: { initData: TG.initData, [png ? "png" : "csv"]: png ? content.split(",")[1] : content, filename } });
     return toast(!error && data && data.ok ? "Sent. Check your chat with the bot." : "Couldn't send. Open the bot chat, tap Start, then try again.");
   }
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" }));
+  a.href = png ? content : URL.createObjectURL(new Blob(["\ufeff" + content], { type: "text/csv" }));
   a.download = filename; a.click();
 }
 function toast(msg) { document.querySelector(".toast")?.remove(); const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
@@ -111,6 +112,8 @@ const ICON = {
   mic: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>',
   stop: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>',
   clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 9l5-5 5 5"/><path d="M5 13v6h14v-6"/></svg>',
+  play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>',
 };
 function coinIcon(c) {
   const ab = esc((c.symbol || "?").slice(0, 3).toUpperCase());
@@ -386,6 +389,9 @@ function makeSupabaseApi() {
     async updateTx(id, tx) { return ok(await sb.from("transactions").update(tx).eq("id", id).select().single()); },
     async deleteTx(id) { ok(await sb.from("transactions").delete().eq("id", id)); },
     async addTxs(rows) { return ok(await sb.from("transactions").insert(rows).select()); },
+    async flows(userId) { return fetchAll(() => sb.from("cash_flows").select("*").eq("user_id", userId).order("at")); },
+    async addFlow(f) { return ok(await sb.from("cash_flows").insert(f).select().single()); },
+    async deleteFlow(id) { ok(await sb.from("cash_flows").delete().eq("id", id)); },
     async parseScreenshots(images) {
       const { data, error } = await sb.functions.invoke("import-screenshot", { body: { images } });
       if (error) {
@@ -487,6 +493,9 @@ function makeDemoApi() {
     async updateTx(id, t) { const i = store.transactions.findIndex(x => x.id === id); store.transactions[i] = { ...store.transactions[i], ...t }; return clone(store.transactions[i]); },
     async deleteTx(id) { store.transactions = store.transactions.filter(x => x.id !== id); },
     async addTxs(rows) { return rows.map(t => { const row = { ...t, id: uid(), user_id: currentId }; store.transactions.push(row); return clone(row); }); },
+    async flows(userId) { return clone((store.flows ||= []).filter(f => f.user_id === userId)); },
+    async addFlow(f) { const row = { ...f, id: uid(), user_id: currentId }; (store.flows ||= []).push(row); return clone(row); },
+    async deleteFlow(id) { store.flows = (store.flows || []).filter(f => f.id !== id); },
     async parseScreenshots(imgs, hint) { await pause(); await new Promise(r => setTimeout(r, 1200));
       if (hint === "trades") return { source_app: "CoinGecko", currency: "USD", warnings: [], holdings: [], trades: [
         { name: "Tectum", symbol: "TET", side: "buy", quantity: 518.992, total_usd: 155.357, price_usd: 155.357 / 518.992, date: "2026-10-26", coingecko_id_guess: "tectum" },
@@ -528,7 +537,7 @@ function makeDemoApi() {
 /* ===================== STATE ===================== */
 const S = {
   me: null, email: null,
-  txs: [], msgs: [],
+  txs: [], msgs: [], flows: [],
   admin: { profiles: [], txs: [], meta: [], loadedAt: 0 },
   tradeFilter: null,
   proj: null,

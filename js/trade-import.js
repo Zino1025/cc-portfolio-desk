@@ -248,7 +248,7 @@ function csvToImport(text) {
 // Same columns as Delta's CSV import, so files move between Delta and the desk both ways.
 const CSV_HEAD = "Date,Way,Base amount,Base currency (name),Base type,Quote amount,Quote currency,Exchange,Sent/Received from,Sent to,Fee amount,Fee currency (name),Broker,Notes";
 function downloadCsvTemplate() {
-  saveCsv(`${CSV_HEAD}\n2024-03-10 14:30:00,BUY,0.05,BTC (Bitcoin),CRYPTO,3100,USD,Coinbase,,,,,,\n2024-05-02 09:15:00,BUY,100000,PAAL (PAAL AI),CRYPTO,12000,USD,MEXC,,,10,USD,,\n`, "cc-portfolio-template.csv");
+  saveFile(`${CSV_HEAD}\n2024-03-10 14:30:00,BUY,0.05,BTC (Bitcoin),CRYPTO,3100,USD,Coinbase,,,,,,\n2024-05-02 09:15:00,BUY,100000,PAAL (PAAL AI),CRYPTO,12000,USD,MEXC,,,10,USD,,\n`, "cc-portfolio-template.csv");
 }
 
 function openImportModal() {
@@ -465,11 +465,12 @@ function openImportModal() {
 
   stepPick();
 }
-function confirmModal(title, body, onYes) {
+function confirmModal(title, body, onYes, { yes = "Confirm", alt } = {}) {
   const ov = document.createElement("div"); ov.className = "overlay";
-  ov.innerHTML = `<div class="modal" style="max-width:380px"><h2>${esc(title)}</h2><p class="secondary">${esc(body)}</p><div class="row" style="justify-content:flex-end"><button class="btn" style="flex:none" id="no">Cancel</button><button class="btn primary" style="flex:none" id="yes">Confirm</button></div></div>`;
+  ov.innerHTML = `<div class="modal" style="max-width:380px"><h2>${esc(title)}</h2><p class="secondary">${esc(body)}</p><div class="row" style="justify-content:flex-end"><button class="btn" style="flex:none" id="no">${alt ? esc(alt[0]) : "Cancel"}</button><button class="btn primary" style="flex:none" id="yes">${esc(yes)}</button></div></div>`;
   document.body.appendChild(ov);
-  $("#no", ov).onclick = () => ov.remove();
+  ov.addEventListener("click", e => { if (e.target === ov) ov.remove(); });
+  $("#no", ov).onclick = () => { ov.remove(); alt && alt[1](); };
   $("#yes", ov).onclick = async () => { ov.remove(); await onYes(); };
 }
 

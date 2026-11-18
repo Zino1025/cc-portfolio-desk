@@ -1,7 +1,8 @@
 // tg-notify: sends Telegram messages for new feedback/messages and review requests.
+// "tp-check" (hourly cron): exit-plan step pings for members who opted in + CC group membership re-check.
 // Called by a database trigger with {table, id}. It re-reads the row and marks it
 // notified, so calling it again (or by anyone else) never sends duplicates.
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.49.4";
 
 const TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 function serviceKey() {
@@ -58,7 +59,7 @@ Deno.serve(async (req) => {
   try {
     if (req.method !== "POST") return new Response("ok");
     const { table, id } = await req.json();
-    if (!TOKEN || (!id && table !== "price-check")) return Response.json({ skipped: true });
+    if (!TOKEN || (!id && table !== "price-check" && table !== "tp-check")) return Response.json({ skipped: true });
 
     if (table === "messages") {
       // Claim the message (only once).
@@ -136,6 +137,46 @@ Deno.serve(async (req) => {
       for (const c of hits) last[c.id] = new Date().toISOString();
       await db.from("app_settings").upsert({ key: "drop_alerts", value: last, updated_at: new Date().toISOString() });
       return Response.json({ ok: true, hits: hits.length });
+    }
+    if (table === "tp-check") {
+      // 1) Members who opted in: ping when a coin reaches one of their exit-plan steps (each step once).
+      const { data: ps } = await db.from("profiles").select("id, telegram_chat_id, exit_plan, tp_pinged").eq("tp_alerts", true).not("telegram_chat_id", "is", null).not("exit_plan", "is", null);
+      const ids = [...new Set((ps ?? []).flatMap((p) => Object.keys(p.exit_plan?.coins ?? {})))];
+      let pings = 0;
+      if (ids.length) {
+        const r = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}`);
+        const mk: Record<string, any> = Object.fromEntries((r.ok ? await r.json() : []).map((c: any) => [c.id, c]));
+        const fp = (v: number) => "$" + (+Number(v).toPrecision(4)).toLocaleString("en-US");
+        for (const p of ps ?? []) {
+          const done = p.tp_pinged ?? {}, lines: string[] = [];
+          for (const [id, cp] of Object.entries<any>(p.exit_plan.coins ?? {})) {
+            const c = mk[id]; if (!c) continue;
+            (cp.steps ?? []).forEach((st: any, i: number) => {
+              const at = Number(st.at), k = `${id}:${i}:${at}`;
+              if (!(at > 0) || c.current_price < at || done[k]) return;
+              done[k] = new Date().toISOString();
+              lines.push(`• <b>${esc(String(c.symbol).toUpperCase())}</b> is at ${fp(c.current_price)}. Step ${i + 1}: sell ${Number(st.pct)}% at ${fp(at)}`);
+            });
+          }
+          if (!lines.length) continue;
+          await db.from("profiles").update({ tp_pinged: done }).eq("id", p.id);
+          if (await send(p.telegram_chat_id, `🎯 <b>Your exit plan says sell</b>\n\n${lines.join("\n")}\n\nStick to the plan.`, "exit")) pings++;
+        }
+      }
+      // 2) Re-check CC group membership, so people who left lose access.
+      const { data: grp } = await db.from("app_settings").select("value").eq("key", "cc_group").maybeSingle();
+      let changed = 0;
+      if (grp?.value?.id) {
+        const { data: mem } = await db.from("profiles").select("id, telegram_chat_id, in_group").eq("role", "member").not("telegram_chat_id", "is", null);
+        for (const m of mem ?? []) {
+          const r = await (await fetch(`https://api.telegram.org/bot${TOKEN}/getChatMember?chat_id=${grp.value.id}&user_id=${m.telegram_chat_id}`)).json();
+          if (!r.ok) continue;
+          const inG = ["creator", "administrator", "member"].includes(r.result.status) || !!r.result.is_member;
+          if (inG !== m.in_group) { await db.from("profiles").update({ in_group: inG, group_checked_at: new Date().toISOString() }).eq("id", m.id); changed++; }
+          await new Promise((res) => setTimeout(res, 40));
+        }
+      }
+      return Response.json({ ok: true, pings, changed });
     }
     return Response.json({ skipped: "unknown table" });
   } catch (e) {

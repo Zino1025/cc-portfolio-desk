@@ -1,31 +1,54 @@
 /* ===================== CHARTS ===================== */
 if (window.Chart) Chart.defaults.font.family = '"Inter Tight", Inter, system-ui, sans-serif';
-function renderDonut(canvasId, holdings, totalLabel, totalValue) {
+// h.ci (optional) pins a coin's color, so the rewind keeps colors steady as coins come and go. quick = update in place (animation frames).
+function renderDonut(canvasId, holdings, totalLabel, totalValue, quick = false) {
   const el = document.getElementById(canvasId);
   if (!el) return;
-  if (S.charts[canvasId]) { S.charts[canvasId].destroy(); delete S.charts[canvasId]; }
-  const top = holdings.slice(0, 7);
-  const rest = holdings.slice(7);
-  const slices = top.map((h, i) => ({ label: (h.symbol || h.name || h.coin_id).toUpperCase(), name: h.name, value: h.value, alloc: h.alloc, color: cssVar(SERIES[i]) }));
+  const top = holdings.slice(0, 7), rest = holdings.slice(7), col = (h, i) => { const k = h.ci ?? i; return cssVar(k >= 0 && k < 7 ? SERIES[k] : "--other"); };
+  const slices = top.map((h, i) => ({ label: (h.symbol || h.name || h.coin_id).toUpperCase(), name: h.name, value: h.value, alloc: h.alloc, color: col(h, i) }));
   if (rest.length) slices.push({ label: "Other", name: `${rest.length} more coins`, value: rest.reduce((s, h) => s + h.value, 0), alloc: rest.reduce((s, h) => s + h.alloc, 0), color: cssVar("--other") });
-  S.charts[canvasId] = new Chart(el, {
-    type: "doughnut",
-    data: { labels: slices.map(s => s.label), datasets: [{ data: slices.map(s => s.value), backgroundColor: slices.map(s => s.color), borderColor: cssVar("--surface-1"), borderWidth: 3, hoverOffset: 4, borderRadius: 6 }] },
-    options: {
-      cutout: "74%", layout: { padding: 4 }, maintainAspectRatio: false, animation: { duration: 300 },
-      plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
-        callbacks: { title: (it) => slices[it[0].dataIndex].label, label: (it) => `${fmtUsd(slices[it.dataIndex].value)} · ${slices[it.dataIndex].alloc.toFixed(1)}%` } } },
-    },
-  });
+  const c = S.charts[canvasId], ds = { data: slices.map(s => s.value), backgroundColor: slices.map(s => s.color) };
+  if (c && quick) { c.data.labels = slices.map(s => s.label); Object.assign(c.data.datasets[0], ds); c.$slices = slices; c.update("none"); }
+  else {
+    if (c) { c.destroy(); delete S.charts[canvasId]; }
+    const ch = S.charts[canvasId] = new Chart(el, {
+      type: "doughnut",
+      data: { labels: slices.map(s => s.label), datasets: [{ ...ds, borderColor: cssVar("--surface-1"), borderWidth: 3, hoverOffset: 4, borderRadius: 6 }] },
+      options: {
+        cutout: "74%", layout: { padding: 4 }, maintainAspectRatio: false, animation: { duration: 300 },
+        plugins: { legend: { display: false }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
+          callbacks: { title: (it) => ch.$slices[it[0].dataIndex].label, label: (it) => `${fmtUsd(ch.$slices[it.dataIndex].value)} · ${ch.$slices[it.dataIndex].alloc.toFixed(1)}%` } } },
+      },
+    });
+    ch.$slices = slices;
+  }
   const center = el.parentElement.querySelector(".chart-center");
   if (center) center.innerHTML = `<div><div class="v num">${fmtUsd(totalValue, { compact: true })}</div><div class="l">${esc(totalLabel)}</div></div>`;
   const legend = document.getElementById(canvasId + "-legend");
   if (legend) legend.innerHTML = slices.map(s => `<div class="li"><span class="swatch" style="background:${s.color}"></span><span class="n" title="${esc(s.name || s.label)}">${esc(s.label)}</span><span class="p num">${s.alloc.toFixed(1)}%</span></div>`).join("");
 }
-function donutCard(id, title) {
-  return `<div class="card"><h2>${esc(title)}</h2><div class="chart-box"><canvas id="${id}" role="img" aria-label="${esc(title)} pie chart"></canvas><div class="chart-center"></div></div><div class="legend" id="${id}-legend"></div></div>`;
+function donutCard(id, title, rewind = false) {
+  return `<div class="card"><h2>${esc(title)}</h2>${rewind ? `<div class="rewind"><button class="icon-btn sm" id="${id}-play" aria-label="Play allocation over time">${ICON.play}</button><input type="range" id="${id}-rw" min="0" max="1000" value="1000" aria-label="Allocation date"><span class="muted num" id="${id}-when">Now</span></div>` : ""}<div class="chart-box"><canvas id="${id}" role="img" aria-label="${esc(title)} pie chart"></canvas><div class="chart-center"></div></div><div class="legend" id="${id}-legend"></div></div>`;
 }
 
+/** Allocation rewind: drag (or play) through time and the pie shows how the portfolio was split back then. */
+function bindRewind(id, txs, holdings, total) {
+  const rw = $(`#${id}-rw`), play = $(`#${id}-play`), when = $(`#${id}-when`); if (!rw) return;
+  const order = holdings.map(h => h.coin_id); let pts = null, timer = 0;
+  const load = async () => pts ||= await portfolioHistory(txs, SINCE_JUL23).catch(() => null);
+  const show = (i) => {
+    if (!pts || i >= pts.length - 1) { when.textContent = "Now"; return renderDonut(id, holdings, "Total", total, true); }
+    const p = pts[i], hs = Object.entries(p.by).filter(([, v]) => v > 0).map(([c, v]) => ({ coin_id: c, symbol: symOf(c), value: v, alloc: v / p.value * 100, ci: order.indexOf(c) })).sort((a, b) => b.value - a.value);
+    when.textContent = new Date(p.t).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" });
+    renderDonut(id, hs, when.textContent, p.value, true);
+  };
+  rw.oninput = async () => { clearInterval(timer); await load(); if (pts) show(Math.round(rw.value / 1000 * (pts.length - 1))); };
+  play.onclick = async () => {
+    clearInterval(timer); play.disabled = true; await load(); play.disabled = false;
+    if (!pts) return toast("Couldn't load price history. Try again in a minute.");
+    let i = 0; timer = setInterval(() => { if (!rw.isConnected) return clearInterval(timer); rw.value = i / (pts.length - 1) * 1000; show(i); if (++i >= pts.length) clearInterval(timer); }, 70);
+  };
+}
 
 /* ===================== DELTA-STYLE CHARTS ===================== */
 // Longest range starts July 2023 so the run-up to CC's start (Nov 2023) and everything since is visible.
@@ -81,12 +104,13 @@ function rgba(hex, a) {
 }
 const signed = (v) => (num(v) > 0 ? "+" : "") + fmtUsd(v);
 const arrow = (v) => num(v) > 0 ? "▲" : num(v) < 0 ? "▼" : "";
-/** Portfolio value and money invested over the last `days`, from trades + CoinGecko price history. */
-async function portfolioHistory(txs, days) {
+/** Portfolio value and money invested over the last `days`, from trades + price history.
+    whatIf: what today's holdings would have been worth at each point, including before you bought. */
+async function portfolioHistory(txs, days, whatIf = false) {
   const sorted = [...txs].sort((a, b) => new Date(a.executed_at) - new Date(b.executed_at));
   if (!sorted.length) return null;
   const now = Date.now();
-  const from = Math.max(now - days * 864e5, new Date(sorted[0].executed_at).getTime());
+  const from = whatIf ? now - days * 864e5 : Math.max(now - days * 864e5, new Date(sorted[0].executed_at).getTime());
   const cur = computePortfolio(txs);
   const val = (id) => cur.holdings.find(h => h.coin_id === id)?.value || 0;
   const ids = [...new Set(sorted.map(t => t.coin_id))].sort((a, b) => val(b) - val(a)).slice(0, 12);
@@ -106,37 +130,39 @@ async function portfolioHistory(txs, days) {
   const N = 90, pos = {}, pts = []; let j = 0, realized = 0;
   for (let i = 0; i < N; i++) {
     const t = from + (now - from) * i / (N - 1);
+    if (whatIf) { pts.push({ t, value: cur.holdings.filter(h => ids.includes(h.coin_id)).reduce((a, h) => a + h.qty * priceAt(h.coin_id, t, h.price), 0), invested: 0, realized: 0, pnl: 0 }); continue; }
     while (j < sorted.length && new Date(sorted[j].executed_at).getTime() <= t) {
       const x = sorted[j++], h = pos[x.coin_id] ||= { qty: 0, cost: 0, last: 0 };
       const q = num(x.quantity), pr = num(x.price_usd), fee = num(x.fee_usd); h.last = pr;
       if (x.side === "buy") { h.qty += q; h.cost += q * pr + fee; }
       else { const sq = Math.min(q, h.qty), avg = h.qty > 0 ? h.cost / h.qty : 0; realized += sq * pr - fee - sq * avg; h.cost -= sq * avg; h.qty -= sq; if (h.qty < 1e-12) { h.qty = 0; h.cost = 0; } }
     }
-    let value = 0, invested = 0;
-    for (const [id, h] of Object.entries(pos)) { if (h.qty <= 0) continue; value += h.qty * priceAt(id, t, h.last); invested += h.cost; }
-    pts.push({ t, value, invested, realized, pnl: value - invested + realized });
+    let value = 0, invested = 0; const by = {};
+    for (const [id, h] of Object.entries(pos)) { if (h.qty <= 0) continue; value += by[id] = h.qty * priceAt(id, t, h.last); invested += h.cost; }
+    pts.push({ t, value, invested, realized, pnl: value - invested + realized, by });
   }
   return pts;
 }
-function heroCard(pf, chartId = "hero") {
+function heroCard(pf, chartId = "hero", flows = null) {
   const t = pf.totals, days = S.histDays || 30, mode = S.heroMode || "value";
   return `<div class="card hero">
     <div class="hero-head"><div><div class="label" id="${chartId}-label">Portfolio value</div><div class="big num" id="${chartId}-big">${fmtUsd(t.value)}</div>
       <div class="chg" id="${chartId}-chg"><span class="pill ${signCls(t.change24Pct)}">${arrow(t.change24Pct)} ${fmtPct(t.change24Pct)}</span><span class="num ${signCls(t.change24Usd)}">${signed(t.change24Usd)}</span><span>today</span></div></div>
       <div class="periods" data-hero="${chartId}">${HIST_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
     <div class="periods hero-modes" data-hero-mode="${chartId}" role="tablist">
-      <button data-m="value" class="${mode === "value" ? "on" : ""}" role="tab">Holdings</button><button data-m="pnl" class="${mode === "pnl" ? "on" : ""}" role="tab">Profit / loss</button></div>
+      <button data-m="value" class="${mode === "value" ? "on" : ""}" role="tab">Holdings</button><button data-m="pnl" class="${mode === "pnl" ? "on" : ""}" role="tab">Profit / loss</button><button data-m="whatif" class="${mode === "whatif" ? "on" : ""}" role="tab">What if</button></div>
     <div class="hero-chart" id="${chartId}-chart"></div>
     <div class="hero-key"><span style="margin-left:auto" class="num" id="${chartId}-period"></span></div>
     <div class="hero-stats">
       <div><div class="l">Invested</div><div class="v num">${fmtUsd(t.cost)}</div></div>
       <div><div class="l">Unrealized P&amp;L</div><div class="v num ${signCls(t.pnl)}">${signed(t.pnl)}</div><div class="s num ${signCls(t.pnl)}">${fmtPct(t.pnlPct)}</div></div>
       <div><div class="l">Realized P&amp;L</div><div class="v num ${signCls(t.realized)}">${signed(t.realized)}</div></div>
-    </div></div>`;
+    </div>${flows && flows.length ? (() => { const f = flowTotals(flows), ret = t.value + f.wd - f.dep; return `<div class="hero-key" style="margin-top:12px"><span>Net in <b class="num">${fmtUsd(f.net)}</b></span><span>Total return <b class="num ${signCls(ret)}">${signed(ret)}${f.dep ? ` (${fmtPct(ret / f.dep * 100)})` : ""}</b></span></div>`; })() : ""}</div>`;
 }
 /* Portfolio chart, two views (like CoinGecko's portfolio):
    Holdings = what your coins were actually worth each day (quantity held × that day's price).
-   Profit / loss = realized gains from sells + unrealized gain on what you still hold, at each point in time. */
+   Profit / loss = realized gains from sells + unrealized gain on what you still hold, at each point in time.
+   What if = today's coins at each past date's price, even before you bought them. */
 async function paintHero(txs, chartId = "hero") {
   const box = document.getElementById(chartId + "-chart"); if (!box) return;
   const days = S.histDays || 30, mode = S.heroMode || "value", tok = (S.heroTok = (S.heroTok || 0) + 1);
@@ -151,7 +177,7 @@ async function paintHero(txs, chartId = "hero") {
     paintHero(txs, chartId);
   });
   if (!S.charts[chartId]) box.innerHTML = `<div class="note">Loading chart…</div>`;
-  const pts = await portfolioHistory(txs, days).catch(() => null);
+  const whatIf = mode === "whatif", pts = await portfolioHistory(txs, days, whatIf).catch(() => null);
   if (pts && pts.length) {   // end on the live numbers shown above
     const tot = computePortfolio(txs).totals, z = pts[pts.length - 1];
     if (tot.value > 0) pts[pts.length - 1] = { ...z, t: Date.now(), value: tot.value, invested: tot.cost, realized: tot.realized, pnl: tot.value - tot.cost + tot.realized };
@@ -164,7 +190,10 @@ async function paintHero(txs, chartId = "hero") {
   const a = pts[0], z = pts[pts.length - 1], label = HIST_PERIODS.find(x => x[0] === days)?.[1] || "";
   const pnl = mode === "pnl", ys = pts.map(p => pnl ? p.pnl : p.value);
   let col;
-  if (pnl) {
+  if (whatIf) {
+    const gain = z.value - a.value; col = cssVar(gain < 0 ? "--bad" : "--good");
+    if (per) per.innerHTML = `Today's coins, held for ${label}: <span class="${signCls(gain)}">${signed(gain)}${a.value > 0 ? ` (${fmtPct(gain / a.value * 100)})` : ""}</span>`;
+  } else if (pnl) {
     col = cssVar(z.pnl < 0 ? "--bad" : "--good");
     if (per) per.innerHTML = `<span class="${signCls(z.pnl)}">${signed(z.pnl)}</span> · ${signed(z.pnl - a.pnl)} in ${label}`;
   } else {
@@ -187,8 +216,8 @@ async function paintHero(txs, chartId = "hero") {
   const onScrub = (i) => {
     if (!head[1]) return;
     if (i == null) return head.forEach((e, k) => e && (e.innerHTML = live[k]));
-    const p = pts[i], d = p.pnl - a.pnl, base = a.value + Math.max(0, p.invested - a.invested);
-    head[0].textContent = pnl ? "Profit / loss" : "Portfolio value";
+    const p = pts[i], d = whatIf ? p.value - a.value : p.pnl - a.pnl, base = a.value + Math.max(0, p.invested - a.invested);
+    head[0].textContent = pnl ? "Profit / loss" : whatIf ? "Today's coins back then" : "Portfolio value";
     head[1].textContent = pnl ? signed(p.pnl) : fmtUsd(p.value);
     head[2].innerHTML = `${base > 0 ? `<span class="pill ${signCls(d)}">${arrow(d)} ${fmtPct(d / base * 100)}</span>` : ""}<span class="num ${signCls(d)}">${signed(d)}</span><span>${fmtT(p.t)}</span>`;
   };
@@ -201,6 +230,25 @@ async function paintHero(txs, chartId = "hero") {
     },
   });
   scrubEnd(S.charts[chartId], onScrub);
+}
+/* ---------- Share card: a PNG of returns + allocation, percentages only (no dollar amounts) ---------- */
+async function shareCard(pf) {
+  const W = 1080, H = 1350, cv = Object.assign(document.createElement("canvas"), { width: W, height: H }), c = cv.getContext("2d");
+  const F = (w, px) => `${w} ${px}px "Inter Tight", system-ui, sans-serif`, txt = cssVar("--text"), mut = cssVar("--muted");
+  const t = pf.totals, f = S.flows.length ? flowTotals() : null, ret = f && f.dep ? (t.value + f.wd - f.dep) / f.dep * 100 : t.pnlPct;
+  c.fillStyle = cssVar("--surface-1"); c.fillRect(0, 0, W, H);
+  c.fillStyle = txt; c.font = F(600, 44); c.fillText(CONFIG.GROUP_NAME + " Portfolio Desk", 80, 130);
+  c.fillStyle = mut; c.font = F(500, 34); c.fillText(f && f.dep ? "Total return" : "Return on open positions", 80, 250);
+  c.fillStyle = cssVar(ret < 0 ? "--bad" : "--good"); c.font = F(600, 150); c.fillText(fmtPct(ret), 72, 400);
+  const top = pf.holdings.slice(0, 6), other = pf.holdings.slice(6).reduce((a, h) => a + h.alloc, 0);
+  const sl = [...top.map((h, i) => [symOf(h.coin_id), h.alloc, cssVar(SERIES[i])]), ...(other > 0.05 ? [["Other", other, cssVar("--other")]] : [])];
+  let a0 = -Math.PI / 2; const cx = 330, cy = 820, R = 230;
+  for (const [, pct, col] of sl) { const a1 = a0 + pct / 100 * Math.PI * 2; c.beginPath(); c.strokeStyle = col; c.lineWidth = 70; c.arc(cx, cy, R, a0 + 0.02, a1 - 0.02); c.stroke(); a0 = a1; }
+  sl.forEach(([sym, pct, col], i) => { const y = 640 + i * 66; c.fillStyle = col; c.beginPath(); c.arc(660, y - 12, 13, 0, Math.PI * 2); c.fill(); c.fillStyle = txt; c.font = F(600, 38); c.fillText(sym, 690, y); c.fillStyle = mut; c.font = F(500, 38); c.textAlign = "right"; c.fillText(pct.toFixed(0) + "%", 1000, y); c.textAlign = "left"; });
+  c.fillStyle = mut; c.font = F(500, 30); c.fillText(new Date().toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }), 80, H - 90);
+  const url = cv.toDataURL("image/png");
+  if (!TG && navigator.canShare) { try { const file = new File([await (await fetch(url)).blob()], "cc-portfolio.png", { type: "image/png" }); if (navigator.canShare({ files: [file] })) return await navigator.share({ files: [file] }); } catch (e) { if (e.name === "AbortError") return; } }
+  saveFile(url, "cc-portfolio.png");
 }
 /* ---------- LIVE PRICES: Coinbase (BTC, ETH) + MEXC via Supabase (alts), CoinGecko as fallback ---------- */
 const LIVE = {

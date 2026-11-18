@@ -101,19 +101,20 @@ async function viewOverview(v) {
   v.innerHTML = `
     ${alertBanner()}
     <div class="page-head"><div><h1>My portfolio</h1>${CG.offline ? `<div class="secondary">Sample prices (offline)</div>` : ""}</div>
-      <button class="icon-btn" id="refresh" aria-label="Refresh prices" title="Refresh prices">${ICON.refresh}</button></div>
-    ${has ? heroCard(pf) : ""}
+      <div class="row" style="flex:none;gap:8px">${has ? `<button class="icon-btn" id="share" aria-label="Share a card of my returns">${ICON.share}</button>` : ""}<button class="icon-btn" id="refresh" aria-label="Refresh prices" title="Refresh prices">${ICON.refresh}</button></div></div>
+    ${has ? heroCard(pf, "hero", S.flows) : ""}
     <div class="acts">
       <button class="act" id="add"><span class="icon-btn lg primary">${ICON.plus}</span>Add trade</button>
       <button class="act" id="import-shot"><span class="icon-btn lg">${ICON.upload}</span>Import</button>
       <a class="act" href="#rebalance"><span class="icon-btn lg">${ICON.scale}</span>Rebalance</a>
       <a class="act" href="#exit"><span class="icon-btn lg">${ICON.target}</span>${ex === "edited" ? "Re-commit" : "Exit plan"}${ex === "committed" ? `<span class="d">committed</span>` : ""}</a>
     </div>
-    ${has ? `<div class="ov-grid">${donutCard("pie-me", "Allocation")}${perfCard("perf-me")}</div>` : ""}
+    ${has ? `<div class="ov-grid">${donutCard("pie-me", "Allocation", true)}${perfCard("perf-me")}</div>` : ""}
     <div class="section-head"><h2>Holdings</h2>${has ? `<span class="muted">${has} coin${has > 1 ? "s" : ""}</span>` : ""}</div>
     <div class="card hl-card">${holdingsTable(pf, true)}</div>
     ${reviewNudge()}`;
-  if (has) { renderDonut("pie-me", pf.holdings, "Total", pf.totals.value); renderPerf("perf-me", pf.holdings); paintHero(S.txs); }
+  if (has) { renderDonut("pie-me", pf.holdings, "Total", pf.totals.value); bindRewind("pie-me", S.txs, pf.holdings, pf.totals.value); renderPerf("perf-me", pf.holdings); paintHero(S.txs); }
+  $("#share") && ($("#share").onclick = () => shareCard(pf));
   $("#add").onclick = () => openTradeModal();
   $("#import-shot").onclick = openImportModal;
   $("#empty-import") && ($("#empty-import").onclick = openImportModal);

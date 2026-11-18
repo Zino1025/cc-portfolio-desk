@@ -1,9 +1,10 @@
 // tg-link: links a signed-in member to their Telegram chat.
 // The app sends Telegram's signed initData; we verify the signature with the bot
 // token, verify the member's Supabase session, then store their Telegram user id.
-// With { csv, filename } it instead sends that file to the member's bot chat
+// Also re-checks CC group membership (once an admin has run /setgroup in the group).
+// With { csv | png, filename } it instead sends that file to the member's bot chat
 // (Telegram's in-app browser can't download files).
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.49.4";
 
 const TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 function serviceKey() {
@@ -46,24 +47,30 @@ Deno.serve(async (req) => {
     const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
     const { data: auth } = await db.auth.getUser(jwt);
     if (!auth?.user) return json({ error: "not signed in" }, 401);
-    const { initData, csv, filename } = await req.json();
+    const { initData, csv, png, filename } = await req.json();
     const tgUser = await verifyInitData(String(initData || ""));
     if (!tgUser?.id) return json({ error: "invalid telegram data" }, 400);
-    if (csv) {
-      if (String(csv).length > 5e6) return json({ error: "file too big" }, 413);
-      const fd = new FormData();
+    if (csv || png) {
+      if (String(csv || png).length > 8e6) return json({ error: "file too big" }, 413);
+      const fd = new FormData(), name = String(filename || "export").replace(/[^\w.-]/g, "") || "export";
       fd.append("chat_id", String(tgUser.id));
-      fd.append("document", new Blob([String(csv)], { type: "text/csv" }), String(filename || "export.csv").replace(/[^\w.-]/g, "") || "export.csv");
-      const r = await (await fetch(`https://api.telegram.org/bot${TOKEN}/sendDocument`, { method: "POST", body: fd })).json();
+      if (png) fd.append("photo", new Blob([Uint8Array.from(atob(String(png)), (c) => c.charCodeAt(0))], { type: "image/png" }), name);
+      else fd.append("document", new Blob([String(csv)], { type: "text/csv" }), name);
+      const r = await (await fetch(`https://api.telegram.org/bot${TOKEN}/${png ? "sendPhoto" : "sendDocument"}`, { method: "POST", body: fd })).json();
       return r.ok ? json({ ok: true }) : json({ error: r.description || "send failed" }, 502);
     }
 
     const { data: me } = await db.from("profiles").select("telegram_handle").eq("id", auth.user.id).single();
     const patch: Record<string, unknown> = { telegram_chat_id: tgUser.id };
     if (!me?.telegram_handle && tgUser.username) patch.telegram_handle = tgUser.username;
+    const { data: grp } = await db.from("app_settings").select("value").eq("key", "cc_group").maybeSingle();
+    if (grp?.value?.id) {
+      const r = await (await fetch(`https://api.telegram.org/bot${TOKEN}/getChatMember?chat_id=${grp.value.id}&user_id=${tgUser.id}`)).json();
+      if (r.ok) Object.assign(patch, { in_group: ["creator", "administrator", "member"].includes(r.result.status) || !!r.result.is_member, group_checked_at: new Date().toISOString() });
+    }
     const { error } = await db.from("profiles").update(patch).eq("id", auth.user.id);
     if (error) return json({ error: error.message }, 500);
-    return json({ ok: true });
+    return json({ ok: true, in_group: patch.in_group ?? null });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }

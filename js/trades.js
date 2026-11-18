@@ -61,20 +61,22 @@ async function viewTrades(v) {
   const coins = [...new Map(S.txs.map(t => [t.coin_id, t])).values()].sort((a, b) => String(a.name).localeCompare(b.name));
   v.innerHTML = `
     <div class="page-head"><div><h1>Trades</h1><div class="secondary">${S.txs.length} trade${S.txs.length === 1 ? "" : "s"} · ${coins.length} coin${coins.length === 1 ? "" : "s"}</div></div>
-      <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end"><button class="btn" id="csv">Export CSV</button><button class="btn" id="import-shot">Import</button><button class="btn primary" id="add">+ Add trade</button></div></div>
-    ${S.txs.length ? `<div class="tr-tools">
-      <div class="seg"><button class="${view === "coin" ? "on" : ""}" data-view="coin">By coin</button><button class="${view === "all" ? "on" : ""}" data-view="all">All trades</button></div>
-      ${view === "coin"
+      <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end"><button class="btn" id="csv">Export</button><button class="btn" id="import-shot">Import</button><button class="btn primary" id="add">+ Add trade</button></div></div>
+    <div class="tr-tools">
+      <div class="seg"><button class="${view === "coin" ? "on" : ""}" data-view="coin">By coin</button><button class="${view === "all" ? "on" : ""}" data-view="all">All trades</button><button class="${view === "flows" ? "on" : ""}" data-view="flows">Money in/out</button></div>
+      ${view === "flows" || !S.txs.length ? "" : view === "coin"
         ? `<select id="tr-sort" aria-label="Sort coins">${Object.entries(TRADE_SORTS).map(([k, l]) => `<option value="${k}" ${(S.tradeSort || "value") === k ? "selected" : ""}>Sort: ${l}</option>`).join("")}</select>
            <button class="link-btn" id="tr-expand">${groups.every(g => S.tradeOpen.has(g.id)) ? "Collapse all" : "Expand all"}</button>`
         : `<select id="tr-coin" aria-label="Filter by coin"><option value="">All coins</option>${coins.map(t => `<option value="${esc(t.coin_id)}" ${S.tradeCoin === t.coin_id ? "selected" : ""}>${esc(nameSym(t.name, t.symbol))}</option>`).join("")}</select>`}
-    </div>` : ""}
-    ${view === "coin" && S.txs.length ? `<div class="tc-list">${groups.map(coinTradesHtml).join("")}</div>`
+    </div>
+    ${view === "flows" ? flowsHtml() : view === "coin" && S.txs.length ? `<div class="tc-list">${groups.map(coinTradesHtml).join("")}</div>`
       : `<div class="card">${tradesTable(S.tradeCoin ? S.txs.filter(t => t.coin_id === S.tradeCoin) : S.txs, true)}</div>`}`;
   S.tradeFilter = null;
   $("#add").onclick = () => openTradeModal();
   $("#import-shot").onclick = openImportModal;
-  $("#csv").onclick = exportCsv;
+  $("#csv").onclick = openExport;
+  $("#flow-add") && ($("#flow-add").onclick = openFlowModal);
+  v.querySelectorAll("[data-fdel]").forEach(b => b.onclick = () => confirmModal("Delete this entry?", "This can't be undone.", async () => { await api.deleteFlow(b.dataset.fdel); S.flows = S.flows.filter(f => f.id !== b.dataset.fdel); render(); }));
   v.querySelectorAll("[data-view]").forEach(b => b.onclick = () => { S.tradeView = b.dataset.view; render(); });
   $("#tr-sort") && ($("#tr-sort").onchange = (e) => { S.tradeSort = e.target.value; render(); });
   $("#tr-coin") && ($("#tr-coin").onchange = (e) => { S.tradeCoin = e.target.value || null; render(); });
@@ -86,11 +88,58 @@ async function viewTrades(v) {
     await api.deleteTx(b.dataset.del); S.txs = S.txs.filter(t => t.id !== b.dataset.del); toast("Trade deleted"); render();
   }));
 }
-function exportCsv() {
-  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const rows = S.txs.map(t => [new Date(t.executed_at).toISOString(), t.side.toUpperCase(), t.quantity, `${String(t.symbol || "").toUpperCase()} (${t.name || ""})`, "CRYPTO",
-    +(num(t.quantity) * num(t.price_usd)).toFixed(8), "USD", t.exchange, "", "", num(t.fee_usd) || "", num(t.fee_usd) ? "USD" : "", "", t.note].map(q).join(","));
-  saveCsv([CSV_HEAD, ...rows].join("\n"), "cc-portfolio-trades.csv");
+// Desk backup = re-importable here. Tax file = Koinly universal format (Koinly, CoinLedger and most tax tools read it).
+function exportCsv(tax) {
+  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`, sym = (t) => String(t.symbol || "").toUpperCase();
+  if (!tax) {
+    const rows = S.txs.map(t => [new Date(t.executed_at).toISOString(), t.side.toUpperCase(), t.quantity, `${sym(t)} (${t.name || ""})`, "CRYPTO",
+      +(num(t.quantity) * num(t.price_usd)).toFixed(8), "USD", t.exchange, "", "", num(t.fee_usd) || "", num(t.fee_usd) ? "USD" : "", "", t.note].map(q).join(","));
+    return saveFile([CSV_HEAD, ...rows].join("\n"), "cc-portfolio-trades.csv");
+  }
+  const when = (d) => new Date(d).toISOString().slice(0, 19).replace("T", " ") + " UTC";
+  const rows = [
+    ...S.txs.map(t => { const usd = +(num(t.quantity) * num(t.price_usd)).toFixed(2), buy = t.side === "buy";
+      return [when(t.executed_at), buy ? usd : t.quantity, buy ? "USD" : sym(t), buy ? t.quantity : usd, buy ? sym(t) : "USD", num(t.fee_usd) || "", num(t.fee_usd) ? "USD" : "", usd, "USD", "", [t.exchange, t.note].filter(Boolean).join(" · "), ""]; }),
+    ...S.flows.map(f => { const dep = f.kind === "deposit";
+      return [when(f.at), dep ? "" : f.amount_usd, dep ? "" : "USD", dep ? f.amount_usd : "", dep ? "USD" : "", "", "", f.amount_usd, "USD", "", f.note || "", ""]; }),
+  ].sort((a, b) => a[0].localeCompare(b[0]));
+  saveFile(["Date,Sent Amount,Sent Currency,Received Amount,Received Currency,Fee Amount,Fee Currency,Net Worth Amount,Net Worth Currency,Label,Description,TxHash", ...rows.map(r => r.map(q).join(","))].join("\n"), "cc-tax-koinly.csv");
+}
+function openExport() {
+  confirmModal("Export", "The tax file uses the Koinly format, which most crypto tax tools import. They work out the tax for your country.", () => exportCsv(true), { yes: "Tax file", alt: ["Desk backup", () => exportCsv(false)] });
+}
+
+/* ---------- Money in / out (deposits and withdrawals) ---------- */
+function flowTotals(flows = S.flows) {
+  const dep = flows.filter(f => f.kind === "deposit").reduce((a, f) => a + num(f.amount_usd), 0), wd = flows.filter(f => f.kind === "withdrawal").reduce((a, f) => a + num(f.amount_usd), 0);
+  return { dep, wd, net: dep - wd };
+}
+function flowsHtml() {
+  const t = flowTotals(), rows = [...S.flows].sort((a, b) => new Date(b.at) - new Date(a.at));
+  return `<div class="card">
+    <div class="hero-stats" style="border:none;margin:0;padding:0 0 12px"><div><div class="l">Deposited</div><div class="v num">${fmtUsd(t.dep)}</div></div><div><div class="l">Withdrawn</div><div class="v num">${fmtUsd(t.wd)}</div></div><div><div class="l">Net in</div><div class="v num">${fmtUsd(t.net)}</div></div></div>
+    ${rows.length ? `<div class="tc-tx">${rows.map(f => `<div class="tc-row"><div class="main"><div style="font-weight:550">${f.kind === "deposit" ? "Deposit" : "Withdrawal"}</div><div class="meta">${new Date(f.at).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}${f.note ? " · " + esc(f.note) : ""}</div></div>
+      <div class="r num" style="flex:none;display:flex;align-items:center;gap:10px"><span class="${f.kind === "deposit" ? "good" : "bad"}">${f.kind === "deposit" ? "+" : "−"} ${fmtUsd(f.amount_usd)}</span><button class="link-btn" data-fdel="${esc(f.id)}" aria-label="Delete">✕</button></div></div>`).join("")}</div>`
+      : `<div class="empty"><div class="big">Nothing logged yet</div>Log the money you put in and take out, so new money isn't counted as profit.</div>`}
+    <button class="btn primary" id="flow-add" style="margin-top:12px">Log deposit or withdrawal</button></div>`;
+}
+function openFlowModal() {
+  const ov = document.createElement("div"); ov.className = "overlay";
+  ov.innerHTML = `<div class="modal" role="dialog" aria-modal="true"><h2>Money in / out <button class="x" aria-label="Close">×</button></h2>
+    <div style="margin-bottom:16px"><div class="seg" id="f-kind"><button data-k="deposit" class="buy on">Deposit</button><button data-k="withdrawal" class="sell">Withdrawal</button></div></div>
+    <label class="field"><span>Amount ($)</span><input type="text" inputmode="decimal" enterkeyhint="done" id="f-amt" placeholder="0.00"></label>
+    <label class="field"><span>Date</span><input type="date" id="f-at" max="${todayISO()}" value="${todayISO()}"></label>
+    <label class="field"><span>Note <span class="muted">(optional)</span></span><input type="text" enterkeyhint="done" id="f-note" maxlength="300"></label>
+    <div class="err" id="f-err"></div><button class="btn primary" id="f-save" style="width:100%">Save</button></div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove(); let kind = "deposit";
+  ov.querySelector(".x").onclick = close; ov.addEventListener("click", e => { if (e.target === ov) close(); });
+  ov.querySelectorAll("#f-kind button").forEach(b => b.onclick = () => { kind = b.dataset.k; ov.querySelectorAll("#f-kind button").forEach(x => x.classList.toggle("on", x === b)); });
+  $("#f-save", ov).onclick = async () => {
+    const amount_usd = decOr0($("#f-amt", ov).value); if (!(amount_usd > 0)) return $("#f-err", ov).textContent = "Enter an amount.";
+    try { S.flows.push(await api.addFlow({ kind, amount_usd, at: new Date($("#f-at", ov).value + "T12:00:00").toISOString(), note: $("#f-note", ov).value.trim() || null })); close(); toast("Saved"); render(); }
+    catch (e) { $("#f-err", ov).textContent = e.message; }
+  };
 }
 
 /* ---------- Trade modal ---------- */

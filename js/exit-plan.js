@@ -113,10 +113,12 @@ async function viewExit(v) {
   const pf = computePortfolio(S.txs);
   let coins = exitCoins(pf, plan);
   for (const c of coins) if (!plan.coins[c.id] && c.h && c.tp) plan.coins[c.id] = { strategy: "initials", steps: presetSteps(c.tp, "initials", c.h) };
-  let dirty = false;
+  let dirty = false, lastTotal = null, lastDelta = 0;
+  // Each step's price is stored too, so the hourly TP check can ping without knowing Dkay's levels.
+  const stamp = () => { for (const [id, cp] of Object.entries(plan.coins)) { const tp = tpFor(id, cp.sym || CG.info(id)?.symbol); cp.steps.forEach(st => st.at = stepPrice(tp, st)); } };
   const save = debounce(async () => {
     if (!dirty) return;
-    try { plan.updated_at = new Date().toISOString(); S.me = await api.updateProfile(S.me.id, { exit_plan: plan }); dirty = false; paintStatus(); } catch (e) { toast("Couldn't save: " + e.message); }
+    try { stamp(); plan.updated_at = new Date().toISOString(); S.me = await api.updateProfile(S.me.id, { exit_plan: plan }); dirty = false; paintStatus(); } catch (e) { toast("Couldn't save: " + e.message); }
   }, 800);
   const touch = () => { dirty = true; paintSummary(); paintStatus(); save(); };
   const coinCard = (c) => {
@@ -167,6 +169,7 @@ async function viewExit(v) {
       <div class="card"><h2>Commit</h2>
         <div id="ex-pledges">${EXIT_PLEDGES.map(([k, t, q]) => `<label class="pledge"><input type="checkbox" data-pledge="${k}" ${plan.pledges[k] ? "checked" : ""}><span>${esc(t)}</span></label>`).join("")}</div>
         <button class="btn primary" id="ex-commit" style="margin-top:10px">Commit to my exit plan</button>
+        ${api.demo ? "" : `<label class="pledge" style="margin-top:12px"><input type="checkbox" id="ex-ping" ${S.me.tp_alerts ? "checked" : ""}><span>Ping me in Telegram when a coin hits one of my sell steps</span></label>`}
         <div class="err" id="ex-err"></div>
       </div>
     </div>
@@ -188,8 +191,10 @@ async function viewExit(v) {
     let total = 0, initialsOk = 0, held = 0;
     for (const c of coins) { const cp = plan.coins[c.id]; if (!cp || !c.h) continue; held++; const k = exitCalc(c.tp, cp, c.h); total += k.total; if (k.initialsAt != null || !c.h.cost) initialsOk++; }
     const goal = num(plan.goal);
+    if (lastTotal != null && Math.abs(total - lastTotal) > 0.005) lastDelta = total - lastTotal;
+    lastTotal = total;
     $("#ex-sum").innerHTML = `<div class="kpis" style="margin:4px 0 0">
-      <div class="card kpi"><div class="label">Plan cashes out</div><div class="value num">${fmtUsd(total, { compact: total >= 1e6 })}</div></div>
+      <div class="card kpi"><div class="label">Plan cashes out</div><div class="value num">${fmtUsd(total, { compact: total >= 1e6 })}</div>${lastDelta ? `<div class="sub num ${signCls(lastDelta)}">${signed(lastDelta)} from your last change</div>` : ""}</div>
       <div class="card kpi"><div class="label">Goal covered</div><div class="value num ${goal && total >= goal ? "good" : ""}">${goal ? Math.min(999, Math.round(total / goal * 100)) + "%" : "—"}</div><div class="sub muted">${goal ? (total >= goal ? "reached" : `${fmtUsd(goal - total)} short`) : ""}</div></div>
       <div class="card kpi"><div class="label">Initials back</div><div class="value num">${initialsOk}/${held}</div></div></div>
 `;
@@ -287,6 +292,10 @@ async function viewExit(v) {
     q.oninput = run;
   }
   $("#ex-goal").oninput = debounce(e => { plan.goal = Math.max(0, decOr0(e.target.value)) || null; touch(); }, 300);
+  $("#ex-ping") && ($("#ex-ping").onchange = async (e) => {
+    try { S.me = await api.updateProfile(S.me.id, { tp_alerts: e.target.checked }); if (e.target.checked) { touch(); toast(S.me.telegram_chat_id ? "You'll get a ping when a step is hit" : "Open the Desk from the CC bot once so it can message you"); } }
+    catch (err) { e.target.checked = !e.target.checked; toast("Couldn't save: " + err.message); }
+  });
   v.querySelectorAll("[data-pledge]").forEach(cb => cb.onchange = () => { plan.pledges[cb.dataset.pledge] = cb.checked; touch(); });
   $("#ex-commit").onclick = async () => {
     const missing = EXIT_PLEDGES.filter(([k]) => !plan.pledges[k]);
@@ -297,7 +306,7 @@ async function viewExit(v) {
     if (over.length) return $("#ex-err").textContent = `Your ${over.map(c => symOf(c.id)).join(", ")} plan sells more than 100%.`;
     if (missing.length) return $("#ex-err").textContent = `Tick all ${EXIT_PLEDGES.length} rules to commit (${missing.length} left).`;
     if (!num(plan.goal)) return $("#ex-err").textContent = "Set your money goal first.";
-    try { const now = new Date().toISOString(); plan.updated_at = now; plan.committed_at = now; S.me = await api.updateProfile(S.me.id, { exit_plan: plan }); dirty = false; paintStatus(); toast("Exit plan committed. Stick to it!"); }
+    try { stamp(); const now = new Date().toISOString(); plan.updated_at = now; plan.committed_at = now; S.me = await api.updateProfile(S.me.id, { exit_plan: plan }); dirty = false; paintStatus(); toast("Exit plan committed. Stick to it!"); }
     catch (e) { $("#ex-err").textContent = e.message; }
   };
   bind(); paintAdd(); paintSummary(); paintStatus();
