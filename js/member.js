@@ -398,7 +398,20 @@ function activeUrgent() {
   const now = Date.now();
   return (S.updates || []).filter(u => u.kind === "urgent" && (!u.expires_at || new Date(u.expires_at) > now));
 }
-function alertCount() { return activeUrgent().length + priceDrops().length; }
+// Badge counts alerts the member hasn't seen yet. Opening Market updates marks them seen (a new drop day counts as new).
+function alertKeys() { const day = todayISO(); return [...activeUrgent().map(u => "u:" + u.id), ...priceDrops().map(d => `d:${d.id}:${day}`)]; }
+function alertCount() { const seen = new Set(S.me?.alerts_seen || []); return alertKeys().filter(k => !seen.has(k)).length; }
+async function markAlertsSeen() {
+  const keys = alertKeys();
+  if (keys.every(k => (S.me.alerts_seen || []).includes(k))) return;
+  try { S.me = await api.updateProfile(S.me.id, { alerts_seen: keys }); } catch (e) { S.me.alerts_seen = keys; }
+  paintAlertBadge();
+}
+function paintAlertBadge() {
+  const a = document.querySelector('nav.tabs a[href="#updates"]'); if (!a) return;
+  a.querySelector(".badge")?.remove();
+  const n = alertCount(); if (n) a.insertAdjacentHTML("beforeend", `<span class="badge">${n}</span>`);
+}
 /** Suggested $ for an urgent bid: fill the member's gap on that coin, paid from dry powder if they have it. */
 function bidSuggestion(coinId) {
   const pf = computePortfolio(S.txs);

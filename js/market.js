@@ -84,6 +84,7 @@ async function viewUpdates(v) {
   S.updates = updates;
   let g = null; try { g = await groupTotals(); } catch (e) {}
   const urgent = activeUrgent(), drops = priceDrops(m);
+  markAlertsSeen();
   const weeklies = updates.filter(u => u.kind === "weekly");
   const latest = weeklies[0];
   const pf = computePortfolio(S.txs);
@@ -164,7 +165,7 @@ async function viewUpdates(v) {
 }
 function alertBanner() {
   const u = activeUrgent(), d = priceDrops();
-  if (!u.length && !d.length) return "";
+  if (!alertCount()) return "";
   const drop = (x) => ` ${fmtPct(x.change24)} 24h`, bid = new Set(u.map(x => symOf(x.coin_id)));
   const parts = [...u.map(x => { const dx = d.find(y => y.symbol === symOf(x.coin_id)); return `<b>${esc(symOf(x.coin_id))}</b> urgent bid from ${esc(CONFIG.REVIEWER_NAME)}${dx ? " ·" + drop(dx) : ""}`; }), ...d.filter(x => !bid.has(x.symbol)).map(x => `<b>${esc(x.symbol)}</b>${drop(x)}`)];
   return `<a href="#updates" class="alert-bar">⚡ ${parts.join(" · ")} <span style="margin-left:auto">See Market updates →</span></a>`;

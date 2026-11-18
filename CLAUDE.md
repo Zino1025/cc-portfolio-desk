@@ -29,7 +29,7 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 | `shell.js` | SHELL 1 (tabs, navigation), MEMBER: OVERVIEW 71 |
 | `trades.js` | MEMBER: TRADES 1 (export: Desk backup or Koinly tax file), money in/out 110 (`cash_flows`), trade modal 165 |
 | `trade-import.js` | Screenshot import 1, CSV import 132 |
-| `member.js` | FEEDBACK THREAD 1, PROJECTIONS 55 (incl. What if chart: past value of these coins + dashed line to target, portfolio or per coin), MEMBER: PROFILE 184, MODEL PORTFOLIO 218 (Dkay's target mix), MARKET ALERTS 325, GROUP TOTAL 354, MEMBER: REBALANCE 366 (add-only) |
+| `member.js` | FEEDBACK THREAD 1, PROJECTIONS 55 (incl. What if chart: past value of these coins + dashed line to target, portfolio or per coin), MEMBER: PROFILE 184, MODEL PORTFOLIO 218 (Dkay's target mix), MARKET ALERTS 325 (badge = unseen alerts, `profiles.alerts_seen`; opening Market updates clears it), GROUP TOTAL 354, MEMBER: REBALANCE 366 (add-only) |
 | `market.js` | ADMIN: MODEL EDITOR 1, MARKET UPDATES 81 (weekly summary + urgent bids) |
 | `exit-plan.js` | EXIT PLAN 1 (steps store their price in `st.at` for the hourly TP-hit pings) |
 | `admin.js` | ADMIN: BROADCAST 1, ADMIN DATA 83, REVIEW QUEUE 105, MEMBER DETAIL 164, GROUP INSIGHTS 312 |
