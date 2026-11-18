@@ -104,33 +104,29 @@ function rgba(hex, a) {
 }
 const signed = (v) => (num(v) > 0 ? "+" : "") + fmtUsd(v);
 const arrow = (v) => num(v) > 0 ? "▲" : num(v) < 0 ? "▼" : "";
-/** Portfolio value and money invested over the last `days`, from trades + price history.
-    whatIf: what today's holdings would have been worth at each point, including before you bought. */
-async function portfolioHistory(txs, days, whatIf = false) {
+/** Price at time t from a [[t, price], ...] series. Before the series starts (or no data): fallback, never today's price. */
+function priceAt(s, t, fallback) {
+  if (!s || !s.length || t < s[0][0] - 7 * 864e5) return fallback || s?.[0]?.[1] || 0;
+  if (t <= s[0][0]) return s[0][1];
+  let lo = 0, hi = s.length - 1;
+  while (lo < hi) { const m = (lo + hi + 1) >> 1; if (s[m][0] <= t) lo = m; else hi = m - 1; }
+  return s[lo][1];
+}
+/** Portfolio value and money invested over the last `days`, from trades + price history. */
+async function portfolioHistory(txs, days) {
   const sorted = [...txs].sort((a, b) => new Date(a.executed_at) - new Date(b.executed_at));
   if (!sorted.length) return null;
   const now = Date.now();
-  const from = whatIf ? now - days * 864e5 : Math.max(now - days * 864e5, new Date(sorted[0].executed_at).getTime());
+  const from = Math.max(now - days * 864e5, new Date(sorted[0].executed_at).getTime());
   const cur = computePortfolio(txs);
   const val = (id) => cur.holdings.find(h => h.coin_id === id)?.value || 0;
   const ids = [...new Set(sorted.map(t => t.coin_id))].sort((a, b) => val(b) - val(a)).slice(0, 12);
   const series = {}; let ok = 0;
   for (const id of ids) { try { series[id] = await CG.chart(id, days); if (series[id].length) ok++; } catch (e) {} }
   if (!ok) return null;
-  const priceAt = (id, t, fallback) => {
-    const s = series[id];
-    // No market history for this date (before the coin's chart data starts, or it failed to load):
-    // use the price of your own most recent trade in it, never today's price.
-    if (!s || !s.length || t < s[0][0] - 7 * 864e5) return fallback || s?.[0]?.[1] || CG.info(id)?.price || 0;
-    let lo = 0, hi = s.length - 1;
-    if (t <= s[0][0]) return s[0][1];
-    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (s[m][0] <= t) lo = m; else hi = m - 1; }
-    return s[lo][1];
-  };
   const N = 90, pos = {}, pts = []; let j = 0, realized = 0;
   for (let i = 0; i < N; i++) {
     const t = from + (now - from) * i / (N - 1);
-    if (whatIf) { pts.push({ t, value: cur.holdings.filter(h => ids.includes(h.coin_id)).reduce((a, h) => a + h.qty * priceAt(h.coin_id, t, h.price), 0), invested: 0, realized: 0, pnl: 0 }); continue; }
     while (j < sorted.length && new Date(sorted[j].executed_at).getTime() <= t) {
       const x = sorted[j++], h = pos[x.coin_id] ||= { qty: 0, cost: 0, last: 0 };
       const q = num(x.quantity), pr = num(x.price_usd), fee = num(x.fee_usd); h.last = pr;
@@ -138,7 +134,7 @@ async function portfolioHistory(txs, days, whatIf = false) {
       else { const sq = Math.min(q, h.qty), avg = h.qty > 0 ? h.cost / h.qty : 0; realized += sq * pr - fee - sq * avg; h.cost -= sq * avg; h.qty -= sq; if (h.qty < 1e-12) { h.qty = 0; h.cost = 0; } }
     }
     let value = 0, invested = 0; const by = {};
-    for (const [id, h] of Object.entries(pos)) { if (h.qty <= 0) continue; value += by[id] = h.qty * priceAt(id, t, h.last); invested += h.cost; }
+    for (const [id, h] of Object.entries(pos)) { if (h.qty <= 0) continue; value += by[id] = h.qty * priceAt(series[id], t, h.last || CG.info(id)?.price); invested += h.cost; }
     pts.push({ t, value, invested, realized, pnl: value - invested + realized, by });
   }
   return pts;
@@ -150,7 +146,7 @@ function heroCard(pf, chartId = "hero", flows = null) {
       <div class="chg" id="${chartId}-chg"><span class="pill ${signCls(t.change24Pct)}">${arrow(t.change24Pct)} ${fmtPct(t.change24Pct)}</span><span class="num ${signCls(t.change24Usd)}">${signed(t.change24Usd)}</span><span>today</span></div></div>
       <div class="periods" data-hero="${chartId}">${HIST_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
     <div class="periods hero-modes" data-hero-mode="${chartId}" role="tablist">
-      <button data-m="value" class="${mode === "value" ? "on" : ""}" role="tab">Holdings</button><button data-m="pnl" class="${mode === "pnl" ? "on" : ""}" role="tab">Profit / loss</button><button data-m="whatif" class="${mode === "whatif" ? "on" : ""}" role="tab">What if</button></div>
+      <button data-m="value" class="${mode === "value" ? "on" : ""}" role="tab">Holdings</button><button data-m="pnl" class="${mode === "pnl" ? "on" : ""}" role="tab">Profit / loss</button></div>
     <div class="hero-chart" id="${chartId}-chart"></div>
     <div class="hero-key"><span style="margin-left:auto" class="num" id="${chartId}-period"></span></div>
     <div class="hero-stats">
@@ -161,8 +157,7 @@ function heroCard(pf, chartId = "hero", flows = null) {
 }
 /* Portfolio chart, two views (like CoinGecko's portfolio):
    Holdings = what your coins were actually worth each day (quantity held × that day's price).
-   Profit / loss = realized gains from sells + unrealized gain on what you still hold, at each point in time.
-   What if = today's coins at each past date's price, even before you bought them. */
+   Profit / loss = realized gains from sells + unrealized gain on what you still hold, at each point in time. */
 async function paintHero(txs, chartId = "hero") {
   const box = document.getElementById(chartId + "-chart"); if (!box) return;
   const days = S.histDays || 30, mode = S.heroMode || "value", tok = (S.heroTok = (S.heroTok || 0) + 1);
@@ -177,7 +172,7 @@ async function paintHero(txs, chartId = "hero") {
     paintHero(txs, chartId);
   });
   if (!S.charts[chartId]) box.innerHTML = `<div class="note">Loading chart…</div>`;
-  const whatIf = mode === "whatif", pts = await portfolioHistory(txs, days, whatIf).catch(() => null);
+  const pts = await portfolioHistory(txs, days).catch(() => null);
   if (pts && pts.length) {   // end on the live numbers shown above
     const tot = computePortfolio(txs).totals, z = pts[pts.length - 1];
     if (tot.value > 0) pts[pts.length - 1] = { ...z, t: Date.now(), value: tot.value, invested: tot.cost, realized: tot.realized, pnl: tot.value - tot.cost + tot.realized };
@@ -190,10 +185,7 @@ async function paintHero(txs, chartId = "hero") {
   const a = pts[0], z = pts[pts.length - 1], label = HIST_PERIODS.find(x => x[0] === days)?.[1] || "";
   const pnl = mode === "pnl", ys = pts.map(p => pnl ? p.pnl : p.value);
   let col;
-  if (whatIf) {
-    const gain = z.value - a.value; col = cssVar(gain < 0 ? "--bad" : "--good");
-    if (per) per.innerHTML = `Today's coins, held for ${label}: <span class="${signCls(gain)}">${signed(gain)}${a.value > 0 ? ` (${fmtPct(gain / a.value * 100)})` : ""}</span>`;
-  } else if (pnl) {
+  if (pnl) {
     col = cssVar(z.pnl < 0 ? "--bad" : "--good");
     if (per) per.innerHTML = `<span class="${signCls(z.pnl)}">${signed(z.pnl)}</span> · ${signed(z.pnl - a.pnl)} in ${label}`;
   } else {
@@ -216,8 +208,8 @@ async function paintHero(txs, chartId = "hero") {
   const onScrub = (i) => {
     if (!head[1]) return;
     if (i == null) return head.forEach((e, k) => e && (e.innerHTML = live[k]));
-    const p = pts[i], d = whatIf ? p.value - a.value : p.pnl - a.pnl, base = a.value + Math.max(0, p.invested - a.invested);
-    head[0].textContent = pnl ? "Profit / loss" : whatIf ? "Today's coins back then" : "Portfolio value";
+    const p = pts[i], d = p.pnl - a.pnl, base = a.value + Math.max(0, p.invested - a.invested);
+    head[0].textContent = pnl ? "Profit / loss" : "Portfolio value";
     head[1].textContent = pnl ? signed(p.pnl) : fmtUsd(p.value);
     head[2].innerHTML = `${base > 0 ? `<span class="pill ${signCls(d)}">${arrow(d)} ${fmtPct(d / base * 100)}</span>` : ""}<span class="num ${signCls(d)}">${signed(d)}</span><span>${fmtT(p.t)}</span>`;
   };

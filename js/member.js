@@ -126,6 +126,7 @@ async function viewProjections(v) {
       </div>
     </div>
     <div id="pj-kpis"></div>
+    <div id="pj-wi"></div>
     <div class="card" style="margin-bottom:16px"><h2>Coins</h2><div id="pj-table"></div></div>
     <div id="pj-chart" style="max-width:440px"></div>`;
   const rerender = () => paintProj();
@@ -191,6 +192,50 @@ function paintProj() {
     commit();
   });
   tbl.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { S.proj.rows = rows.filter(x => x.id !== b.dataset.rm); paintProj(); });
+  paintWhatIf(rows, calcs);
+}
+/* What if: these coins (amounts from the table) at past prices, then a dashed line to the projected value. Whole portfolio or one coin. */
+async function paintWhatIf(rows, calcs) {
+  const box = $("#pj-wi"); if (!box) return;
+  const tok = (S.wiTok = (S.wiTok || 0) + 1), ids = [...new Set(rows.map(r => r.coin_id))];
+  if (!ids.length) { box.innerHTML = ""; return; }
+  if (S.proj.scope !== "all" && !ids.includes(S.proj.scope)) S.proj.scope = "all";
+  const scope = S.proj.scope, days = S.proj.days ||= 365, label = HIST_PERIODS.find(x => x[0] === days)?.[1] || "";
+  const pick = rows.map((r, i) => [r, calcs[i]]).filter(([r, c]) => c.qty > 0 && (scope === "all" || r.coin_id === scope));
+  const proj = pick.reduce((a, [, c]) => a + c.valueProj, 0), nowV = pick.reduce((a, [, c]) => a + c.valueNow, 0);
+  if (!box.querySelector(".hero")) box.innerHTML = `<div class="card hero" style="margin-bottom:16px">
+    <div class="hero-head"><div><div class="label" id="wi-label">What if</div><div class="big num" id="wi-big"></div><div class="chg" id="wi-chg"></div></div>
+      <div class="periods" id="wi-days">${HIST_PERIODS.map(([d, l]) => `<button data-d="${d}">${l}</button>`).join("")}</div></div>
+    <div class="chips" id="wi-scope" style="margin:14px 0 2px"></div>
+    <div class="hero-chart" id="wi-chart"><div class="note">Loading chart…</div></div></div>`;
+  box.querySelectorAll("#wi-days button").forEach(b => { b.classList.toggle("on", +b.dataset.d === days); b.onclick = () => { S.proj.days = +b.dataset.d; paintWhatIf(rows, calcs); }; });
+  $("#wi-scope").innerHTML = [["all", "Portfolio"], ...ids.map(id => [id, symOf(id)])].map(([k, l]) => `<button class="chip ${scope === k ? "on" : ""}" data-sc="${esc(k)}">${esc(l)}</button>`).join("");
+  box.querySelectorAll("[data-sc]").forEach(b => b.onclick = () => { S.proj.scope = b.dataset.sc; paintWhatIf(rows, calcs); });
+  const series = {};
+  await Promise.all(pick.map(async ([r]) => { try { series[r.coin_id] = await CG.chart(r.coin_id, days); } catch (e) {} }));
+  if (tok !== S.wiTok || !box.isConnected) return;
+  if (S.charts.wi) { S.charts.wi.destroy(); delete S.charts.wi; }
+  const chart = $("#wi-chart"), N = 60, now = Date.now(), from = now - days * 864e5;
+  if (!pick.length || !Object.values(series).some(x => x && x.length)) { chart.innerHTML = `<div class="note">${pick.length ? "Couldn't load price history. Try again in a minute." : "Add an amount to see this."}</div>`; return; }
+  const pts = Array.from({ length: N }, (_, i) => { const t = from + (now - from) * i / (N - 1); return { t, v: pick.reduce((a, [r, c]) => a + c.qty * priceAt(series[r.coin_id], t, c.now), 0) }; });
+  pts[N - 1].v = nowV;
+  const a = pts[0].v, col = cssVar(nowV < a ? "--bad" : "--good"), pcol = cssVar(proj < nowV ? "--bad" : "--good");
+  const fmtT = (t) => new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric", year: days > 90 ? "2-digit" : undefined });
+  const head = (lbl, v, d, base, when) => { $("#wi-label").textContent = lbl; $("#wi-big").textContent = fmtUsd(v); $("#wi-chg").innerHTML = `${base > 0 ? `<span class="pill ${signCls(d)}">${arrow(d)} ${fmtPct(d / base * 100)}</span>` : ""}<span class="num ${signCls(d)}">${signed(d)}</span><span>${when}</span>`; };
+  const live = () => head("Projected", proj, proj - nowV, nowV, "vs today");
+  live();
+  chart.innerHTML = `<canvas id="wi-cv" role="img" aria-label="Past value and projected value"></canvas>`;
+  const scales = readableScales(pts.map(p => p.t), days, compactUsd);
+  scales.x.ticks.callback = (v, i) => i === N ? "Target" : new Date(pts[i].t).toLocaleDateString(undefined, days <= 7 ? { weekday: "short" } : days <= 90 ? { month: "short", day: "numeric" } : { month: "short", year: "2-digit" });
+  const onScrub = (i) => i == null || i === N ? live() : head(scope === "all" ? "These coins back then" : symOf(scope) + " back then", pts[i].v, nowV - pts[i].v, pts[i].v, `to today · ${fmtT(pts[i].t)}`);
+  S.charts.wi = new Chart($("#wi-cv"), {
+    type: "line", plugins: [scrubPlugin],
+    data: { labels: [...pts.map(p => p.t), "Target"], datasets: [
+      { data: [...pts.map(p => p.v), null], borderColor: col, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, tension: 0.35, fill: false },
+      { data: [...Array(N - 1).fill(null), nowV, proj], borderColor: pcol, borderDash: [6, 5], borderWidth: 2.5, pointRadius: [...Array(N).fill(0), 5], pointBackgroundColor: pcol, pointHoverRadius: 5, fill: false } ] },
+    options: { ...scrubOptions(onScrub), animation: { duration: 300 }, layout: { padding: { left: 2, right: 8, top: 8 } }, scales, plugins: { legend: { display: false }, tooltip: { enabled: false } } },
+  });
+  scrubEnd(S.charts.wi, onScrub);
 }
 function paintProjKeepFocus() {
   const a = document.activeElement, rowId = a?.closest?.("tr")?.dataset.row, f = a?.dataset?.f, pos = a?.selectionStart;
