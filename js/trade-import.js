@@ -131,7 +131,7 @@ async function convertPaidTrades(rows) {
 
 /* ---------- CSV import ---------- */
 // Parsed in the browser, then goes through the same coin matching and confirm step as screenshots.
-// Accepts our own "Export CSV" file, CoinGecko/exchange exports, or a simple sheet: coin, quantity, buy price, date.
+// Accepts our own export (Delta format), Delta, CoinStats, CoinTracker, Koinly/Coinpanda, CoinTracking, or a simple sheet: coin, quantity, buy price, date.
 function parseCsvText(text) {
   text = String(text || "").replace(/^﻿/, "");
   const first = text.split(/\r?\n/).find(l => l.trim()) || "";
@@ -148,64 +148,107 @@ function parseCsvText(text) {
   if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
   return rows.map(r => r.map(c => c.trim())).filter(r => r.some(c => c));
 }
+// Column names used by Delta, CoinStats, CoinTracker, Koinly/Coinpanda, CoinTracking and simple sheets (lowercased, letters/digits only).
 const CSV_COLS = {
   coin_id: ["coinid", "coingeckoid", "id", "apiid"],
-  symbol: ["symbol", "ticker", "asset", "token", "currency"],
+  symbol: ["symbol", "coinsymbol", "ticker", "basecurrencyname", "basecurrency", "asset", "token", "currency"],
   name: ["name", "coinname", "assetname", "tokenname"],
   coin: ["coin", "crypto", "cryptocurrency"],
-  quantity: ["quantity", "qty", "amount", "holdings", "balance", "units", "coins", "size"],
+  quantity: ["quantity", "baseamount", "qty", "amount", "holdings", "balance", "units", "coins", "size"],
   price: ["priceusd", "price", "buyprice", "avgbuyprice", "averagebuyprice", "avgprice", "averageprice", "costpercoin", "pricepercoin", "entryprice", "entry", "avgcost"],
-  total: ["totalusd", "total", "cost", "totalcost", "costbasis", "invested", "totalspent", "spent"],
+  total: ["totalusd", "quoteamount", "total", "cost", "totalcost", "costbasis", "invested", "totalspent", "spent"],
+  quote: ["quotecurrency", "pair", "quoteasset", "pricecurrency"],
   value: ["value", "valueusd", "currentvalue"],
   date: ["executedat", "date", "datetime", "time", "timestamp", "dateutc", "buydate", "purchasedate", "bought"],
-  side: ["side", "type", "action", "transactiontype"],
-  fee: ["feeusd", "fee", "fees"],
+  side: ["side", "way", "type", "action", "transactiontype", "tag", "label"],
+  basetype: ["basetype", "assettype", "assetclass"],
+  in_qty: ["receivedquantity", "receivedamount", "buyamount", "inamount", "incomingamount"],
+  in_cur: ["receivedcurrency", "buycurrency", "incurrency", "incomingcurrency"],
+  out_qty: ["sentquantity", "sentamount", "sellamount", "outamount", "outgoingamount"],
+  out_cur: ["sentcurrency", "sellcurrency", "outcurrency", "outgoingcurrency"],
+  fee: ["feeusd", "feeamount", "fee", "fees"],
+  fee_cur: ["feecurrencyname", "feecurrency", "feeasset", "feecoin"],
   exchange: ["exchange", "wallet", "platform"],
-  note: ["note", "notes", "memo"],
+  note: ["note", "notes", "memo", "comment", "description"],
 };
-function csvDate(s) {
-  s = String(s || "").trim(); if (!s) return null;
+const CSV_FIAT = /^(USD|EUR|GBP|CAD|AUD|NZD|CHF|JPY|SGD|HKD|INR|KRW|BRL|TRY|NGN|ZAR|MXN|SEK|NOK|DKK|PLN)$/;
+const csvUsd = (s) => s === "USD" || IMPORT_STABLES.has(s);
+// "SOL (Solana)" → SOL + Solana; "PAAL" → ticker; "Paal AI" → name.
+function csvCur(s) {
+  s = String(s || "").trim(); const m = s.match(/^\$?([^()\s]+)\s*\((.+)\)$/);
+  if (m) return { symbol: m[1].toUpperCase(), name: m[2].trim() };
+  return /^\$?[A-Za-z0-9.]{1,10}$/.test(s) ? { symbol: s.replace(/^\$/, "").toUpperCase(), name: "" } : { symbol: "", name: s };
+}
+// → [YYYY-MM-DD, HH:MM | null] in local time. Timestamps with a zone (Z, +02:00, UTC) are converted.
+function csvWhen(s) {
+  s = String(s || "").trim(); if (!s) return [null, null];
+  const p2 = (v) => String(v).padStart(2, "0"), local = (x) => [`${x.getFullYear()}-${p2(x.getMonth() + 1)}-${p2(x.getDate())}`, `${p2(x.getHours())}:${p2(x.getMinutes())}`];
+  if (/\d:\d\d(:\d\d(\.\d+)?)?\s*(Z|[+-]\d\d:?\d\d|UTC|GMT)$/i.test(s)) { const x = new Date(s.replace(/\s*UTC$/i, "Z")); if (!Number.isNaN(+x)) return local(x); }
+  const tm = s.match(/[ T](\d{1,2}):(\d\d)/), time = tm ? `${p2(tm[1])}:${tm[2]}` : null;
   let m = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
-  if (m) return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
-  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+  if (m) return [`${m[1]}-${p2(m[2])}-${p2(m[3])}`, time];
+  m = s.match(/^(\d{1,2})([-/.])(\d{1,2})[-/.](\d{2,4})/);
   if (m) {
-    let [a, b, y] = [+m[1], +m[2], m[3].length === 2 ? "20" + m[3] : m[3]];
-    const [mo, d] = a > 12 ? [b, a] : [a, b];   // 25/03/2024 → day first; otherwise month first
-    return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const [a, b, y] = [+m[1], +m[3], m[4].length === 2 ? "20" + m[4] : m[4]];
+    const [mo, d] = a > 12 || (m[2] === "." && b <= 12) ? [b, a] : [a, b];   // 25/03/2024 and 04.10.2018 → day first; otherwise month first
+    return [`${y}-${p2(mo)}-${p2(d)}`, time];
   }
-  const t = Date.parse(s); if (Number.isNaN(t)) return null;
-  const x = new Date(t); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+  const x = new Date(s); return Number.isNaN(+x) ? [null, null] : local(x);
 }
 function csvToImport(text) {
-  const grid = parseCsvText(text);
-  if (grid.length < 2) throw new Error("That CSV looks empty. It needs a header row and at least one coin.");
-  const head = grid[0].map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ""));
-  const col = {}; for (const [k, names] of Object.entries(CSV_COLS)) { const i = names.map(n => head.indexOf(n)).find(i => i >= 0); if (i != null) col[k] = i; }
-  if (col.quantity == null) throw new Error("Couldn't find a quantity column. Name it \"quantity\" (or use the template).");
-  if (col.coin_id == null && col.symbol == null && col.name == null && col.coin == null) throw new Error("Couldn't find a coin column. Name it \"coin\" (ticker or name), or use the template.");
+  const grid = parseCsvText(text), norm = (h) => h.toLowerCase().replace(/[^a-z0-9]/g, "");
+  let col, h = -1;
+  // Header = first row with a coin and an amount column (skips Delta's instruction lines).
+  while (++h < Math.min(grid.length, 40)) {
+    const head = grid[h].map(norm);
+    head.forEach((x, i) => { if (x === "cur" && i) { const b = head[i - 1].replace(/(amount|quantity)$/, ""); head[i - 1] = b + "amount"; head[i] = b + "currency"; } });   // CoinTracking: Buy, Cur., Sell, Cur.
+    col = {}; for (const [k, names] of Object.entries(CSV_COLS)) { const i = names.map(n => head.indexOf(n)).find(i => i >= 0); if (i != null) col[k] = i; }
+    if ((col.quantity != null && (col.coin_id ?? col.symbol ?? col.name ?? col.coin) != null) || (col.in_qty ?? col.out_qty) != null) break;
+  }
+  if (h >= Math.min(grid.length, 40)) throw new Error("Couldn't find the coin and quantity columns. Use the template, or a Delta, CoinStats, CoinTracker or Koinly export.");
   const get = (r, k) => col[k] != null ? (r[col[k]] ?? "").trim() : "";
   const n = (v) => { const x = dec(v); return v !== "" && Number.isFinite(x) ? Math.abs(x) : null; };
-  const warnings = []; let skipped = 0;
-  const items = grid.slice(1).map(r => {
-    let symbol = get(r, "symbol"), name = get(r, "name");
-    const coin = get(r, "coin");
-    if (coin) { if (/^\$?[A-Z0-9.]{1,10}$/.test(coin) && !symbol) symbol = coin.replace(/^\$/, ""); else if (!name) name = coin; }
-    const quantity = n(get(r, "quantity")), total = n(get(r, "total"));
-    let price = n(get(r, "price")); if (price == null && total != null && quantity) price = total / quantity;
-    const sideRaw = get(r, "side");
-    return { name, symbol: symbol.toUpperCase(), coingecko_id_guess: get(r, "coin_id").toLowerCase() || null, quantity, price, value: n(get(r, "value")),
-      date: csvDate(get(r, "date")), side: /sell/i.test(sideRaw) ? "sell" : "buy", fee: n(get(r, "fee")) || 0, exchange: get(r, "exchange") || null, note: get(r, "note") || null };
-  }).filter(x => { const ok = (x.name || x.symbol || x.coingecko_id_guess) && x.quantity > 0; if (!ok) skipped++; return ok; });
-  if (skipped) warnings.push(`${skipped} row${skipped === 1 ? " was" : "s were"} skipped (no coin or no quantity).`);
+  const warnings = [], items = []; let skipped = 0;
+  for (const r of grid.slice(h + 1)) {
+    const way = get(r, "side").toLowerCase(), [date, time] = csvWhen(get(r, "date"));
+    if ((get(r, "basetype") && !/crypto/i.test(get(r, "basetype"))) || /transfer|dividend/.test(way)) { skipped++; continue; }
+    let inL = null, outL = null;
+    if ((col.in_qty ?? col.out_qty) != null) {   // received / sent columns
+      const leg = (q, c) => n(get(r, q)) && get(r, c) ? { qty: n(get(r, q)), ...csvCur(get(r, c)) } : null;
+      inL = leg("in_qty", "in_cur"); outL = leg("out_qty", "out_cur");
+    } else {   // one coin per row (+ optional quote currency, e.g. Delta "Quote currency", CoinStats "Pair")
+      const coin = { qty: n(get(r, "quantity")), ...csvCur(get(r, "symbol") || get(r, "coin")) };
+      if (get(r, "name")) coin.name = get(r, "name");
+      coin.id = get(r, "coin_id").toLowerCase() || null;
+      const qcur = csvCur(get(r, "quote") || "USD").symbol || "USD", price = n(get(r, "price"));
+      const qty = n(get(r, "total")) ?? (price != null && coin.qty ? price * coin.qty : null);
+      const quote = qty != null ? { qty, symbol: qcur, name: "" } : null;
+      if (/sell|withdraw|send|sent/.test(way)) { outL = coin; inL = quote; }
+      else if (/deposit|receive|airdrop|reward|staking|income/.test(way)) inL = coin;
+      else { inL = coin; outL = quote; }
+    }
+    const fee = !get(r, "fee_cur") || csvUsd(csvCur(get(r, "fee_cur")).symbol) ? n(get(r, "fee")) || 0 : 0;
+    const before = items.length;
+    for (const [c, other, side] of [[inL, outL, "buy"], [outL, inL, "sell"]]) {
+      if (!c || !c.qty || CSV_FIAT.test(c.symbol) || (IMPORT_STABLES.has(c.symbol) && other)) continue;
+      const usd = other && csvUsd(other.symbol);
+      items.push({ name: c.name, symbol: c.symbol, coingecko_id_guess: c.id || null, quantity: c.qty, price: usd ? other.qty / c.qty : null,
+        paid: other && !usd ? { amount: other.qty, currency: other.symbol } : null, value: n(get(r, "value")), date, time, side,
+        fee: items.length === before ? fee : 0, exchange: get(r, "exchange") || null, note: get(r, "note") || null });
+    }
+    if (items.length === before) skipped++;
+  }
+  if (skipped) warnings.push(`${skipped} row${skipped === 1 ? " was" : "s were"} skipped (transfers, cash, stocks, or no coin/quantity).`);
   if (!items.length) throw new Error("No coins with a quantity found in that CSV.");
-  const dated = items.filter(x => x.date).length;
-  if (col.date != null && dated >= items.length * 0.8) {
-    return { source_app: "CSV", warnings, trades: items.map(x => ({ ...x, price_usd: x.price, total_usd: null, paid: null })) };
+  if (col.date != null && items.filter(x => x.date).length >= items.length * 0.8) {
+    return { source_app: "CSV", warnings, trades: items.map(x => ({ ...x, price_usd: x.price, total_usd: null })) };
   }
   return { source_app: "CSV", warnings, holdings: items.map(x => ({ ...x, avg_buy_price: x.price, current_price: null })) };
 }
+// Same columns as Delta's CSV import, so files move between Delta and the desk both ways.
+const CSV_HEAD = "Date,Way,Base amount,Base currency (name),Base type,Quote amount,Quote currency,Exchange,Sent/Received from,Sent to,Fee amount,Fee currency (name),Broker,Notes";
 function downloadCsvTemplate() {
-  saveCsv("coin,quantity,buy_price,date\nBTC,0.05,62000,2024-03-10\nPAAL,100000,0.12,2024-05-02\n", "cc-portfolio-template.csv");
+  saveCsv(`${CSV_HEAD}\n2024-03-10 14:30:00,BUY,0.05,BTC (Bitcoin),CRYPTO,3100,USD,Coinbase,,,,,,\n2024-05-02 09:15:00,BUY,100000,PAAL (PAAL AI),CRYPTO,12000,USD,MEXC,,,10,USD,,\n`, "cc-portfolio-template.csv");
 }
 
 function openImportModal() {
@@ -241,7 +284,7 @@ function openImportModal() {
       <label class="btn primary" style="display:flex;justify-content:center;cursor:pointer">Choose screenshots<input type="file" id="imp-file" accept="image/*" multiple style="display:none"></label>
       <div style="display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:var(--text-muted);font-size:12px"><span style="flex:1;border-top:1px solid var(--grid)"></span>or<span style="flex:1;border-top:1px solid var(--grid)"></span></div>
       <label class="btn" style="display:flex;justify-content:center;cursor:pointer">Upload a CSV file<input type="file" id="imp-csv" accept=".csv,text/csv,.txt,text/plain" style="display:none"></label>
-      <div class="hint">Columns: coin, quantity, buy price, date. <button class="link-btn" type="button" id="imp-tpl" style="font-size:12px">Download template</button></div>
+      <div class="hint">Delta, CoinStats, CoinTracker or Koinly files work. <button class="link-btn" type="button" id="imp-tpl" style="font-size:12px">Download template</button></div>
       <div class="err" id="imp-err">${esc(msg)}</div>`;
     $("#imp-file", ov).onchange = (e) => { const files = [...e.target.files]; if (files.length) run(files); };
     $("#imp-csv", ov).onchange = (e) => { const f = e.target.files[0]; if (f) runCsv(f); };
@@ -259,7 +302,7 @@ function openImportModal() {
     const status = (t) => body.innerHTML = `<div class="spinner"></div><p class="secondary" style="text-align:center">${t}</p>`;
     mode = (result.trades || []).length ? "trades" : "holdings";
     rows = mode === "trades"
-      ? result.trades.map(t => ({ name: t.name, symbol: t.symbol, quantity: t.quantity, avg_buy_price: t.price_usd, total_usd: t.total_usd, current_price: null, coingecko_id_guess: t.coingecko_id_guess, side: t.side, date: t.date, paid: t.paid || null, fee: t.fee, exchange: t.exchange, note: t.note, include: true }))
+      ? result.trades.map(t => ({ name: t.name, symbol: t.symbol, quantity: t.quantity, avg_buy_price: t.price_usd, total_usd: t.total_usd, current_price: null, coingecko_id_guess: t.coingecko_id_guess, side: t.side, date: t.date, time: t.time, paid: t.paid || null, fee: t.fee, exchange: t.exchange, note: t.note, include: true }))
       : (result.holdings || []).map(h => ({ ...h, include: true }));
     if (!rows.length) throw new Error((result.warnings || [])[0] || "No holdings found in that screenshot. Try one that shows your coin list with amounts.");
     status("Matching coins on CoinGecko…");
@@ -402,9 +445,8 @@ function openImportModal() {
       let at = when ? new Date(when) : null;
       if (mode === "trades") {
         if (!r.date) return err.textContent = `Enter the date for the ${label} ${r.side} of ${fmtQty(q)}.`;
-        at = new Date(r.date + "T12:00");
+        at = new Date(`${r.date}T${r.time || "12:00"}`);
         if (at > new Date(Date.now() + 86400000)) return err.textContent = `The ${label} trade on ${r.date} is in the future.`;
-        if (p == null) return err.textContent = `Enter the price for the ${label} ${r.side} on ${r.date}.`;
       }
       if (p == null) { p = await CG.historical(r.match.id, at || Date.now()).catch(() => null); usedToday = true; if (!(p > 0)) return err.textContent = `No price found for ${label} on that date. Enter its buy price.`; }
       out.push({ coin_id: r.match.id, symbol: r.match.symbol, name: r.match.name, side: mode === "trades" ? r.side : "buy", quantity: q, price_usd: p, fee_usd: num(r.fee),

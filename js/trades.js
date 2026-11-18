@@ -87,9 +87,10 @@ async function viewTrades(v) {
   }));
 }
 function exportCsv() {
-  const head = ["executed_at","side","coin_id","symbol","name","quantity","price_usd","fee_usd","exchange","note"];
   const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  saveCsv([head.join(","), ...S.txs.map(t => head.map(k => q(t[k])).join(","))].join("\n"), "cc-portfolio-trades.csv");
+  const rows = S.txs.map(t => [new Date(t.executed_at).toISOString(), t.side.toUpperCase(), t.quantity, `${String(t.symbol || "").toUpperCase()} (${t.name || ""})`, "CRYPTO",
+    +(num(t.quantity) * num(t.price_usd)).toFixed(8), "USD", t.exchange, "", "", num(t.fee_usd) || "", num(t.fee_usd) ? "USD" : "", "", t.note].map(q).join(","));
+  saveCsv([CSV_HEAD, ...rows].join("\n"), "cc-portfolio-trades.csv");
 }
 
 /* ---------- Trade modal ---------- */
