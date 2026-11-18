@@ -183,7 +183,7 @@ function openTradeModal(existing, presetCoinId) {
       if (!existing) prefillPrice();
       return;
     }
-    slot.innerHTML = `<div class="search-wrap"><input type="search" id="coin-q" placeholder="Search coin" autocomplete="off"><div class="dropdown hidden" id="coin-dd"></div></div>`;
+    slot.innerHTML = `<div class="search-wrap"><input type="search" id="coin-q" placeholder="Search coin…" autocomplete="off"><div class="dropdown hidden" id="coin-dd"></div></div>`;
     const q = $("#coin-q", ov); q.focus();
     coinSearch(q, $("#coin-dd", ov), (c) => { coin = c; paintCoin(); }, { none: "No coins found. Try the ticker or paste the CoinGecko page link." });
   }

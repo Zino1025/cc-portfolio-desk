@@ -91,7 +91,7 @@ function projRowCalc(r) {
   return { now, qty, cost, target, valueNow, valueProj, gainVsNow: valueProj - valueNow, profit: valueProj - cost, roi: cost > 0 ? (valueProj - cost) / cost * 100 : 0, mult: now > 0 ? target / now : 0, mcapAtTarget: mcap && now > 0 ? mcap * target / now : null };
 }
 function openCoinPicker(onPick) {
-  const { ov, close } = openModal(`<div class="search-wrap"><input type="search" id="pick-q" placeholder="Search coin" autocomplete="off"><div class="dropdown hidden" id="pick-dd"></div></div>`, { title: "Add a coin" });
+  const { ov, close } = openModal(`<div class="search-wrap"><input type="search" id="pick-q" placeholder="Search coin…" autocomplete="off"><div class="dropdown hidden" id="pick-dd"></div></div>`, { title: "Add a coin" });
   const q = $("#pick-q", ov); q.focus();
   coinSearch(q, $("#pick-dd", ov), (c) => { close(); onPick(c); });
 }
@@ -236,7 +236,7 @@ async function viewProfile(v) {
     <div class="page-head"><div><h1>Profile</h1></div></div>
     <div class="card" style="max-width:560px">
       <label class="field"><span>Display name</span><input type="text" id="p-name" maxlength="60" value="${esc(p.display_name || "")}"></label>
-      <label class="field"><span>Telegram handle</span><input type="text" id="p-tg" maxlength="40" value="${esc(p.telegram_handle || "")}" placeholder="@yourhandle"></label>
+      <label class="field"><span>Telegram handle</span><input type="text" id="p-tg" maxlength="40" autocapitalize="off" spellcheck="false" value="${esc(p.telegram_handle || "")}" placeholder="@yourhandle"></label>
       <div class="secondary" style="font-size:13px;margin:-4px 0 12px">${p.telegram_chat_id ? "Telegram notifications on" : "Telegram notifications off. Open the app from the CC bot to turn them on."}</div>
       <label class="field"><span>Risk appetite</span><select id="p-risk" class="as-seg">${["", "low", "medium", "high", "degen"].map(r => `<option value="${r}" ${p.risk_level === r || (!p.risk_level && !r) ? "selected" : ""}>${r ? r[0].toUpperCase() + r.slice(1) : "Choose…"}</option>`).join("")}</select></label>
       <label class="field"><span>Date you joined ${esc(CONFIG.GROUP_NAME)} <span class="muted">(optional)</span></span><input type="date" id="p-joined" max="${todayISO()}" value="${esc(p.cc_joined_on || "")}"></label>

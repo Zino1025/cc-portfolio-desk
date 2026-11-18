@@ -70,7 +70,7 @@ async function saveFile(content, filename) {
   a.href = png ? content : URL.createObjectURL(new Blob(["\ufeff" + content], { type: "text/csv" }));
   a.download = filename; a.click();
 }
-function toast(msg) { document.querySelector(".toast")?.remove(); const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
+function toast(msg) { document.querySelector(".toast")?.remove(); const t = document.createElement("div"); t.className = "toast"; t.setAttribute("role", "status"); t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const fmtDay = (d) => new Date(d).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });

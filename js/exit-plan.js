@@ -177,7 +177,7 @@ async function viewExit(v) {
     <div class="grid" id="ex-coins">${coins.map(coinCard).join("")}</div>
     <div class="card" style="margin-top:16px"><h2>Add a coin</h2>
       <div class="add-coin"><select id="ex-add-sel" aria-label="Coin with ${esc(CONFIG.REVIEWER_NAME)}'s targets"></select><button class="btn" id="ex-add-btn">Add</button></div>
-      <div class="search-wrap" style="margin-top:10px"><input type="search" id="ex-add-q" placeholder="Search coin" autocomplete="off"><div class="dropdown hidden" id="ex-add-dd"></div></div>
+      <div class="search-wrap" style="margin-top:10px"><input type="search" id="ex-add-q" placeholder="Search coin…" autocomplete="off"><div class="dropdown hidden" id="ex-add-dd"></div></div>
     </div>
     ${getTps().some(t => !t.main) ? `<div class="card" style="margin-top:16px"><h2>Other coins ${esc(CONFIG.REVIEWER_NAME)} has targets for</h2><div class="secondary" style="font-size:13px">${getTps().filter(t => !t.main).map(t => `${esc(t.sym)}: ${tpLevels(t).filter(l => l.k !== "mid").map(l => fmtPrice(l.price)).join(" / ")}`).join(" · ")}</div><div class="hint">Not part of the main five. They show up above if you hold or add them.</div></div>` : ""}`;
   const paintStatus = () => {

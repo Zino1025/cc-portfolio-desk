@@ -139,7 +139,7 @@ async function viewUpdates(v) {
   $("#w-draft").onclick = () => {
     const lines = coinRows.map(({ id, i }) => `• ${symOf(id)}: ${fmtPrice(i.price)} (${i.change7 == null ? "n/a" : fmtPct(i.change7)} 7d, ${fmtPct(i.change24)} 24h)`);
     const ta = $("#w-body");
-    ta.value = (ta.value ? ta.value + "\n\n" : "") + `Model coins this week:\n${lines.join("\n")}` + (g ? `\n\nGroup total: ${fmtUsd(g.value)} across ${g.members} members (${fmtPct(g.change24Pct)} 24h).` : "") + `\n\nMy take:\n`;
+    ta.value = (ta.value ? ta.value + "\n\n" : "") + `Model coins this week:\n${lines.join("\n")}` + (g ? `\n\nGroup total: ${fmtUsd(g.value)} across ${plural(g.members, "member")} (${fmtPct(g.change24Pct)} 24h).` : "") + `\n\nMy take:\n`;
     ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
   };
   ATT.bind("att-weekly"); ATT.bind("att-urgent");

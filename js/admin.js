@@ -21,7 +21,7 @@ function openBroadcast() {
   const { ov, close } = openModal(`
     <label class="field"><span>Send to</span><select id="bc-aud">${AUD.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join("")}</select></label>
     <label class="field hidden" id="bc-coin-wrap"><span>Coin</span><select id="bc-coin">${coinList.map((c, i) => `${i === big.length && i ? `<option disabled>──────────</option>` : ""}<option value="${esc(c.id)}">${big.includes(c.id) ? "★ " : ""}${esc(c.symbol)} · ${plural(c.n, "holder")}</option>`).join("")}</select></label>
-    <div class="hidden" id="bc-pick" style="margin-bottom:12px"><input type="search" id="bc-q" placeholder="Search members" style="margin-bottom:6px">
+    <div class="hidden" id="bc-pick" style="margin-bottom:12px"><input type="search" id="bc-q" placeholder="Search members…" style="margin-bottom:6px">
       <div id="bc-list" style="max-height:200px;overflow-y:auto;border-radius:9px;padding:4px 8px"></div></div>
     <label class="field"><span>Type</span><select id="bc-kind" class="as-seg"><option value="note">Note</option><option value="suggestion">Suggestion</option></select></label>
     <label class="field"><span>Message</span><textarea id="bc-body" rows="6" maxlength="4000" placeholder="Hey {name}, quick heads-up…"></textarea></label>
@@ -114,7 +114,7 @@ async function viewMembers(v) {
     </div>
     <div class="card">
       <div class="toolbar">
-        <input type="search" id="mq" placeholder="Search name or @handle" value="${esc(S.memberQuery)}">
+        <input type="search" id="mq" placeholder="Search name or @handle…" value="${esc(S.memberQuery)}">
         <div class="chips" id="mf">${[["all","All"],["requested","Requested"],["unanswered","Unanswered"],["stale","Not reviewed 30d"],["concentrated","Concentrated 50%+"]].map(([k,l]) => `<button class="chip ${S.memberFilter === k ? "on" : ""}" data-f="${k}">${l}</button>`).join("")}</div>
         <select id="ms">${[["review","Sort: requests first"],["value","Sort: value"],["pnl","Sort: P&L %"],["activity","Sort: recent activity"]].map(([k,l]) => `<option value="${k}" ${S.memberSort === k ? "selected" : ""}>${l}</option>`).join("")}</select>
       </div>
@@ -320,7 +320,7 @@ async function viewInsights(v) {
       <div class="card kpi"><div class="label">All members, total value</div><div class="value num">${fmtUsd(t.value)}</div><div class="sub num ${signCls(t.chg)}">${fmtUsd(t.chg)} 24h</div></div>
       <div class="card kpi"><div class="label">Total invested</div><div class="value num">${fmtUsd(t.cost)}</div></div>
       <div class="card kpi"><div class="label">Group unrealized P&amp;L</div><div class="value num ${signCls(t.value - t.cost)}">${fmtUsd(t.value - t.cost)}</div><div class="sub num ${signCls(t.value - t.cost)}">${t.cost ? fmtPct((t.value - t.cost) / t.cost * 100) : "—"}</div></div>
-      <div class="card kpi"><div class="label">Avg portfolio</div><div class="value num">${fmtUsd(rows.length ? t.value / rows.length : 0)}</div><div class="sub muted">${rows.length} members with holdings</div></div></div>`; })()}
+      <div class="card kpi"><div class="label">Avg portfolio</div><div class="value num">${fmtUsd(rows.length ? t.value / rows.length : 0)}</div><div class="sub muted">${plural(rows.length, "member")} with holdings</div></div></div>`; })()}
     <div class="two-col">
       ${list.length ? donutCard("pie-group", "Group allocation (by value)") : `<div class="card empty">No holdings yet.</div>`}
       <div class="card"><h2>Most-held coins</h2>

@@ -12,8 +12,8 @@ function renderAuth(mode = "signin", msg = "") {
       <div class="seg" style="width:100%;margin-bottom:16px"><button style="flex:1" class="${mode === "signin" ? "on" : ""}" data-m="signin">Sign in</button><button style="flex:1" class="${mode === "signup" ? "on" : ""}" data-m="signup">Create account</button></div>
       ${mode === "signup" ? `
         <label class="field"><span>Display name</span><input type="text" id="a-name" maxlength="60" autocomplete="nickname"></label>
-        <label class="field"><span>Telegram handle</span><input type="text" id="a-tg" maxlength="40" placeholder="@yourhandle"></label>` : ""}
-      <label class="field"><span>Email</span><input type="email" id="a-email" autocomplete="email"></label>
+        <label class="field"><span>Telegram handle</span><input type="text" id="a-tg" maxlength="40" autocapitalize="off" spellcheck="false" placeholder="@yourhandle"></label>` : ""}
+      <label class="field"><span>Email</span><input type="email" id="a-email" autocomplete="email" autocapitalize="off" spellcheck="false"></label>
       <label class="field"><span>Password</span><input type="password" enterkeyhint="go" id="a-pw" minlength="8" autocomplete="${mode === "signup" ? "new-password" : "current-password"}"></label>
       <label class="showpw"><input type="checkbox" data-showpw="a-pw"> Show password</label>
       <div class="err" id="a-err">${esc(msg)}</div>
