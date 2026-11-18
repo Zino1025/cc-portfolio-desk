@@ -64,7 +64,8 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 html, body { overflow-x:clip; max-width:100%; }   /* clip, not hidden: hidden makes body its own scroll box, which with overscroll-behavior:none swallows mouse-wheel scrolling on desktop */
 /* Stop the page from rubber-banding past its ends (which Telegram reads as "swipe to close"). */
 html, body { overscroll-behavior:none; }
-.table-wrap, .thread, .modal, .dropdown, #bc-list { overscroll-behavior:contain; }
+.thread, .modal, .dropdown, #bc-list { overscroll-behavior:contain; }
+.table-wrap { overscroll-behavior-x:contain; }   /* x only: contain on y would trap the mouse wheel over tables */
 .muted { color: var(--text-muted); }
 .secondary { color: var(--text-secondary); }
 .good { color: var(--good); } .bad { color: var(--bad); }
