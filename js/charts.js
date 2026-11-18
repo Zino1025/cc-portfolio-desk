@@ -61,20 +61,19 @@ const EXCHANGE_CHART = {
 CG.chart = async function (id, days) {
   const k = id + ":" + days, c = this.hist[k];
   if (c && Date.now() - c.at < (days <= 1 ? 2 : 10) * 60000) return c.prices;
-  let prices = null, src = null;
+  let prices = null;
   try {
-    if (EXCHANGE_CHART.CB[id]) { prices = await EXCHANGE_CHART.coinbase(id, days); src = "Coinbase"; }
-    else if (!STABLE_IDS.includes(id)) { prices = await EXCHANGE_CHART.mexc(id, days); src = "MEXC"; }
+    if (EXCHANGE_CHART.CB[id]) { prices = await EXCHANGE_CHART.coinbase(id, days); }
+    else if (!STABLE_IDS.includes(id)) { prices = await EXCHANGE_CHART.mexc(id, days); }
   } catch (e) { prices = null; }
   if (prices) prices = prices.filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]) && p[1] > 0).sort((a, b) => a[0] - b[0]);
   if (!prices || prices.length < 2) {
     const d = await this.get(`/coins/${encodeURIComponent(id)}/market_chart?vs_currency=usd&days=${days}`);
-    prices = (d.prices || []).filter(p => Number.isFinite(p[1])); src = "CoinGecko";
+    prices = (d.prices || []).filter(p => Number.isFinite(p[1]));
   }
-  this.hist[k] = { prices, at: Date.now(), src };
+  this.hist[k] = { prices, at: Date.now() };
   return prices;
 };
-CG.chartSrc = function (id, days) { return this.hist[id + ":" + days]?.src || ""; };
 function rgba(hex, a) {
   const h = String(hex).trim().replace("#", "");
   if (h.length !== 6) return hex;
@@ -122,13 +121,13 @@ async function portfolioHistory(txs, days) {
 function heroCard(pf, chartId = "hero") {
   const t = pf.totals, days = S.histDays || 30, mode = S.heroMode || "value";
   return `<div class="card hero">
-    <div class="hero-head"><div><div class="label">Portfolio value</div><div class="big num">${fmtUsd(t.value)}</div>
-      <div class="chg"><span class="pill ${signCls(t.change24Pct)}">${arrow(t.change24Pct)} ${fmtPct(t.change24Pct)}</span><span class="num ${signCls(t.change24Usd)}">${signed(t.change24Usd)}</span><span>today</span></div></div>
+    <div class="hero-head"><div><div class="label" id="${chartId}-label">Portfolio value</div><div class="big num" id="${chartId}-big">${fmtUsd(t.value)}</div>
+      <div class="chg" id="${chartId}-chg"><span class="pill ${signCls(t.change24Pct)}">${arrow(t.change24Pct)} ${fmtPct(t.change24Pct)}</span><span class="num ${signCls(t.change24Usd)}">${signed(t.change24Usd)}</span><span>today</span></div></div>
       <div class="periods" data-hero="${chartId}">${HIST_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
     <div class="periods hero-modes" data-hero-mode="${chartId}" role="tablist">
       <button data-m="value" class="${mode === "value" ? "on" : ""}" role="tab">Holdings</button><button data-m="pnl" class="${mode === "pnl" ? "on" : ""}" role="tab">Profit / loss</button></div>
     <div class="hero-chart" id="${chartId}-chart"></div>
-    <div class="hero-key"><span id="${chartId}-legend"></span><span style="margin-left:auto" class="num" id="${chartId}-period"></span></div>
+    <div class="hero-key"><span style="margin-left:auto" class="num" id="${chartId}-period"></span></div>
     <div class="hero-stats">
       <div><div class="l">Invested</div><div class="v num">${fmtUsd(t.cost)}</div></div>
       <div><div class="l">Unrealized P&amp;L</div><div class="v num ${signCls(t.pnl)}">${signed(t.pnl)}</div><div class="s num ${signCls(t.pnl)}">${fmtPct(t.pnlPct)}</div></div>
@@ -159,7 +158,7 @@ async function paintHero(txs, chartId = "hero") {
   }
   if (tok !== S.heroTok || !document.body.contains(box)) return;
   if (S.charts[chartId]) { S.charts[chartId].destroy(); delete S.charts[chartId]; }
-  const per = document.getElementById(chartId + "-period"), leg = document.getElementById(chartId + "-legend");
+  const per = document.getElementById(chartId + "-period");
   if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">${CG.offline ? "The chart needs live CoinGecko prices. Try again in a minute." : "Not enough price history yet."}</div>`; if (per) per.textContent = ""; return; }
   box.innerHTML = `<canvas id="${chartId}-cv" role="img" aria-label="${mode === "pnl" ? "Profit and loss" : "Holdings value"} over time"></canvas>`;
   const a = pts[0], z = pts[pts.length - 1], label = HIST_PERIODS.find(x => x[0] === days)?.[1] || "";
@@ -167,12 +166,10 @@ async function paintHero(txs, chartId = "hero") {
   let col;
   if (pnl) {
     col = cssVar(z.pnl < 0 ? "--bad" : "--good");
-    if (leg) leg.innerHTML = `<i style="background:${col}"></i>Total profit / loss`;
     if (per) per.innerHTML = `<span class="${signCls(z.pnl)}">${signed(z.pnl)}</span> · ${signed(z.pnl - a.pnl)} in ${label}`;
   } else {
     const gain = z.pnl - a.pnl, base = a.value + Math.max(0, z.invested - a.invested);   // price moves only, not money added
     col = cssVar(gain < 0 ? "--bad" : "--good");
-    if (leg) leg.innerHTML = `<i style="background:${col}"></i>Holdings value`;
     if (per) per.innerHTML = `<span class="${signCls(gain)}">${signed(gain)}${base > 0 ? ` (${fmtPct(gain / base * 100)})` : ""}</span> · ${label}`;
   }
   const good = cssVar("--good"), bad = cssVar("--bad");
@@ -185,19 +182,25 @@ async function paintHero(txs, chartId = "hero") {
     : { data: ys, borderColor: col, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: col, tension: 0.35, fill: true, backgroundColor: (c) => grad(c, col) };
   const scales = readableScales(pts.map(p => p.t), days, (v) => (pnl && v > 0 ? "+" : "") + compactUsd(v));
   if (pnl) scales.y.grid = { color: (c) => (c.tick.value === 0 ? cssVar("--text-muted") : cssVar("--grid")) };
+  // Hold on the chart: the header shows that point's value, change since the period start, and date. Let go: back to live.
+  const head = ["label", "big", "chg"].map(k => document.getElementById(`${chartId}-${k}`)), live = head.map(e => e && e.innerHTML);
+  const onScrub = (i) => {
+    if (!head[1]) return;
+    if (i == null) return head.forEach((e, k) => e && (e.innerHTML = live[k]));
+    const p = pts[i], d = p.pnl - a.pnl, base = a.value + Math.max(0, p.invested - a.invested);
+    head[0].textContent = pnl ? "Profit / loss" : "Portfolio value";
+    head[1].textContent = pnl ? signed(p.pnl) : fmtUsd(p.value);
+    head[2].innerHTML = `${base > 0 ? `<span class="pill ${signCls(d)}">${arrow(d)} ${fmtPct(d / base * 100)}</span>` : ""}<span class="num ${signCls(d)}">${signed(d)}</span><span>${fmtT(p.t)}</span>`;
+  };
   S.charts[chartId] = new Chart(document.getElementById(chartId + "-cv"), {
-    type: "line", plugins: [lastTagPlugin],
+    type: "line", plugins: [lastTagPlugin, scrubPlugin],
     data: { labels: pts.map(p => p.t), datasets: [ds] },
     options: {
-      maintainAspectRatio: false, animation: { duration: 400 }, interaction: { mode: "index", intersect: false }, events: TAP_EVENTS,
-      layout: { padding: { left: 2, right: 2, top: 8 } }, scales,
-      plugins: { legend: { display: false }, lastTag: { color: col, text: (v) => (pnl ? signed(v) : fmtUsd(v, { compact: true })) }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
-        callbacks: { title: (it) => fmtT(pts[it[0].dataIndex].t),
-          label: (it) => { const p = pts[it.dataIndex]; return pnl
-            ? [`Profit / loss ${signed(p.pnl)}`, `  Unrealized ${signed(p.value - p.invested)}`, `  Realized ${signed(p.realized)}`]
-            : [`Worth ${fmtUsd(p.value)}`, `Invested ${fmtUsd(p.invested)}`]; } } } },
+      ...scrubOptions(onScrub), animation: { duration: 400 }, layout: { padding: { left: 2, right: 2, top: 8 } }, scales,
+      plugins: { legend: { display: false }, tooltip: { enabled: false }, lastTag: { color: col, text: (v) => (pnl ? signed(v) : fmtUsd(v, { compact: true })) } },
     },
   });
+  scrubEnd(S.charts[chartId], onScrub);
 }
 /* ---------- LIVE PRICES: Coinbase (BTC, ETH) + MEXC via Supabase (alts), CoinGecko as fallback ---------- */
 const LIVE = {
@@ -248,11 +251,11 @@ const LIVE = {
 };
 document.addEventListener("visibilitychange", () => { if (!S.me) return; if (document.hidden) LIVE.stop(); else LIVE.start(); });
 
-/* ---------- Chart helpers: price tag on the last point, readable axes, tap tooltips ---------- */
+/* ---------- Chart helpers: price tag on the last point, readable axes, hold-to-scrub ---------- */
 const lastTagPlugin = {
   id: "lastTag",
   afterDatasetsDraw(chart, args, o) {
-    const meta = chart.getDatasetMeta(0), pt = meta && meta.data[meta.data.length - 1]; if (!pt || !o || !o.text) return;
+    const meta = chart.getDatasetMeta(0), pt = meta && meta.data[meta.data.length - 1]; if (!pt || !o || !o.text || chart.getActiveElements().length) return;
     const { ctx, chartArea: ca } = chart, text = o.text(chart.data.datasets[0].data[meta.data.length - 1]);
     ctx.save(); ctx.font = '600 12px "Inter Tight", system-ui, -apple-system, sans-serif';
     const w = ctx.measureText(text).width + 14, h = 22, x = Math.min(ca.right - w, pt.x - w / 2 > ca.left ? ca.right - w : ca.left), y = Math.max(ca.top, Math.min(ca.bottom - h, pt.y - h / 2));
@@ -271,8 +274,23 @@ function readableScales(times, days, yFmt) {
     y: { position: "right", grace: "8%", grid: { color: cssVar("--grid") }, border: { display: false }, ticks: { color: cssVar("--text-muted"), font: { size: 11 }, maxTicksLimit: 4, callback: yFmt } },
   };
 }
-const tapTooltip = (title, label) => ({ backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false, callbacks: { title, label } });
-const TAP_EVENTS = ["mousemove", "mouseout", "click", "touchstart", "touchmove"];
+// Delta-style: press and drag on a line chart → onScrub(index) with a thin line and dot, no tooltip box; let go → onScrub(null).
+const scrubPlugin = {
+  id: "scrub",
+  afterDatasetsDraw(chart) {
+    const el = chart.getActiveElements()[0]; if (!el) return;
+    const { ctx, chartArea: ca } = chart, pt = el.element, col = chart.data.datasets[0].borderColor;
+    ctx.save(); ctx.strokeStyle = cssVar("--muted"); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(pt.x, ca.top); ctx.lineTo(pt.x, ca.bottom); ctx.stroke();
+    ctx.beginPath(); ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = cssVar("--surface-1"); ctx.stroke();
+    ctx.restore();
+  },
+};
+const scrubOptions = (onScrub) => ({ maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, events: ["mousemove", "mouseout", "touchstart", "touchmove"],
+  onHover: (e, els) => onScrub(els.length ? els[0].index : null) });
+function scrubEnd(chart, onScrub) {
+  for (const ev of ["mouseleave", "touchend", "touchcancel"]) chart.canvas.addEventListener(ev, () => { chart.setActiveElements([]); chart.update("none"); onScrub(null); });
+}
 
 /* ---------- Price charts: BTC, ETH and the group's coins (live) ---------- */
 const PRICE_PERIODS = [[1, "24H"], [7, "7D"], [30, "1M"], [90, "3M"], [365, "1Y"], [SINCE_JUL23, "3Y"]];
@@ -283,22 +301,23 @@ function priceChartCard() {
   const days = S.pcDays || 1;
   return `<div class="card hero" id="pc-card">
     <div class="chips" id="pc-coins">${coins.map(id => `<button class="chip ${id === S.pcCoin ? "on" : ""}" data-c="${esc(id)}">${esc(symOf(id))}</button>`).join("")}</div>
-    <div class="hero-head" style="margin-top:14px"><div><div class="label"><b id="pc-sym" style="color:var(--text-primary)">${esc(symOf(S.pcCoin))}</b> · <span id="pc-live">loading live price…</span></div>
+    <div class="hero-head" style="margin-top:14px"><div><div class="label"><b id="pc-sym" style="color:var(--text-primary)">${esc(symOf(S.pcCoin))}</b> <span id="pc-live"></span></div>
       <div class="big num" id="pc-price">—</div>
       <div class="chg" id="pc-chg"></div></div>
       <div class="periods" id="pc-periods">${PRICE_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
     <div class="hero-chart" id="pc-chart" style="height:240px"></div>
-    <div class="hero-key"><span class="num" id="pc-range"></span><a style="margin-left:auto;color:var(--text-muted)" id="pc-cg" target="_blank" rel="noopener">CoinGecko ↗</a></div>
   </div>`;
 }
 function pcHeader() {
   const id = S.pcCoin, info = CG.info(id) || {}, el = document.getElementById("pc-price"); if (!el) return;
-  const live = info.price != null && !info.sample;
-  el.textContent = live ? fmtPrice(info.price) : "—";
+  const live = info.price != null && !info.sample, sc = S.pcScrub;
   $("#pc-sym").textContent = symOf(id);
-  const ago = info.liveAt || info.at; const secs = ago ? Math.max(0, Math.round((Date.now() - ago) / 1000)) : null;
-  const src = info.liveAt && Date.now() - info.liveAt < 60000 ? info.src : "CoinGecko";
-  $("#pc-live").innerHTML = live ? `<span style="color:var(--good)">● Live</span> · ${esc(src)} · ${secs < 5 ? "just now" : secs < 60 ? secs + "s ago" : Math.round(secs / 60) + "m ago"}` : `<span class="bad">Live price unavailable</span> · retrying`;
+  if (sc) {   // holding the chart: that point's price, change since the period start, date
+    el.textContent = fmtPrice(sc.v); $("#pc-live").innerHTML = "";
+    return $("#pc-chg").innerHTML = `<span class="pill ${signCls(sc.chg)}">${arrow(sc.chg)} ${fmtPct(sc.chg)}</span><span>${sc.when}</span>`;
+  }
+  el.textContent = live ? fmtPrice(info.price) : "—";
+  $("#pc-live").innerHTML = live ? `<span style="color:var(--good)">● Live</span>` : `<span class="bad">Live price unavailable</span>`;
   const ch = info.change24;
   const per = S.pcPeriodChg;
   $("#pc-chg").innerHTML = (live && ch != null ? `<span class="pill ${signCls(ch)}">${arrow(ch)} ${fmtPct(ch)}</span><span>24h</span>` : "") +
@@ -330,38 +349,34 @@ async function paintPriceChart() {
   const id = S.pcCoin, days = S.pcDays || 1, tok = (S.pcTok = (S.pcTok || 0) + 1);
   document.querySelectorAll("#pc-coins [data-c]").forEach(b => { b.classList.toggle("on", b.dataset.c === id); b.onclick = () => { S.pcCoin = b.dataset.c; paintPriceChart(); }; });
   document.querySelectorAll("#pc-periods [data-d]").forEach(b => { b.classList.toggle("on", +b.dataset.d === days); b.onclick = () => { S.pcDays = +b.dataset.d; paintPriceChart(); }; });
-  $("#pc-cg").href = coinLink(id);
-  S.pcPeriodChg = null; pcHeader();
+  S.pcPeriodChg = S.pcScrub = null; pcHeader();
   clearInterval(S.pcTimer); S.pcTimer = setInterval(pcTick, 30000);
-  clearInterval(S.pcAgo); S.pcAgo = setInterval(() => { if (document.getElementById("pc-card")) pcHeader(); else clearInterval(S.pcAgo); }, 1000);
   if (!S.charts.pc) box.innerHTML = `<div class="note">Loading chart…</div>`;
   const fresh = (CG.info(id)?.liveAt || 0) > Date.now() - 30000;
   const [pts] = await Promise.all([CG.chart(id, days).catch(() => null), fresh ? null : CG.live(id).catch(() => null)]);
   if (tok !== S.pcTok || !document.body.contains(box)) return;
   pcHeader();
   if (S.charts.pc) { S.charts.pc.destroy(); delete S.charts.pc; }
-  if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">Couldn't load ${esc(symOf(id))} price history right now. Tap the period again in a minute.</div>`; $("#pc-range").textContent = ""; return; }
+  if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">Couldn't load ${esc(symOf(id))} price history right now. Tap the period again in a minute.</div>`; return; }
   const data = pts.map(p => [p[0], p[1]]), info = CG.info(id);
   if (info && !info.sample && info.price != null) data.push([Date.now(), info.price]);   // end on the live price
   const first = data[0][1], last = data[data.length - 1][1], chg = (last - first) / first * 100;
-  const lo = Math.min(...data.map(p => p[1])), hi = Math.max(...data.map(p => p[1]));
   S.pcPeriodChg = { chg, label: PRICE_PERIODS.find(x => x[0] === days)?.[1] || "" }; pcHeader();
-  $("#pc-range").textContent = `Low ${fmtPrice(lo)} · High ${fmtPrice(hi)} · chart: ${CG.chartSrc(id, days) || "CoinGecko"}`;
   box.innerHTML = `<canvas id="pc-cv" role="img" aria-label="${esc(symOf(id))} price chart"></canvas>`;
   const col = cssVar(chg < 0 ? "--bad" : "--good"), times = data.map(p => p[0]);
   const fmtT = (t) => new Date(t).toLocaleString(undefined, days <= 7 ? { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" } : { month: "short", day: "numeric", year: "numeric" });
+  const onScrub = (i) => { const c = S.charts.pc; S.pcScrub = i == null || !c ? null : { v: c.data.datasets[0].data[i], chg: (c.data.datasets[0].data[i] - first) / first * 100, when: fmtT(c.data.labels[i]) }; pcHeader(); };
   S.charts.pc = new Chart(document.getElementById("pc-cv"), {
-    type: "line", plugins: [lastTagPlugin],
+    type: "line", plugins: [lastTagPlugin, scrubPlugin],
     data: { labels: times, datasets: [{ data: data.map(p => p[1]), borderColor: col, borderWidth: 2.2, pointRadius: 0, pointHoverRadius: 5, pointHoverBackgroundColor: col, tension: 0.2, fill: true,
       backgroundColor: (c) => { const ca = c.chart.chartArea; if (!ca) return "transparent"; const g = c.chart.ctx.createLinearGradient(0, ca.top, 0, ca.bottom); g.addColorStop(0, rgba(col, 0.3)); g.addColorStop(1, rgba(col, 0)); return g; } }] },
     options: {
-      maintainAspectRatio: false, animation: { duration: 300 }, interaction: { mode: "index", intersect: false }, events: TAP_EVENTS,
-      layout: { padding: { left: 2, right: 2, top: 8 } },
+      ...scrubOptions(onScrub), animation: { duration: 300 }, layout: { padding: { left: 2, right: 2, top: 8 } },
       scales: readableScales(times, days, compactUsd),
-      plugins: { legend: { display: false }, lastTag: { color: col, text: (v) => fmtPrice(v) },
-        tooltip: tapTooltip((it) => fmtT(S.charts.pc.data.labels[it[0].dataIndex]), (it) => symOf(id) + " " + fmtPrice(it.raw)) },
+      plugins: { legend: { display: false }, tooltip: { enabled: false }, lastTag: { color: col, text: (v) => fmtPrice(v) } },
     },
   });
+  scrubEnd(S.charts.pc, onScrub);
 }
 function perfCard(id) {
   return `<div class="card"><div class="card-h"><h2>Performance by coin</h2><span class="sub">P&amp;L vs avg buy</span></div><div class="perf-box" id="${id}-box"><canvas id="${id}" role="img" aria-label="Profit and loss by coin bar chart"></canvas></div></div>`;

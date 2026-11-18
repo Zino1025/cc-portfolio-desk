@@ -310,7 +310,6 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .hero-chart .note { position:absolute; inset:0; display:grid; place-items:center; color:var(--text-muted); font-size:13px; text-align:center; padding:0 20px; }
 .hero-key { display:flex; flex-wrap:wrap; gap:4px 16px; font-size:13px; color:var(--text-muted); margin:2px 0 0; }
 .hero-key > span { white-space:nowrap; }
-.hero-key i { display:inline-block; width:14px; height:3px; border-radius:2px; vertical-align:3px; margin-right:6px; }
 .hero-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; border-top:1px solid var(--grid); margin-top:16px; padding-top:16px; }
 .hero-stats .l { color:var(--muted); }
 .hero-stats .v { font-size:17px; line-height:22px; font-weight:600; letter-spacing:-0.4px; margin-top:4px; }

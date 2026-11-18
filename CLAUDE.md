@@ -25,7 +25,7 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 | File | Sections |
 |---|---|
 | `core.js` | CONFIG 1 (Supabase URL/publishable key, REVIEWER_NAME), UTILITIES 14, ATTACHMENTS 93 (photos, voice notes incl. in-app recording, videos, PDFs on Dkay's posts and both sides of the thread), COINGECKO 170, PORTFOLIO MATH 248 (average cost), DATA LAYER 287 (all Supabase reads/writes), STATE 452 |
-| `charts.js` | CHARTS 1, DELTA-STYLE CHARTS 29, live prices 171 (Coinbase BTC/ETH + MEXC via `prices` function, CoinGecko fallback), chart helpers 220 (price tag, axes, tooltips), price charts 246 (BTC, ETH, group coins) |
+| `charts.js` | CHARTS 1, DELTA-STYLE CHARTS 29, live prices 171 (Coinbase BTC/ETH + MEXC via `prices` function, CoinGecko fallback), chart helpers 220 (price tag, axes, hold-to-scrub: header shows the held point, no tooltips), price charts 246 (BTC, ETH, group coins) |
 | `shell.js` | SHELL 1 (tabs, navigation), MEMBER: OVERVIEW 71 |
 | `trades.js` | MEMBER: TRADES 1, trade modal 98 |
 | `trade-import.js` | Screenshot import 1, CSV import 132 |
