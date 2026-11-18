@@ -63,6 +63,17 @@ function ago(d) {
 }
 function toLocalInput(d) { const dt = new Date(d); const p = (n) => String(n).padStart(2, "0"); return `${dt.getFullYear()}-${p(dt.getMonth()+1)}-${p(dt.getDate())}T${p(dt.getHours())}:${p(dt.getMinutes())}`; }
 function uid() { return (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36)); }
+// Telegram's in-app browser blocks downloads, so there the bot sends the file to the member's chat.
+async function saveCsv(csv, filename) {
+  if (TG && sb && !api.demo) {
+    toast("Sending to your Telegram chat…");
+    const { data, error } = await sb.functions.invoke("tg-link", { body: { initData: TG.initData, csv, filename } });
+    return toast(!error && data && data.ok ? "Sent. Check your chat with the bot." : "Couldn't send. Open the bot chat, tap Start, then try again.");
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" }));
+  a.download = filename; a.click();
+}
 function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 

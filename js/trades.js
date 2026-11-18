@@ -89,10 +89,7 @@ async function viewTrades(v) {
 function exportCsv() {
   const head = ["executed_at","side","coin_id","symbol","name","quantity","price_usd","fee_usd","exchange","note"];
   const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const csv = [head.join(","), ...S.txs.map(t => head.map(k => q(t[k])).join(","))].join("\n");
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-  a.download = "cc-portfolio-trades.csv"; a.click();
+  saveCsv([head.join(","), ...S.txs.map(t => head.map(k => q(t[k])).join(","))].join("\n"), "cc-portfolio-trades.csv");
 }
 
 /* ---------- Trade modal ---------- */

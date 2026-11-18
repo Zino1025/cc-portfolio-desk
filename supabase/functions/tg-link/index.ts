@@ -1,6 +1,8 @@
 // tg-link: links a signed-in member to their Telegram chat.
 // The app sends Telegram's signed initData; we verify the signature with the bot
 // token, verify the member's Supabase session, then store their Telegram user id.
+// With { csv, filename } it instead sends that file to the member's bot chat
+// (Telegram's in-app browser can't download files).
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
@@ -44,9 +46,17 @@ Deno.serve(async (req) => {
     const jwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
     const { data: auth } = await db.auth.getUser(jwt);
     if (!auth?.user) return json({ error: "not signed in" }, 401);
-    const { initData } = await req.json();
+    const { initData, csv, filename } = await req.json();
     const tgUser = await verifyInitData(String(initData || ""));
     if (!tgUser?.id) return json({ error: "invalid telegram data" }, 400);
+    if (csv) {
+      if (String(csv).length > 5e6) return json({ error: "file too big" }, 413);
+      const fd = new FormData();
+      fd.append("chat_id", String(tgUser.id));
+      fd.append("document", new Blob([String(csv)], { type: "text/csv" }), String(filename || "export.csv").replace(/[^\w.-]/g, "") || "export.csv");
+      const r = await (await fetch(`https://api.telegram.org/bot${TOKEN}/sendDocument`, { method: "POST", body: fd })).json();
+      return r.ok ? json({ ok: true }) : json({ error: r.description || "send failed" }, 502);
+    }
 
     const { data: me } = await db.from("profiles").select("telegram_handle").eq("id", auth.user.id).single();
     const patch: Record<string, unknown> = { telegram_chat_id: tgUser.id };

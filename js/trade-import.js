@@ -205,10 +205,7 @@ function csvToImport(text) {
   return { source_app: "CSV", warnings, holdings: items.map(x => ({ ...x, avg_buy_price: x.price, current_price: null })) };
 }
 function downloadCsvTemplate() {
-  const csv = "coin,quantity,buy_price,date\nBTC,0.05,62000,2024-03-10\nPAAL,100000,0.12,2024-05-02\n";
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-  a.download = "cc-portfolio-template.csv"; a.click();
+  saveCsv("coin,quantity,buy_price,date\nBTC,0.05,62000,2024-03-10\nPAAL,100000,0.12,2024-05-02\n", "cc-portfolio-template.csv");
 }
 
 function openImportModal() {
