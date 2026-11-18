@@ -169,10 +169,10 @@ async function viewExit(v) {
       <div class="card"><h2>Commit</h2>
         <div id="ex-pledges">${EXIT_PLEDGES.map(([k, t, q]) => `<label class="pledge"><input type="checkbox" data-pledge="${k}" ${plan.pledges[k] ? "checked" : ""}><span>${esc(t)}</span></label>`).join("")}</div>
         <button class="btn primary" id="ex-commit" style="margin-top:10px">Commit to my exit plan</button>
-        ${api.demo ? "" : `<label class="pledge" style="margin-top:12px"><input type="checkbox" id="ex-ping" ${S.me.tp_alerts ? "checked" : ""}><span>Ping me in Telegram when a coin hits one of my sell steps</span></label>`}
         <div class="err" id="ex-err"></div>
       </div>
     </div>
+    ${api.demo ? "" : `<div class="card" style="margin-top:16px"><label class="pledge" style="margin:0"><input type="checkbox" id="ex-ping" ${S.me.tp_alerts ? "checked" : ""}><span>Ping me in Telegram when a coin hits one of my sell steps</span></label></div>`}
     <h2 class="section-h">Your coins</h2>
     <div class="grid" id="ex-coins">${coins.map(coinCard).join("")}</div>
     <div class="card" style="margin-top:16px"><h2>Add a coin</h2>
