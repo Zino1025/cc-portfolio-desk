@@ -245,7 +245,9 @@ const tapTooltip = (title, label) => ({ backgroundColor: cssVar("--text-primary"
 const TAP_EVENTS = ["mousemove", "mouseout", "click", "touchstart", "touchmove"];
 
 /* ---------- Price charts: BTC, ETH and the group's coins (live) ---------- */
-const PRICE_PERIODS = [[1, "24H"], [7, "7D"], [30, "1M"], [90, "3M"], [365, "1Y"]];
+// Longest range starts July 2023 so the run-up to CC's start (Nov 2023) and everything since is visible.
+const SINCE_JUL23 = Math.ceil((Date.now() - Date.UTC(2023, 6, 1)) / 864e5);
+const PRICE_PERIODS = [[1, "24H"], [7, "7D"], [30, "1M"], [90, "3M"], [365, "1Y"], [SINCE_JUL23, "3Y"]];
 function priceChartCoins() { return [...new Set(["bitcoin", "ethereum", ...modelCoinIds()])]; }
 function priceChartCard() {
   const coins = priceChartCoins();
