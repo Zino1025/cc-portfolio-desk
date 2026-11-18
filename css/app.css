@@ -61,7 +61,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--accent); }
 .num { font-variant-numeric: tabular-nums; }
 html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
-html, body { overflow-x:hidden; max-width:100%; }
+html, body { overflow-x:clip; max-width:100%; }   /* clip, not hidden: hidden makes body its own scroll box, which with overscroll-behavior:none swallows mouse-wheel scrolling on desktop */
 /* Stop the page from rubber-banding past its ends (which Telegram reads as "swipe to close"). */
 html, body { overscroll-behavior:none; }
 .table-wrap, .thread, .modal, .dropdown, #bc-list { overscroll-behavior:contain; }
