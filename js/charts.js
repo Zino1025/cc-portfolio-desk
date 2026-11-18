@@ -96,7 +96,9 @@ async function portfolioHistory(txs, days) {
   if (!ok) return null;
   const priceAt = (id, t, fallback) => {
     const s = series[id];
-    if (!s || !s.length) return CG.info(id)?.price ?? fallback;
+    // No market history for this date (before the coin's chart data starts, or it failed to load):
+    // use the price of your own most recent trade in it, never today's price.
+    if (!s || !s.length || t < s[0][0] - 7 * 864e5) return fallback || s?.[0]?.[1] || CG.info(id)?.price || 0;
     let lo = 0, hi = s.length - 1;
     if (t <= s[0][0]) return s[0][1];
     while (lo < hi) { const m = (lo + hi + 1) >> 1; if (s[m][0] <= t) lo = m; else hi = m - 1; }
