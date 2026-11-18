@@ -49,7 +49,7 @@ const EXCHANGE_CHART = {
   },
   async mexc(id, days) {
     if (api.demo || !sb) throw new Error("no relay");
-    const [interval, limit] = days <= 1 ? ["15m", 96] : days <= 7 ? ["60m", 168] : days <= 30 ? ["4h", 180] : days <= 90 ? ["1d", 90] : ["1d", Math.min(1000, Math.ceil(days))];
+    const [interval, limit] = days <= 1 ? ["15m", 96] : days <= 7 ? ["60m", 168] : days <= 30 ? ["4h", 180] : days <= 90 ? ["1d", 90] : days <= 500 ? ["1d", Math.ceil(days)] : ["1W", Math.ceil(days / 7) + 1];   // MEXC returns at most 500 candles, so long ranges use weekly ones
     const { data, error } = await sb.functions.invoke("prices", { body: { klines: { symbol: symOf(id), interval, limit } } });
     if (error || !data || !Array.isArray(data.prices)) throw error || new Error("no candles");
     const pts = data.prices, last = pts.length && pts[pts.length - 1][1], ref = CG.info(id)?.cgPrice;
