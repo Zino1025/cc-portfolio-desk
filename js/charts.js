@@ -83,7 +83,7 @@ function rgba(hex, a) {
 const signed = (v) => (num(v) > 0 ? "+" : "") + fmtUsd(v);
 const arrow = (v) => num(v) > 0 ? "▲" : num(v) < 0 ? "▼" : "";
 /** Portfolio value and money invested over the last `days`, from trades + CoinGecko price history. */
-async function portfolioHistory(txs, days, n = 90) {
+async function portfolioHistory(txs, days) {
   const sorted = [...txs].sort((a, b) => new Date(a.executed_at) - new Date(b.executed_at));
   if (!sorted.length) return null;
   const now = Date.now();
@@ -102,130 +102,100 @@ async function portfolioHistory(txs, days, n = 90) {
     while (lo < hi) { const m = (lo + hi + 1) >> 1; if (s[m][0] <= t) lo = m; else hi = m - 1; }
     return s[lo][1];
   };
-  const N = n, pos = {}, pts = []; let j = 0;
+  const N = 90, pos = {}, pts = []; let j = 0, realized = 0;
   for (let i = 0; i < N; i++) {
     const t = from + (now - from) * i / (N - 1);
     while (j < sorted.length && new Date(sorted[j].executed_at).getTime() <= t) {
       const x = sorted[j++], h = pos[x.coin_id] ||= { qty: 0, cost: 0, last: 0 };
       const q = num(x.quantity), pr = num(x.price_usd), fee = num(x.fee_usd); h.last = pr;
       if (x.side === "buy") { h.qty += q; h.cost += q * pr + fee; }
-      else { const sq = Math.min(q, h.qty), avg = h.qty > 0 ? h.cost / h.qty : 0; h.cost -= sq * avg; h.qty -= sq; if (h.qty < 1e-12) { h.qty = 0; h.cost = 0; } }
+      else { const sq = Math.min(q, h.qty), avg = h.qty > 0 ? h.cost / h.qty : 0; realized += sq * pr - fee - sq * avg; h.cost -= sq * avg; h.qty -= sq; if (h.qty < 1e-12) { h.qty = 0; h.cost = 0; } }
     }
     let value = 0, invested = 0;
     for (const [id, h] of Object.entries(pos)) { if (h.qty <= 0) continue; value += h.qty * priceAt(id, t, h.last); invested += h.cost; }
-    pts.push({ t, value, invested });
+    pts.push({ t, value, invested, realized, pnl: value - invested + realized });
   }
   return pts;
 }
-/** Highest the portfolio has ever been worth (daily history since the first trade, plus the live value). Cached per set of trades. */
-async function portfolioAth(txs) {
-  if (!txs.length) return null;
-  const key = txs.map(t => [t.id, t.side, t.quantity, t.price_usd, t.executed_at].join(":")).join("|");
-  if (S.ath && S.ath.key === key && Date.now() - S.ath.at < 10 * 60000) return S.ath.v;
-  const now = Date.now(), first = Math.min(...txs.map(t => new Date(t.executed_at).getTime()));
-  const span = Math.ceil((now - first) / 864e5) + 1;
-  const pts = await portfolioHistory(txs, Math.max(SINCE_JUL23, span), Math.max(30, Math.min(1100, span)));
-  if (!pts || !pts.length) return null;
-  let v = pts.reduce((m, p) => (p.value > m.value ? p : m), pts[0]);
-  const live = computePortfolio(txs).totals.value;
-  if (live >= v.value) v = { t: now, value: live };
-  v = { t: v.t, value: v.value };
-  S.ath = { key, at: now, v };
-  return v;
-}
-// Marks the all-time high on the portfolio chart (CoinGecko-style dot + label).
-const athPlugin = {
-  id: "ath",
-  afterDatasetsDraw(chart, args, o) {
-    if (!o || o.i == null) return;
-    const { ctx, chartArea: ca, scales } = chart, x = scales.x.getPixelForValue(o.i), y = scales.y.getPixelForValue(o.value);
-    if (!(x >= ca.left && x <= ca.right && y >= ca.top - 1)) return;
-    const text = "ATH " + compactUsd(o.value);
-    ctx.save(); ctx.font = '600 12px "Inter Tight", system-ui, -apple-system, sans-serif';
-    const w = ctx.measureText(text).width + 14, h = 22, bx = Math.max(ca.left, Math.min(ca.right - w, x - w / 2));
-    // Where the live-price tag sits (same maths as lastTagPlugin), so the ATH label never covers it.
-    let tag = null; const meta = chart.getDatasetMeta(0), lp = meta && meta.data[meta.data.length - 1];
-    if (lp && o.tagText) { const tw = ctx.measureText(o.tagText).width + 14, tx = Math.min(ca.right - tw, lp.x - tw / 2 > ca.left ? ca.right - tw : ca.left), ty0 = Math.max(ca.top, Math.min(ca.bottom - 22, lp.y - 11)), ty = ty0 - 28 > ca.top ? ty0 - 28 : ty0 + 10; tag = { x: tx, y: ty, w: tw, h: 22 }; }
-    const hits = (r) => tag && r.x < tag.x + tag.w + 4 && r.x + w + 4 > tag.x && r.y < tag.y + tag.h + 4 && r.y + h + 4 > tag.y;
-    const spots = [y - h - 8, y + 8].filter(t => t >= ca.top && t + h <= ca.bottom);
-    let by = spots.find(t => !hits({ x: bx, y: t })); if (by == null) by = spots[spots.length - 1] ?? Math.max(ca.top, y - h / 2);
-    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fillStyle = o.color; ctx.fill();
-    ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, w, h, 11); else ctx.rect(bx, by, w, h);
-    ctx.fillStyle = o.bg; ctx.fill();
-    ctx.fillStyle = o.color; ctx.textBaseline = "middle"; ctx.fillText(text, bx + 7, by + h / 2);
-    ctx.restore();
-  },
-};
-async function paintAth(txs, chartId, pts) {
-  const ath = await portfolioAth(txs).catch(() => null);
-  const el = document.getElementById(chartId + "-ath"), sub = document.getElementById(chartId + "-ath-s");
-  if (!el || !ath) { if (el) el.textContent = "—"; return; }
-  const live = computePortfolio(txs).totals.value, off = ath.value > 0 ? (live / ath.value - 1) * 100 : 0;
-  el.textContent = fmtUsd(ath.value);
-  if (sub) sub.innerHTML = off > -0.5 ? `<span class="good">At its high now</span>` : `<span class="bad">${fmtPct(off)}</span> · ${fmtDate(new Date(ath.t).toISOString(), false)}`;
-  const ch = S.charts[chartId];
-  if (!ch || !pts || off > -0.5 || ath.t < pts[0].t) return;   // at the high now: the live tag already marks it
-  let i = 0; for (let k = 1; k < pts.length; k++) if (Math.abs(pts[k].t - ath.t) < Math.abs(pts[i].t - ath.t)) i = k;
-  ch.options.scales.y.suggestedMax = ath.value;
-  ch.options.plugins.ath = { i, value: ath.value, color: cssVar("--text"), bg: cssVar("--surface-1"), tagText: fmtUsd(pts[pts.length - 1].value, { compact: true }) };
-  ch.update("none");
-}
 function heroCard(pf, chartId = "hero") {
-  const t = pf.totals, days = S.histDays || 30;
+  const t = pf.totals, days = S.histDays || 30, mode = S.heroMode || "value";
   return `<div class="card hero">
     <div class="hero-head"><div><div class="label">Portfolio value</div><div class="big num">${fmtUsd(t.value)}</div>
       <div class="chg"><span class="pill ${signCls(t.change24Pct)}">${arrow(t.change24Pct)} ${fmtPct(t.change24Pct)}</span><span class="num ${signCls(t.change24Usd)}">${signed(t.change24Usd)}</span><span>today</span></div></div>
       <div class="periods" data-hero="${chartId}">${HIST_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
+    <div class="periods hero-modes" data-hero-mode="${chartId}" role="tablist">
+      <button data-m="value" class="${mode === "value" ? "on" : ""}" role="tab">Holdings</button><button data-m="pnl" class="${mode === "pnl" ? "on" : ""}" role="tab">Profit / loss</button></div>
     <div class="hero-chart" id="${chartId}-chart"></div>
-    <div class="hero-key"><span><i style="background:var(--good)" id="${chartId}-key"></i>Value</span><span><i style="background:repeating-linear-gradient(90deg,var(--text-muted) 0 4px,transparent 4px 7px)"></i>Invested</span><span style="margin-left:auto" class="num" id="${chartId}-period"></span></div>
+    <div class="hero-key"><span id="${chartId}-legend"></span><span style="margin-left:auto" class="num" id="${chartId}-period"></span></div>
     <div class="hero-stats">
       <div><div class="l">Invested</div><div class="v num">${fmtUsd(t.cost)}</div></div>
       <div><div class="l">Unrealized P&amp;L</div><div class="v num ${signCls(t.pnl)}">${signed(t.pnl)}</div><div class="s num ${signCls(t.pnl)}">${fmtPct(t.pnlPct)}</div></div>
       <div><div class="l">Realized P&amp;L</div><div class="v num ${signCls(t.realized)}">${signed(t.realized)}</div></div>
-      <div><div class="l">All-time high</div><div class="v num" id="${chartId}-ath">…</div><div class="s num" id="${chartId}-ath-s"></div></div>
     </div></div>`;
 }
+/* Portfolio chart, two views (like CoinGecko's portfolio):
+   Holdings = what your coins were actually worth each day (quantity held × that day's price).
+   Profit / loss = realized gains from sells + unrealized gain on what you still hold, at each point in time. */
 async function paintHero(txs, chartId = "hero") {
   const box = document.getElementById(chartId + "-chart"); if (!box) return;
-  const days = S.histDays || 30, tok = (S.heroTok = (S.heroTok || 0) + 1);
+  const days = S.histDays || 30, mode = S.heroMode || "value", tok = (S.heroTok = (S.heroTok || 0) + 1);
   document.querySelectorAll(`[data-hero="${chartId}"] button`).forEach(b => b.onclick = () => {
     S.histDays = +b.dataset.d;
     b.parentElement.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
     paintHero(txs, chartId);
   });
+  document.querySelectorAll(`[data-hero-mode="${chartId}"] button`).forEach(b => b.onclick = () => {
+    S.heroMode = b.dataset.m;
+    b.parentElement.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+    paintHero(txs, chartId);
+  });
   if (!S.charts[chartId]) box.innerHTML = `<div class="note">Loading chart…</div>`;
   const pts = await portfolioHistory(txs, days).catch(() => null);
-  if (pts && pts.length) { const live = computePortfolio(txs).totals.value; if (live > 0) pts[pts.length - 1] = { ...pts[pts.length - 1], t: Date.now(), value: live }; }   // end on the live value shown above
+  if (pts && pts.length) {   // end on the live numbers shown above
+    const tot = computePortfolio(txs).totals, z = pts[pts.length - 1];
+    if (tot.value > 0) pts[pts.length - 1] = { ...z, t: Date.now(), value: tot.value, invested: tot.cost, realized: tot.realized, pnl: tot.value - tot.cost + tot.realized };
+  }
   if (tok !== S.heroTok || !document.body.contains(box)) return;
   if (S.charts[chartId]) { S.charts[chartId].destroy(); delete S.charts[chartId]; }
-  const per = document.getElementById(chartId + "-period");
+  const per = document.getElementById(chartId + "-period"), leg = document.getElementById(chartId + "-legend");
   if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">${CG.offline ? "The chart needs live CoinGecko prices. Try again in a minute." : "Not enough price history yet."}</div>`; if (per) per.textContent = ""; return; }
-  box.innerHTML = `<canvas id="${chartId}-cv" role="img" aria-label="Portfolio value over time"></canvas>`;
-  const a = pts[0], z = pts[pts.length - 1];
-  const gain = (z.value - z.invested) - (a.value - a.invested);
-  const base = a.value + Math.max(0, z.invested - a.invested);
-  const label = HIST_PERIODS.find(x => x[0] === days)?.[1] || "";
-  if (per) per.innerHTML = `<span class="${signCls(gain)}">${signed(gain)}${base > 0 ? ` (${fmtPct(gain / base * 100)})` : ""}</span> · ${label}`;
-  const col = cssVar(gain < 0 ? "--bad" : "--good"), muted = cssVar("--text-muted");
-  const key = document.getElementById(chartId + "-key"); if (key) key.style.background = col;
+  box.innerHTML = `<canvas id="${chartId}-cv" role="img" aria-label="${mode === "pnl" ? "Profit and loss" : "Holdings value"} over time"></canvas>`;
+  const a = pts[0], z = pts[pts.length - 1], label = HIST_PERIODS.find(x => x[0] === days)?.[1] || "";
+  const pnl = mode === "pnl", ys = pts.map(p => pnl ? p.pnl : p.value);
+  let col;
+  if (pnl) {
+    col = cssVar(z.pnl < 0 ? "--bad" : "--good");
+    if (leg) leg.innerHTML = `<i style="background:${col}"></i>Total profit / loss`;
+    if (per) per.innerHTML = `<span class="${signCls(z.pnl)}">${signed(z.pnl)}</span> · ${signed(z.pnl - a.pnl)} in ${label}`;
+  } else {
+    const gain = z.pnl - a.pnl, base = a.value + Math.max(0, z.invested - a.invested);   // price moves only, not money added
+    col = cssVar(gain < 0 ? "--bad" : "--good");
+    if (leg) leg.innerHTML = `<i style="background:${col}"></i>Holdings value`;
+    if (per) per.innerHTML = `<span class="${signCls(gain)}">${signed(gain)}${base > 0 ? ` (${fmtPct(gain / base * 100)})` : ""}</span> · ${label}`;
+  }
+  const good = cssVar("--good"), bad = cssVar("--bad");
+  const grad = (c, color) => { const ca = c.chart.chartArea; if (!ca) return "transparent"; const g = c.chart.ctx.createLinearGradient(0, ca.top, 0, ca.bottom); g.addColorStop(0, rgba(color, 0.32)); g.addColorStop(1, rgba(color, 0)); return g; };
   const fmtT = (t) => new Date(t).toLocaleString(undefined, days <= 7 ? { month: "short", day: "numeric", hour: "numeric" } : { month: "short", day: "numeric", year: days > 90 ? "2-digit" : undefined });
+  const ds = pnl
+    ? { data: ys, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, tension: 0.35,
+        segment: { borderColor: (c) => (c.p1.parsed.y < 0 ? bad : good) }, borderColor: col, pointHoverBackgroundColor: col,
+        fill: { target: "origin", above: rgba(good, 0.18), below: rgba(bad, 0.18) } }
+    : { data: ys, borderColor: col, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: col, tension: 0.35, fill: true, backgroundColor: (c) => grad(c, col) };
+  const scales = readableScales(pts.map(p => p.t), days, (v) => (pnl && v > 0 ? "+" : "") + compactUsd(v));
+  if (pnl) scales.y.grid = { color: (c) => (c.tick.value === 0 ? cssVar("--text-muted") : cssVar("--grid")) };
   S.charts[chartId] = new Chart(document.getElementById(chartId + "-cv"), {
-    type: "line", plugins: [lastTagPlugin, athPlugin],
-    data: { labels: pts.map(p => p.t), datasets: [
-      { data: pts.map(p => p.value), borderColor: col, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, pointHoverBackgroundColor: col, tension: 0.35, fill: true,
-        backgroundColor: (c) => { const ca = c.chart.chartArea; if (!ca) return "transparent"; const g = c.chart.ctx.createLinearGradient(0, ca.top, 0, ca.bottom); g.addColorStop(0, rgba(col, 0.32)); g.addColorStop(1, rgba(col, 0)); return g; } },
-      { data: pts.map(p => p.invested), borderColor: muted, borderWidth: 1.5, borderDash: [4, 3], pointRadius: 0, pointHoverRadius: 0, tension: 0, fill: false, stepped: true },
-    ] },
+    type: "line", plugins: [lastTagPlugin],
+    data: { labels: pts.map(p => p.t), datasets: [ds] },
     options: {
       maintainAspectRatio: false, animation: { duration: 400 }, interaction: { mode: "index", intersect: false }, events: TAP_EVENTS,
-      layout: { padding: { left: 2, right: 2, top: 8 } },
-      scales: readableScales(pts.map(p => p.t), days, compactUsd),
-      plugins: { legend: { display: false }, lastTag: { color: col, text: (v) => fmtUsd(v, { compact: true }) }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
-        callbacks: { title: (it) => fmtT(pts[it[0].dataIndex].t), label: (it) => (it.datasetIndex ? "Invested " : "Value ") + fmtUsd(it.raw),
-          afterBody: (it) => { const p = pts[it[0].dataIndex]; return p.invested > 0 ? "P&L " + signed(p.value - p.invested) + " (" + fmtPct((p.value - p.invested) / p.invested * 100) + ")" : ""; } } } },
+      layout: { padding: { left: 2, right: 2, top: 8 } }, scales,
+      plugins: { legend: { display: false }, lastTag: { color: col, text: (v) => (pnl ? signed(v) : fmtUsd(v, { compact: true })) }, tooltip: { backgroundColor: cssVar("--text-primary"), titleColor: cssVar("--surface-1"), bodyColor: cssVar("--surface-1"), padding: 10, displayColors: false,
+        callbacks: { title: (it) => fmtT(pts[it[0].dataIndex].t),
+          label: (it) => { const p = pts[it.dataIndex]; return pnl
+            ? [`Profit / loss ${signed(p.pnl)}`, `  Unrealized ${signed(p.value - p.invested)}`, `  Realized ${signed(p.realized)}`]
+            : [`Worth ${fmtUsd(p.value)}`, `Invested ${fmtUsd(p.invested)}`]; } } } },
     },
   });
-  paintAth(txs, chartId, pts);
 }
 /* ---------- LIVE PRICES: Coinbase (BTC, ETH) + MEXC via Supabase (alts), CoinGecko as fallback ---------- */
 const LIVE = {
