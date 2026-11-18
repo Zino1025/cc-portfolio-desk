@@ -74,7 +74,7 @@ async function saveCsv(csv, filename) {
   a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" }));
   a.download = filename; a.click();
 }
-function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
+function toast(msg) { document.querySelector(".toast")?.remove(); const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
 /* Short dropdowns -> tap segments (LukeW: dropdowns are the UI of last resort).

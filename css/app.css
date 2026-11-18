@@ -82,7 +82,6 @@ header.top { position: sticky; top:0; z-index:20; background:color-mix(in srgb, 
 nav.tabs { display:flex; gap:2px; overflow-x:auto; flex:1; scrollbar-width:none; background:var(--track); border-radius:999px; padding:4px; }
 nav.tabs::-webkit-scrollbar { display:none; }
 nav.tabs a { text-decoration:none; color:var(--muted); padding:8px 14px; border-radius:999px; white-space:nowrap; font-weight:500; position:relative; transition:background .15s, color .15s; }
-nav.tabs a:hover { color:var(--text); }
 nav.tabs a.active { color:var(--text); background:var(--surface-1); box-shadow:var(--sh-1); font-weight:600; }
 nav.tabs .sep { width:1px; background:color-mix(in srgb, var(--muted) 30%, transparent); margin:6px 4px; }
 .badge { display:inline-block; min-width:18px; padding:0 5px; height:18px; line-height:18px; border-radius:9px; background:var(--bad); color:#fff; font-size:11px; font-weight:600; text-align:center; margin-left:4px; }
@@ -109,9 +108,7 @@ h2 { font-size:19px; line-height:24px; font-weight:600; margin:0 0 14px; letter-
 /* ================= CONTROLS ================= */
 .btn { white-space:nowrap; border:none; background:var(--btn-bg); box-shadow:var(--btn-sh); color:var(--text); min-height:40px; padding:10px 18px; border-radius:999px; cursor:pointer; font-weight:600; transition:filter .15s, transform .1s; }
 .btn:active { transform:scale(.97); }
-.btn:hover { filter:brightness(1.06); }
 .btn.primary { background:var(--btn-primary-bg); box-shadow:var(--btn-primary-sh); color:var(--accent-ink); }
-.btn.primary:hover { filter:brightness(1.08); }
 .btn.small { min-height:34px; padding:7px 14px; font-size:13.5px; }
 .btn.danger { color:var(--bad); }
 .btn:disabled { opacity:.55; cursor:default; }
@@ -150,7 +147,7 @@ td.wrap { white-space:normal; min-width:140px; }
 tbody tr:last-child td { border-bottom:none; }
 td.r, th.r { text-align:right; }
 tr.click { cursor:pointer; }
-tr.click:hover td { background:var(--surface-2); }
+tr.click:active td { background:var(--surface-2); }
 .coin { display:flex; align-items:center; gap:9px; }
 .coin { gap:11px; }
 .coin img, .coin .ph { width:32px; height:32px; border-radius:50%; flex:none; }
@@ -217,7 +214,7 @@ tr.click:hover td { background:var(--surface-2); }
 .search-wrap { position:relative; }
 .dropdown { position:absolute; left:0; right:0; top:100%; margin-top:4px; background:var(--surface-1); border:1px solid var(--border); border-radius:10px; box-shadow:var(--sh-2); z-index:5; max-height:260px; overflow-y:auto; }
 .dropdown .opt { padding:9px 11px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px; }
-.dropdown .opt:hover { background:var(--surface-2); }
+.dropdown .opt:active { background:var(--surface-2); }
 .picked { display:flex; align-items:center; justify-content:space-between; padding:9px 11px; border:1px solid var(--accent); border-radius:9px; background:var(--surface-2); }
 .showpw { display:flex; align-items:center; gap:7px; font-size:13px; color:var(--text-secondary); margin:-4px 0 12px; cursor:pointer; user-select:none; }
 .range { width:100%; accent-color:var(--accent); padding:0; border:none; background:none; height:24px; }
@@ -287,9 +284,10 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .auth-wrap { min-height:100vh; display:grid; place-items:center; padding:20px; }
 .auth { width:100%; max-width:400px; }
 .auth .brand { justify-content:center; font-size:20px; margin-bottom:6px; }
-.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--text-primary); color:var(--surface-1); padding:11px 18px; border-radius:999px; font-size:14px; z-index:60; box-shadow:0 6px 20px rgba(0,0,0,.25); }
+.toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); animation:toast .18s cubic-bezier(.2,.8,.2,1); background:var(--text); color:var(--surface-1); padding:11px 18px; border-radius:999px; font-size:14px; z-index:60; box-shadow:0 6px 20px rgba(0,0,0,.25); }
 .spinner { width:22px; height:22px; border:3px solid var(--grid); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; margin:40px auto; }
 @keyframes spin { to { transform:rotate(360deg); } }
+@keyframes toast { from { opacity:0; transform:translate(-50%,8px); } }
 
 
 /* ================= DELTA-STYLE COMPONENTS ================= */
@@ -323,6 +321,7 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .hl-list { display:none; }
 .hl-row { display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:center; padding:13px 2px; border-bottom:1px solid var(--grid); cursor:pointer; }
 .hl-row:last-child { border-bottom:none; }
+.hl-row:active { opacity:.6; } .hl-row, .cta-card { transition:opacity .15s; } .cta-card:active { opacity:.7; }
 .hl-row .coin img, .hl-row .coin .ph { width:38px; height:38px; }
 .hl-row .nm { font-weight:600; }
 .hl-row .q { color:var(--muted); margin-top:2px; }
@@ -369,8 +368,6 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
   table.exit-steps td.sell { min-width:118px; }
   table.exit-steps select { padding-left:6px; padding-right:2px; }
   table.exit-steps [data-del] { padding:8px 4px; font-size:15px; }
-  input[type=text], input[type=email], input[type=password], input[type=search], select, textarea { font-size:16px; }
-  table.exit-steps select, table.exit-steps input { font-size:16px; }
 }
 
 /* ================= CALM COMPONENTS (icon buttons, action row) ================= */
@@ -395,11 +392,18 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .cta-card .t { font-weight:600; } .cta-card .d { color:var(--muted); margin-top:4px; }
 .cta-card > div { flex:1; min-width:0; }
 
+/* Hover only where there's a real pointer, so taps on phones don't leave states stuck on. */
+@media (hover:hover) {
+  nav.tabs a:hover { color:var(--text); }
+  .btn:hover { filter:brightness(1.06); } .btn.primary:hover { filter:brightness(1.08); }
+  tr.click:hover td, .dropdown .opt:hover { background:var(--surface-2); }
+}
+
 /* ===== TOUCH (LukeW mobile input: 44px targets, no iOS zoom on focus) ===== */
 .seg.seg-fill { display:flex; width:100%; } .seg.seg-fill button { flex:1; }
 .more-btn { display:block; margin:-2px 0 14px; padding:6px 0; }
 @media (pointer: coarse) {
-  input, select, textarea { font-size:16px; }
+  input, select, textarea, table.exit-steps select, table.exit-steps input { font-size:16px; }
   .btn { min-height:44px; } .btn.small { min-height:40px; }
   .seg button, .periods button, .chip { min-height:40px; }
   .seg button { padding:9px 16px; }

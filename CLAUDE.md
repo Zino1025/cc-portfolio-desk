@@ -50,6 +50,7 @@ Build first, then check the new screen fits the rest of the app:
 - Same components and tokens as existing screens (no one-off styles, borders or flat fills).
 - No subtitles under page titles, no hints for obvious actions, no captions that just restate a label. Keep only text that changes what the user does (warnings, errors, real numbers).
 - Touch targets ≥44px on phones; inputs stay 16px (no iOS zoom).
+- `:hover` styles go only in the `@media (hover:hover)` block (else they stick after a tap). Anything tappable gets a ~150ms `:active` response instead.
 - 2–4 short choices = segmented buttons (`select.as-seg`), not a dropdown.
 - Look at it at 390px wide before pushing.
 
