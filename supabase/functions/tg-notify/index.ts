@@ -1,4 +1,4 @@
-// tg-notify: sends Telegram messages for new feedback/messages, review requests and bug/idea tickets.
+// tg-notify: sends Telegram messages for new feedback/messages, review requests and bug/idea tickets (new -> ticket admins, done -> the reporter).
 // "tp-check" (hourly cron): exit-plan step pings for members who opted in + CC group membership re-check.
 // Called by a database trigger with {table, id}. It re-reads the row and marks it
 // notified, so calling it again (or by anyone else) never sends duplicates.
@@ -95,14 +95,23 @@ Deno.serve(async (req) => {
       return Response.json({ ok: true });
     }
     if (table === "tickets") {
-      // Bug/idea tickets go only to admins with gets_tickets (not every admin).
+      const { data: row } = await db.from("tickets").select("status").eq("id", id).maybeSingle();
+      if (row?.status === "done") {
+        // Marked done -> tell the member who reported it (once).
+        const { data: t } = await db.from("tickets").update({ done_notified_at: new Date().toISOString() })
+          .eq("id", id).is("done_notified_at", null).select().maybeSingle();
+        if (!t) return Response.json({ skipped: "already" });
+        const { data: p } = await db.from("profiles").select("telegram_chat_id").eq("id", t.user_id).single();
+        if (p?.telegram_chat_id) await send(p.telegram_chat_id, `✅ <b>${t.kind === "idea" ? "Your idea was added" : "Your bug report was fixed"}</b>\n\n“${esc(cut(t.body))}”\n\nThanks for helping improve the Desk.`, "overview");
+        return Response.json({ ok: true });
+      }
+      // New ticket -> only admins with gets_tickets (not every admin).
       const { data: t } = await db.from("tickets").update({ notified_at: new Date().toISOString() })
         .eq("id", id).is("notified_at", null).select().maybeSingle();
       if (!t) return Response.json({ skipped: "already" });
       const { data: p } = await db.from("profiles").select("*").eq("id", t.user_id).single();
       const { data: to } = await db.from("profiles").select("telegram_chat_id").eq("gets_tickets", true).not("telegram_chat_id", "is", null);
-      const where = t.context?.device ? `\n<i>${esc(cut(String(t.context.device), 160))}</i>` : "";
-      for (const a of to ?? []) await send(a.telegram_chat_id, `${t.kind === "idea" ? "💡 <b>New idea</b>" : "🐞 <b>New bug report</b>"} from <b>${esc(nameOf(p))}</b>${where}\n\n“${esc(cut(t.body, 1500))}”`, "profile");
+      for (const a of to ?? []) await send(a.telegram_chat_id, `${t.kind === "idea" ? "💡 <b>New idea</b>" : "🐞 <b>New bug report</b>"} from <b>${esc(nameOf(p))}</b>\n\n“${esc(cut(t.body, 1500))}”`, "profile");
       return Response.json({ ok: true });
     }
     if (table === "updates") {

@@ -7,8 +7,8 @@ create table if not exists public.tickets (
   kind text not null default 'bug' check (kind in ('bug', 'idea')),
   body text not null check (char_length(body) between 3 and 2000),
   status text not null default 'open' check (status in ('open', 'done')),
-  context jsonb,
   notified_at timestamptz,
+  done_notified_at timestamptz,
   created_at timestamptz not null default now()
 );
 create index if not exists tickets_created on public.tickets (created_at desc);
@@ -20,6 +20,8 @@ create policy "tk read" on public.tickets for select using (user_id = (select au
 create policy "tk insert" on public.tickets for insert with check (user_id = (select auth.uid()));
 create policy "tk update" on public.tickets for update using ((select public.gets_tickets()));
 create trigger tickets_notify after insert on public.tickets for each row execute function public.notify_tg();
+-- Mark done -> tg-notify pings the reporter.
+create trigger tickets_done_notify after update of status on public.tickets for each row when (new.status = 'done' and old.status is distinct from 'done') execute function public.notify_tg();
 
 -- gets_tickets can only be set from SQL / Edge Functions, never from the app.
 create or replace function public.protect_profile_fields() returns trigger language plpgsql set search_path = public as $$

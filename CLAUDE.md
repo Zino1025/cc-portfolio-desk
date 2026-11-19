@@ -29,7 +29,7 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 | `shell.js` | SHELL 1 (tabs, navigation), MEMBER: OVERVIEW 57 |
 | `trades.js` | MEMBER: TRADES 1 (export: Desk backup or Koinly tax file), money in/out 111 (`cash_flows`), trade modal 141 |
 | `trade-import.js` | Screenshot import 1, CSV import 120 |
-| `member.js` | FEEDBACK THREAD 1, PROJECTIONS 72 (incl. What if chart: past value of these coins + dashed line to target, portfolio or per coin; target dropdown of Dkay's exit prices), MEMBER: PROFILE 232 (incl. bug/idea tickets: `tickets` table, only `profiles.gets_tickets` admins see them and get the tg-notify ping; set by SQL, not in the app), MODEL PORTFOLIO 266 (Dkay's target mix), MARKET ALERTS 372 (badge = unseen alerts, `profiles.alerts_seen`; opening Market updates clears it), GROUP TOTAL 414, MEMBER: REBALANCE 426 (add-only) |
+| `member.js` | FEEDBACK THREAD 1, PROJECTIONS 72 (incl. What if chart: past value of these coins + dashed line to target, portfolio or per coin; target dropdown of Dkay's exit prices), MEMBER: PROFILE 232 (incl. bug/idea tickets: `tickets` table, only `profiles.gets_tickets` admins see them and get the tg-notify ping, set by SQL, not in the app; Mark done pings the reporter), MODEL PORTFOLIO 266 (Dkay's target mix), MARKET ALERTS 372 (badge = unseen alerts, `profiles.alerts_seen`; opening Market updates clears it), GROUP TOTAL 414, MEMBER: REBALANCE 426 (add-only) |
 | `market.js` | ADMIN: MODEL EDITOR 1, MARKET UPDATES 79 (weekly summary + urgent bids) |
 | `exit-plan.js` | EXIT PLAN 1 (steps store their price in `st.at` for the hourly TP-hit pings) |
 | `admin.js` | ADMIN: BROADCAST 1, ADMIN DATA 77, REVIEW QUEUE 99, MEMBER DETAIL 157, GROUP INSIGHTS 302 |

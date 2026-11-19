@@ -258,7 +258,7 @@ async function viewProfile(v) {
   $("#tk-send").onclick = async () => {
     const body = $("#tk-body").value.trim(); $("#tk-err").textContent = "";
     if (body.length < 3) return $("#tk-err").textContent = "Describe it in a few words first.";
-    try { await api.addTicket({ kind: $("#tk-kind").value, body, context: { device: navigator.userAgent, telegram: !!TG } }); $("#tk-body").value = ""; toast("Sent. Thanks!"); }
+    try { await api.addTicket({ kind: $("#tk-kind").value, body }); $("#tk-body").value = ""; toast("Sent. Thanks!"); }
     catch (e) { $("#tk-err").textContent = e.message; }
   };
   const paintTickets = async () => {
