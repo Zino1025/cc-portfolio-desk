@@ -29,11 +29,11 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 | `shell.js` | SHELL 1 (tabs, navigation), MEMBER: OVERVIEW 57 |
 | `trades.js` | MEMBER: TRADES 1 (export: Desk backup or Koinly tax file), money in/out 111 (`cash_flows`), trade modal 141 |
 | `trade-import.js` | Screenshot import 1, CSV import 120 |
-| `member.js` | FEEDBACK THREAD 1, PROJECTIONS 72 (incl. What if chart: past value of these coins + dashed line to target, portfolio or per coin), MEMBER: PROFILE 232, MODEL PORTFOLIO 266 (Dkay's target mix), MARKET ALERTS 372 (badge = unseen alerts, `profiles.alerts_seen`; opening Market updates clears it), GROUP TOTAL 414, MEMBER: REBALANCE 426 (add-only) |
+| `member.js` | FEEDBACK THREAD 1, PROJECTIONS 72 (incl. What if chart: past value of these coins + dashed line to target, portfolio or per coin; target dropdown of Dkay's exit prices), MEMBER: PROFILE 232 (incl. bug/idea tickets: `tickets` table, only `profiles.gets_tickets` admins see them and get the tg-notify ping; set by SQL, not in the app), MODEL PORTFOLIO 266 (Dkay's target mix), MARKET ALERTS 372 (badge = unseen alerts, `profiles.alerts_seen`; opening Market updates clears it), GROUP TOTAL 414, MEMBER: REBALANCE 426 (add-only) |
 | `market.js` | ADMIN: MODEL EDITOR 1, MARKET UPDATES 79 (weekly summary + urgent bids) |
 | `exit-plan.js` | EXIT PLAN 1 (steps store their price in `st.at` for the hourly TP-hit pings) |
 | `admin.js` | ADMIN: BROADCAST 1, ADMIN DATA 77, REVIEW QUEUE 99, MEMBER DETAIL 157, GROUP INSIGHTS 302 |
-| `boot.js` | AUTH 1, BOOT 51 (startup reads in parallel; group data and tg-link run after the first paint; calls `boot()` at the end), TELEGRAM MINI APP (tg-link on every open + CC group gate), MOBILE KEYBOARD 107 (adds `enterkeyhint="done"` to every input, so don't write it in markup) |
+| `boot.js` | AUTH 1 (a reset link only opens the set-password screen; unfinished resets are signed out on next open), BOOT 51 (startup reads in parallel; group data and tg-link run after the first paint; calls `boot()` at the end), TELEGRAM MINI APP (tg-link on every open + CC group gate), MOBILE KEYBOARD 107 (adds `enterkeyhint="done"` to every input, so don't write it in markup) |
 
 css/app.css: THEME 1 (tokens), LAYOUT 73, CONTROLS 101, TABLES 133, CHART 156, THREAD 167, MODAL/AUTH 196, DELTA-STYLE COMPONENTS 278, CALM COMPONENTS (end: `.icon-btn`, `.acts`, `.section-head`, `.cta-card`). Icons: `ICON` in core.js.
 

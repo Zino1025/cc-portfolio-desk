@@ -26,7 +26,7 @@ function renderAuth(mode = "signin", msg = "") {
   $("#a-go").onclick = async () => {
     const pw = $("#a-pw").value;
     try {
-      if (mode === "recover") { if (pw.length < 8) return err("Password needs 8+ characters."); await api.updatePassword(pw); toast("Password updated"); return boot(); }
+      if (mode === "recover") { if (pw.length < 8) return err("Password needs 8+ characters."); await api.updatePassword(pw); recovering = false; recFlag(false); toast("Password updated"); return boot(); }
       const email = $("#a-email").value.trim();
       if (!email || !pw) return err("Enter email and password.");
       if (mode === "signup") {
@@ -59,13 +59,17 @@ async function loadMe(user) {
   CG.ensure(modelCoinIds()).then(() => paintBadge("updates", alertCount())).catch(() => {});
   if (isAdmin()) loadAdmin(true).then(() => paintBadge("members", openReviewCount())).catch(() => {});
 }
-let recovering = false, authListening = false;
+// A reset link signs you in (that's how Supabase lets you set the new password). Until the new password is saved,
+// that session only shows the reset screen; leaving without saving signs it out on the next open.
+let recovering = RECOVERY_LINK, authListening = false;
+const recFlag = (on) => { try { if (on != null) on ? localStorage.setItem("cc-recover", "1") : localStorage.removeItem("cc-recover"); return localStorage.getItem("cc-recover"); } catch (e) { return null; } };
 async function boot() {
   try {
     if (!sb) throw new Error("Couldn't load Supabase library. Check your connection.");
-    if (!authListening && (authListening = true)) api.onAuthChange((ev) => { if (ev === "PASSWORD_RECOVERY") { recovering = true; renderAuth("recover"); } });
+    if (!authListening && (authListening = true)) api.onAuthChange((ev) => { if (ev === "PASSWORD_RECOVERY") { recovering = true; recFlag(true); renderAuth("recover"); } });
     const s = await api.session();
-    if (recovering) return;
+    if (recovering && s) { recFlag(true); return renderAuth("recover"); }
+    if (s && recFlag()) { recFlag(false); await api.signOut(); return renderAuth("signin", "Password reset wasn't finished. Tap Forgot password to get a new link."); }
     if (!s) return renderAuth();
     await loadMe(s.user);
     const gated = () => !isAdmin() && S.me.in_group === false;

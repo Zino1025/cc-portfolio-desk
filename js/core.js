@@ -384,6 +384,7 @@ function computePortfolio(txs) {
 }
 
 /* ===================== DATA LAYER ===================== */
+const RECOVERY_LINK = /type=recovery/.test(location.hash);   // read before Supabase clears the link
 const sb = window.supabase?.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);   // missing if the CDN failed; boot() reports it
 const api = (() => {
   const ok = ({ data, error }) => { if (error) throw error; return canonIds(data); };
@@ -428,6 +429,9 @@ const api = (() => {
     async allProfiles() { return fetchAll(() => sb.from("profiles").select("*").order("created_at")); },
     async allTransactions() { return fetchAll(() => sb.from("transactions").select("id,user_id,coin_id,symbol,name,side,quantity,price_usd,fee_usd,executed_at").order("executed_at")); },
     async allMessageMeta() { return fetchAll(() => sb.from("messages").select("member_id,author_id,created_at,kind").order("created_at")); },
+    async addTicket(t) { return ok(await sb.from("tickets").insert(t).select().single()); },
+    async tickets() { return ok(await sb.from("tickets").select("*").eq("status", "open").order("created_at", { ascending: false }).limit(50)); },
+    async closeTicket(id) { ok(await sb.from("tickets").update({ status: "done" }).eq("id", id)); },
     async getSetting(key) { return ok(await sb.from("app_settings").select("value,updated_at").eq("key", key).maybeSingle()); },
     async setSetting(key, value) { return ok(await sb.from("app_settings").upsert({ key, value, updated_at: new Date().toISOString() }).select().single()); },
     async updates() { return ok(await sb.from("updates").select("*").order("created_at", { ascending: false }).limit(60)); },

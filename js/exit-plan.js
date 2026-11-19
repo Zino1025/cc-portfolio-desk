@@ -6,10 +6,10 @@ const DEFAULT_TPS = [
   { sym: "PAAL", coin: "paal-ai", label: "PAAL AI", min: 0.35, lo: 1.2, hi: 3, main: true },
   { sym: "VELO", coin: "velo", label: "Velo", lo: 0.12, hi: 0.64, main: true },
   { sym: "OTK", coin: "octo-gaming", label: "Octo Gaming (OTK)", min: 0.016, lo: 0.04, hi: 0.2, main: true },
-  { sym: "IRON", label: "IRON", min: 1.65, lo: 7, hi: 15 },
-  { sym: "ALVA", label: "ALVA", min: 0.36, lo: 1.5, hi: 3 },
-  { sym: "KTA", label: "KTA", lo: 1, hi: 3 },
-  { sym: "INDEXY", label: "INDEXY", lo: 0.0001, hi: 0.0004 },
+  { sym: "IRON", coin: "iron-fish", label: "IRON", min: 1.65, lo: 7, hi: 15 },
+  { sym: "ALVA", coin: "alvara-protocol", label: "ALVA", min: 0.36, lo: 1.5, hi: 3 },
+  { sym: "KTA", coin: "keeta", label: "KTA", lo: 1, hi: 3 },
+  { sym: "INDEXY", coin: "indexy", label: "INDEXY", lo: 0.0001, hi: 0.0004 },
 ];
 const EXIT_PLEDGES = [
   ["initials", "I'll take my initial investment out early."],
@@ -42,7 +42,7 @@ function tpFor(coinId, symbol) {
 const round5 = (v) => Math.max(0, Math.round(v / 5) * 5);
 /** Suggested steps (percent of the position) for a strategy. */
 function presetSteps(tp, strategy, h) {
-  const L = tp ? tpLevels(tp) : [];
+  const L = (tp ? tpLevels(tp) : []).filter(l => l.k !== "mid");
   if (!L.length) return [{ k: "custom", price: 0, pct: 25 }];
   if (strategy === "even") {
     const each = round5(80 / L.length) || 5;
@@ -163,7 +163,7 @@ async function viewExit(v) {
       </ul></div>
     <div class="two-col" style="margin-top:16px">
       <div class="card"><h2>Your money goal</h2>
-        <label class="field"><span>Total I want to cash out ($)</span><input type="text" inputmode="decimal" id="ex-goal" value="${plan.goal || ""}" placeholder="e.g. 50000"></label>
+        <label class="field strong"><span>Total I want to cash out ($)</span><input type="text" inputmode="decimal" id="ex-goal" value="${plan.goal || ""}" placeholder="e.g. 50000"></label>
         <div id="ex-sum"></div>
       </div>
       <div class="card"><h2>Commit</h2>
@@ -172,14 +172,14 @@ async function viewExit(v) {
         <div class="err" id="ex-err"></div>
       </div>
     </div>
-    <div class="card" style="margin-top:16px"><label class="pledge" style="margin:0"><input type="checkbox" id="ex-ping" ${S.me.tp_alerts ? "checked" : ""}><span>Ping me in Telegram when a coin hits one of my sell steps</span></label></div>
+    <div class="card" style="margin-top:16px"><label class="toggle-row"><span><b>Telegram pings</b><span class="d">When a coin hits one of your sell steps</span></span><input type="checkbox" class="switch" id="ex-ping" ${S.me.tp_alerts ? "checked" : ""}></label></div>
     <h2 class="section-h">Your coins</h2>
     <div class="grid" id="ex-coins">${coins.map(coinCard).join("")}</div>
     <div class="card" style="margin-top:16px"><h2>Add a coin</h2>
       <div class="add-coin"><select id="ex-add-sel" aria-label="Coin with ${esc(CONFIG.REVIEWER_NAME)}'s targets"></select><button class="btn" id="ex-add-btn">Add</button></div>
       <div class="search-wrap" style="margin-top:10px"><input type="search" id="ex-add-q" placeholder="Search coin…" autocomplete="off"><div class="dropdown hidden" id="ex-add-dd"></div></div>
     </div>
-    ${getTps().some(t => !t.main) ? `<div class="card" style="margin-top:16px"><h2>Other coins ${esc(CONFIG.REVIEWER_NAME)} has targets for</h2><div class="secondary" style="font-size:13px">${getTps().filter(t => !t.main).map(t => `${esc(t.sym)}: ${tpLevels(t).filter(l => l.k !== "mid").map(l => fmtPrice(l.price)).join(" / ")}`).join(" · ")}</div><div class="hint">Not part of the main five. They show up above if you hold or add them.</div></div>` : ""}`;
+    ${getTps().some(t => !t.main) ? `<div class="card" style="margin-top:16px"><h2>Targets for Other Coins</h2><div class="tp-list">${getTps().filter(t => !t.main).map(t => `<div><b>${esc(t.sym)}</b><span class="num secondary">${tpLevels(t).filter(l => l.k !== "mid").map(l => fmtPrice(l.price)).join(" / ")}</span></div>`).join("")}</div><div class="hint">Not part of the main five. Add one above to plan its exit.</div></div>` : ""}`;
   const paintStatus = () => {
     if (!$("#ex-status") || !v.isConnected) return;
     const st = exitStatus({ exit_plan: { ...plan, updated_at: dirty ? new Date().toISOString() : plan.updated_at } });

@@ -98,7 +98,7 @@ async function viewProjections(v) {
   const hasPf = computePortfolio(S.txs).holdings.length > 0;
   v.innerHTML = `
     <div class="page-head"><div><h1>Projections</h1></div>
-      <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end">${hasPf ? `<button class="btn" id="pj-load">Load my portfolio</button>` : ""}<button class="btn" id="pj-clear">Start blank</button><button class="btn primary" id="pj-add">+ Add coin</button></div></div>
+      <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end">${hasPf ? `<button class="btn" id="pj-load">Load portfolio</button>` : ""}<button class="btn" id="pj-clear">Start blank</button><button class="btn primary" id="pj-add">+ Add coin</button></div></div>
     <div class="card" style="margin-bottom:16px">
       <div class="toolbar" style="margin:0">
         <span class="secondary" style="font-size:13px">Apply to all coins:</span>
@@ -142,7 +142,7 @@ function paintProj() {
   $("#pj-chart").innerHTML = pieRows.length ? donutCard("pie-proj", "Projected allocation") : `<div class="card empty"><div class="big">Nothing to project yet</div>${S.txs.length ? "Load your portfolio or add a coin." : "Add a coin and an amount to see what it could be worth."}</div>`;
   if (pieRows.length) renderDonut("pie-proj", pieRows, "Projected", T.proj);
   const tbl = $("#pj-table");
-  if (!rows.length) { tbl.innerHTML = `<div class="empty">Tap <b>+ Add coin</b> to start${S.txs.length ? ", or <b>Load my portfolio</b>" : ""}.</div>`; return; }
+  if (!rows.length) { tbl.innerHTML = `<div class="empty">Tap <b>+ Add coin</b> to start${S.txs.length ? ", or <b>Load portfolio</b>" : ""}.</div>`; return; }
   tbl.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Coin</th><th>Amount</th><th class="r">Price</th><th>Target</th><th>Multiple</th><th class="r">Projected</th><th class="r">Profit</th><th></th></tr></thead><tbody>
     ${rows.map((r, i) => { const c = calcs[i]; return `<tr data-row="${esc(r.id)}">
       <td data-l="Coin">${coinCell(r)}</td>
@@ -151,6 +151,7 @@ function paintProj() {
            <input type="text" inputmode="decimal" data-f="entry" value="${esc(r.entry)}" placeholder="buy at ${esc(fmtPrice(c.now))}" style="width:110px;margin-top:4px">`}</td>
       <td class="r num" data-l="Price">${fmtPrice(c.now)}<div class="muted" style="font-size:12px">${fmtUsd(c.valueNow)}</div></td>
       <td data-l="Target"><input type="text" inputmode="decimal" data-f="target" value="${esc(r.target !== "" ? r.target : (r.mult !== "" ? +c.target.toPrecision(6) : ""))}" placeholder="${esc(fmtPrice(c.now))}" style="width:115px">
+        ${(L => L.length ? `<select data-tp style="width:115px;margin-top:4px" aria-label="${esc(CONFIG.REVIEWER_NAME)}'s exit prices"><option value="">${esc(CONFIG.REVIEWER_NAME)}'s exits…</option>${L.map(l => `<option value="${l.price}" ${num(r.target) === l.price ? "selected" : ""}>${l.label} · ${fmtPrice(l.price)}</option>`).join("")}</select>` : "")(tpLevels(tpFor(r.coin_id, r.symbol) || {}).filter(l => l.k !== "mid"))}
         ${c.mcapAtTarget ? `<div class="muted" style="font-size:11px">MC ${fmtUsd(c.mcapAtTarget, { compact: true })}</div>` : ""}</td>
       <td data-l="Multiple"><input type="text" inputmode="decimal" data-f="mult" value="${esc(r.mult !== "" ? r.mult : (r.target !== "" && c.now > 0 ? +c.mult.toFixed(2) : ""))}" placeholder="1" style="width:64px"></td>
       <td class="r num" data-l="Projected">${fmtUsd(c.valueProj)}</td>
@@ -174,6 +175,7 @@ function paintProj() {
     if (f === "target") r.mult = ""; if (f === "mult") r.target = "";
     commit();
   });
+  tbl.querySelectorAll("[data-tp]").forEach(sel => sel.onchange = () => { if (!sel.value) return; const r = rows.find(x => x.id === sel.closest("tr").dataset.row); r.target = sel.value; r.mult = ""; paintProj(); });
   tbl.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { S.proj.rows = rows.filter(x => x.id !== b.dataset.rm); paintProj(); });
   paintWhatIf(rows, calcs);
 }
@@ -245,7 +247,29 @@ async function viewProfile(v) {
       <label class="field"><span>New password</span><input type="password" enterkeyhint="go" id="p-pw" minlength="8" autocomplete="new-password"></label>
       <label class="showpw"><input type="checkbox" data-showpw="p-pw"> Show password</label>
       <button class="btn" id="p-pw-save">Change password</button>
-    </div>`;
+    </div>
+    <div class="card" style="max-width:560px;margin-top:16px"><h2>Report a bug</h2>
+      <label class="field"><span>Type</span><select id="tk-kind" class="as-seg"><option value="bug">Bug</option><option value="idea">Idea</option></select></label>
+      <label class="field"><span>What happened?</span><textarea id="tk-body" maxlength="2000" placeholder="What you tapped, what you expected, what you saw…"></textarea></label>
+      <div class="err" id="tk-err"></div>
+      <button class="btn primary" id="tk-send">Send</button>
+    </div>
+    ${p.gets_tickets ? `<div class="card" style="max-width:560px;margin-top:16px"><h2>Open tickets</h2><div id="tk-list"><div class="spinner"></div></div></div>` : ""}`;
+  $("#tk-send").onclick = async () => {
+    const body = $("#tk-body").value.trim(); $("#tk-err").textContent = "";
+    if (body.length < 3) return $("#tk-err").textContent = "Describe it in a few words first.";
+    try { await api.addTicket({ kind: $("#tk-kind").value, body, context: { device: navigator.userAgent, telegram: !!TG } }); $("#tk-body").value = ""; toast("Sent. Thanks!"); }
+    catch (e) { $("#tk-err").textContent = e.message; }
+  };
+  const paintTickets = async () => {
+    const box = $("#tk-list"); if (!box) return;
+    try {
+      const ts = await api.tickets(), who = (id) => memberName(S.admin.profiles.find(x => x.id === id) || (id === S.me.id ? S.me : {}));
+      box.innerHTML = ts.length ? ts.map(t => `<div class="tk"><div class="tk-h"><b>${t.kind === "idea" ? "Idea" : "Bug"} · ${esc(who(t.user_id))}</b><span class="muted">${ago(t.created_at)}</span></div><div>${esc(t.body)}</div><button class="btn small" data-done="${esc(t.id)}">Mark done</button></div>`).join("") : `<div class="secondary">No open tickets.</div>`;
+      box.querySelectorAll("[data-done]").forEach(b => b.onclick = async () => { try { await api.closeTicket(b.dataset.done); paintTickets(); } catch (e) { toast("Couldn't update: " + e.message); } });
+    } catch (e) { box.innerHTML = `<div class="err">${esc(e.message)}</div>`; }
+  };
+  paintTickets();
   $("#p-save").onclick = async () => {
     try {
       const patch = { display_name: $("#p-name").value.trim() || null, telegram_handle: $("#p-tg").value.trim().replace(/^@/, "") || null, risk_level: $("#p-risk").value || null, goal: $("#p-goal").value.trim() || null, cc_joined_on: $("#p-joined").value || null };
@@ -474,7 +498,7 @@ async function viewRebalance(v) {
     const c = document.querySelector("#pie-target")?.parentElement?.querySelector(".chart-center"); if (c) c.innerHTML = `<div><div class="v" style="font-size:15px">${esc(mixLabel(m, prefs))}</div><div class="l">target mix</div></div>`;
   };
   const presetChips = () => m.presets.map((p, i) => `<button class="chip ${presetIndex(prefs) === i || (presetIndex(prefs) == null && !prefs.mix && i === 0) ? "on" : ""}" data-p="${i}" title="${esc(m.flex.map(f => `${symOf(f.coin)} ${num(p.mix[f.coin])}%`).join(" · "))}">${esc(p.name)}</button>`).join("") +
-    `<button class="chip ${prefs.mix && presetIndex(prefs) == null ? "on" : ""}" data-p="custom" disabled style="cursor:default">Custom</button>`;
+    `<button class="chip ${prefs.mix && presetIndex(prefs) == null ? "on" : ""}" data-p="custom">Custom</button>`;
   v.innerHTML = `
     <div class="page-head"><div><h1>Rebalance</h1></div></div>
     <div class="two-col">
@@ -498,8 +522,8 @@ async function viewRebalance(v) {
     m.flex.forEach(f => { const el = $("#fx-" + CSS.escape(f.coin)); if (el) el.textContent = num(prefs.mix[f.coin]).toFixed(1) + "%"; const r = v.querySelector(`[data-flex="${CSS.escape(f.coin)}"]`); if (r && r !== s) r.value = prefs.mix[f.coin]; });
     $("#presets").innerHTML = presetChips(); bindPresets(); paint(); save();
   });
-  const bindPresets = () => $("#presets").querySelectorAll("[data-p]").forEach(c => { if (c.dataset.p !== "custom") c.onclick = () => {
-    prefs = { preset: +c.dataset.p };
+  const bindPresets = () => $("#presets").querySelectorAll("[data-p]").forEach(c => { c.onclick = () => {
+    prefs = c.dataset.p === "custom" ? { mix: memberMix(m, prefs) } : { preset: +c.dataset.p };
     $("#presets").innerHTML = presetChips(); bindPresets();
     $("#sliders").innerHTML = mixSliders(m, memberMix(m, prefs)); bindSliders(); paint(); save();
   }; });

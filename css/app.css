@@ -207,6 +207,7 @@ tr.click:active td { background:var(--surface-2); }
 .x { border:none; background:none; font-size:22px; cursor:pointer; color:var(--muted); line-height:1; }
 .search-wrap { position:relative; }
 .dropdown { position:absolute; left:0; right:0; top:100%; margin-top:4px; background:var(--surface-1); border:1px solid transparent; border-radius:10px; box-shadow:var(--sh-2); z-index:5; max-height:260px; overflow-y:auto; }
+.modal .dropdown { position:static; max-height:min(420px, 55vh); box-shadow:none; }   /* in-flow inside modals so results aren't clipped */
 .dropdown .opt { padding:9px 11px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:8px; }
 .dropdown .opt:active { background:var(--surface-2); }
 .picked { display:flex; align-items:center; justify-content:space-between; padding:9px 11px; border:1px solid var(--accent); border-radius:9px; background:var(--surface-2); }
@@ -229,6 +230,15 @@ details.past summary { cursor:pointer; }
 .tplegend i { display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:4px; vertical-align:-1px; }
 .tplegend i.now { background:var(--text); } .tplegend i.avg { background:var(--accent); } .tplegend i.min { background:var(--warn-ink); } .tplegend i.ext { background:var(--good); } .tplegend i.zone { background:color-mix(in srgb, var(--good) 35%, transparent); }
 .guide-list { margin:0; padding-left:18px; display:grid; gap:6px; font-size:14px; }
+label.field.strong > span { color:var(--text); font-size:14.5px; font-weight:500; }
+.toggle-row { display:flex; align-items:center; justify-content:space-between; gap:14px; min-height:44px; cursor:pointer; }
+.toggle-row > span { min-width:0; } .toggle-row b { display:block; font-weight:600; } .toggle-row .d { display:block; color:var(--muted); font-size:13px; margin-top:2px; }
+.switch { appearance:none; -webkit-appearance:none; flex:none; width:46px; height:28px; margin:0; border-radius:999px; background:var(--track); position:relative; cursor:pointer; transition:background .2s; }
+.switch::after { content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%; background:var(--surface-1); box-shadow:var(--sh-1); transition:transform .2s; }
+.switch:checked { background:var(--accent); } .switch:checked::after { transform:translateX(18px); background:var(--accent-ink); }
+.tp-list > div { display:flex; justify-content:space-between; gap:12px; padding:9px 0; } .tp-list > div + div { border-top:1px solid var(--track); } .tp-list span { text-align:right; min-width:0; font-size:13.5px; }
+.tk { padding:12px 0; display:grid; gap:6px; justify-items:start; overflow-wrap:anywhere; } .tk + .tk { border-top:1px solid var(--track); }
+.tk-h { display:flex; justify-content:space-between; gap:10px; width:100%; } .tk-h b { min-width:0; } .tk-h span { flex:none; font-size:13px; }
 .pledge { display:flex; gap:10px; align-items:flex-start; padding:7px 0; border-bottom:1px solid var(--track); cursor:pointer; font-size:14px; }
 .pledge input[type=checkbox] { width:18px; height:18px; min-width:18px; flex:0 0 18px; margin:1px 0 0; padding:0; accent-color:var(--accent); cursor:pointer; }
 .pledge span { flex:1; min-width:0; }
@@ -335,7 +345,7 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
   #pj-table td[data-l]::before { content:attr(data-l); display:block; font-size:13px; color:var(--muted); margin-bottom:3px; }
   #pj-table td[data-l="Coin"] { grid-column:1 / -1; padding-right:28px; }
   #pj-table td[data-l="Coin"]::before { display:none; }
-  #pj-table td input { width:100% !important; }
+  #pj-table td :is(input, select) { width:100% !important; }
   #pj-table .pj-rm { position:absolute; top:12px; right:0; }
   #pj-table .pj-empty { display:none; }
   #pj-table tr.pj-total td { border:none; }
@@ -349,6 +359,7 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
   .card { padding:16px; }
   .top-inner { flex-wrap:wrap; padding:10px 14px; gap:10px; }
   .page-head > * { min-width:0; }
+  .page-head > .row:has(> .btn) { flex:1 1 100% !important; justify-content:stretch !important; } .page-head > .row > .btn { padding:10px 12px; }
   .tc-sum { grid-template-columns:repeat(2,1fr); }
   table.plan th, table.plan td { padding-left:5px; padding-right:5px; } table.plan .coin img, table.plan .coin .ph { display:none; }
   table.exit-steps select { min-width:0 !important; width:100%; max-width:160px; padding-left:6px; padding-right:2px; }
