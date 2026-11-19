@@ -72,6 +72,7 @@ html, body { overscroll-behavior:none; }
 
 /* ================= LAYOUT ================= */
 header.top { position: sticky; top:0; z-index:20; background:color-mix(in srgb, var(--page) 82%, transparent); backdrop-filter:saturate(1.4) blur(14px); -webkit-backdrop-filter:saturate(1.4) blur(14px); border-bottom:1px solid transparent; }
+html.in-telegram header.top { padding-top:calc(var(--tg-safe-area-inset-top, 0px) + var(--tg-content-safe-area-inset-top, 0px)); }   /* clear Telegram's own buttons in full screen */
 .top-inner { max-width:1180px; margin:0 auto; padding:12px 20px; display:flex; align-items:center; gap:14px; }
 .brand { font-weight:600; letter-spacing:-0.4px; display:flex; align-items:center; gap:8px; white-space:nowrap; }
 .brand .logo { width:34px; height:34px; border-radius:50%; background:var(--btn-primary-bg); box-shadow:var(--btn-primary-sh); color:var(--accent-ink); letter-spacing:-.2px; display:grid; place-items:center; font-size:13px; font-weight:600; }

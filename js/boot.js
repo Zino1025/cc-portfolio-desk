@@ -87,7 +87,7 @@ setInterval(() => { if (S.me && !document.hidden && currentRoute() === "overview
 /* ===================== TELEGRAM MINI APP ===================== */
 const TG = window.Telegram?.WebApp?.initData ? window.Telegram.WebApp : null;
 function tgTheme() { try { if (!localStorage.getItem("cc-theme")) document.documentElement.dataset.theme = TG.colorScheme === "dark" ? "dark" : "light"; } catch (e) {} }
-if (TG) { try { TG.ready(); TG.expand(); tgTheme(); TG.onEvent("themeChanged", tgTheme); document.documentElement.classList.add("in-telegram"); } catch (e) {}
+if (TG) { try { TG.ready(); TG.expand(); tgTheme(); TG.onEvent("themeChanged", tgTheme); TG.onEvent("fullscreenChanged", paintFsBtn); document.documentElement.classList.add("in-telegram"); } catch (e) {}
   // Scrolling to the very top/bottom of a long page shouldn't minimise or close the Mini App.
   try {
     if (TG.isVersionAtLeast?.("7.7")) TG.disableVerticalSwipes();

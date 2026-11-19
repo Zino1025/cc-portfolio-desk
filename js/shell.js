@@ -26,15 +26,20 @@ function render() {
       <nav class="tabs">${routes().map(([k, l]) => k === "sep" ? `<span class="sep"></span>` :
         `<a href="#${k}" class="${route === k || (k === "members" && route.startsWith("member-")) ? "active" : ""}">${esc(l)}${badge(counts[k])}</a>`).join("")}</nav>
       <div class="user-chip"><span class="hide-sm secondary">${esc(memberName(S.me))}</span>
+        ${canFullscreen() ? `<button class="icon-btn sm" id="fs-btn"></button>` : ""}
         <button class="icon-btn sm" id="theme-btn" title="Toggle light/dark" aria-label="Toggle theme">${ICON.moon}</button>
         <button class="btn small" id="signout">Sign out</button></div>
     </div></header>
     <main id="view"></main>`;
   $("#theme-btn").onclick = toggleTheme;
+  $("#fs-btn") && ($("#fs-btn").onclick = () => TG.isFullscreen ? TG.exitFullscreen() : TG.requestFullscreen()) && paintFsBtn();
   $("#signout").onclick = async () => { LIVE.stop(); await api.signOut(); location.hash = ""; boot(); };
   const act = $("nav.tabs a.active"); act && act.scrollIntoView({ block: "nearest", inline: "center" });
   renderView(route);
 }
+// Telegram Desktop: expand the Mini App window to full screen and back.
+const canFullscreen = () => !!(TG?.isVersionAtLeast?.("8.0") && /tdesktop|macos|web/.test(TG.platform));
+function paintFsBtn() { const b = $("#fs-btn"); if (!b) return; b.innerHTML = TG.isFullscreen ? ICON.shrink : ICON.expand; b.setAttribute("aria-label", TG.isFullscreen ? "Exit full screen" : "Full screen"); }
 function toggleTheme() {
   const root = document.documentElement;
   const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
