@@ -341,7 +341,16 @@ function priceChartCard() {
       <div class="chg" id="pc-chg"></div></div>
       <div class="periods" id="pc-periods">${PRICE_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
     <div class="hero-chart" id="pc-chart" style="height:240px"></div>
+    <button class="btn small hidden" id="pc-ca" style="margin-top:12px">${ICON.copy}<span></span></button>
   </div>`;
+}
+const chainName = (k) => k === "binance-smart-chain" ? "BNB Chain" : k.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+/** Copy a token's contract address; asks which chain when it's on more than one. */
+async function copyContract(id, list) {
+  const copy = async ([k, a]) => { await copyText(a); toast(`${symOf(id)} contract (${chainName(k)}) copied`); };
+  if (list.length === 1) return copy(list[0]);
+  const { ov, close } = openModal(list.map(([k, a], i) => `<div class="row" style="align-items:center;padding:10px 0;border-bottom:1px solid var(--track)"><div><b>${esc(chainName(k))}</b><div class="muted num" style="font-size:13px;word-break:break-all">${esc(a)}</div></div><button class="icon-btn sm" style="flex:none" data-i="${i}" aria-label="Copy ${esc(chainName(k))} address">${ICON.copy}</button></div>`).join(""), { title: `${esc(symOf(id))} contract` });
+  ov.querySelectorAll("[data-i]").forEach(b => b.onclick = () => { copy(list[+b.dataset.i]); close(); });
 }
 function pcHeader() {
   const id = S.pcCoin, info = CG.info(id) || {}, el = document.getElementById("pc-price"); if (!el) return;
@@ -384,6 +393,8 @@ async function paintPriceChart() {
   document.querySelectorAll("#pc-coins [data-c]").forEach(b => { b.classList.toggle("on", b.dataset.c === id); b.onclick = () => { S.pcCoin = b.dataset.c; paintPriceChart(); }; });
   document.querySelectorAll("#pc-periods [data-d]").forEach(b => { b.classList.toggle("on", +b.dataset.d === days); b.onclick = () => { S.pcDays = +b.dataset.d; paintPriceChart(); }; });
   S.pcPeriodChg = S.pcScrub = null; pcHeader();
+  const ca = $("#pc-ca"); ca.classList.add("hidden");
+  CG.contracts(id).then(list => { if (id !== S.pcCoin || !list.length) return; ca.lastChild.textContent = `Copy ${symOf(id)} contract`; ca.onclick = () => copyContract(id, list); ca.classList.remove("hidden"); });
   clearInterval(S.pcTimer); S.pcTimer = setInterval(pcTick, 30000);
   if (!S.charts.pc) box.innerHTML = `<div class="note">Loading chart…</div>`;
   const fresh = (CG.info(id)?.liveAt || 0) > Date.now() - 30000;

@@ -124,6 +124,9 @@ const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValu
 const atHandle = (h) => h ? "@" + h.replace(/^@/, "") : "";
 function memberName(p) { return p?.display_name || atHandle(p?.telegram_handle) || "Member"; }
 function handleLink(h) { if (!h) return ""; const clean = esc(h.replace(/^@/, "")); return `<a href="https://t.me/${clean}" target="_blank" rel="noopener">@${clean}</a>`; }
+async function copyText(s) {   // Telegram's in-app browser can block the clipboard API: fall back to a hidden textarea
+  try { await navigator.clipboard.writeText(s); } catch (e) { const t = Object.assign(document.createElement("textarea"), { value: s }); document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove(); }
+}
 function coinLink(id) { return `https://www.coingecko.com/en/coins/${encodeURIComponent(id)}`; }
 // Stroke icons for .icon-btn (inherit currentColor). Use these instead of emoji in buttons.
 const ICON = {
@@ -140,6 +143,7 @@ const ICON = {
   share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 9l5-5 5 5"/><path d="M5 13v6h14v-6"/></svg>',
   expand: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
   shrink: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>',
+  copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>',
 };
 function coinIcon(c) {
@@ -332,6 +336,12 @@ const CG = {
     return s?.length && t >= s[0][0] - 7 * 864e5 ? s.reduce((b, x) => (Math.abs(x[0] - t) < Math.abs(b[0] - t) ? x : b))[1] : null;
   },
   info(id) { return this.cache[id]; },
+  /** [chain, address] pairs for a token (empty for native coins like BTC), fetched once per session. */
+  contracts(id) {
+    const c = (this._ca ||= {});
+    return c[id] ||= this.get(`/coins/${encodeURIComponent(id)}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false`)
+      .then(d => Object.entries(d.platforms || {}).filter(([k, a]) => k && a)).catch(() => { delete c[id]; return []; });
+  },
 };
 // Used only if CoinGecko can't be reached. Illustrative, not live.
 const SAMPLE_PRICES = {
