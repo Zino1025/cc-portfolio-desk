@@ -336,12 +336,11 @@ function priceChartCard() {
   const days = S.pcDays || 1;
   return `<div class="card hero" id="pc-card">
     <div class="chips" id="pc-coins">${coins.map(id => `<button class="chip ${id === S.pcCoin ? "on" : ""}" data-c="${esc(id)}">${esc(symOf(id))}</button>`).join("")}</div>
-    <div class="hero-head" style="margin-top:14px"><div><div class="label"><b id="pc-sym" style="color:var(--text)">${esc(symOf(S.pcCoin))}</b> <span id="pc-live"></span></div>
+    <div class="hero-head" style="margin-top:14px"><div><div class="label"><b id="pc-sym" style="color:var(--text)">${esc(symOf(S.pcCoin))}</b> <button class="ca-btn hidden" id="pc-ca" aria-label="Copy contract address">${ICON.copy}CA</button> <span id="pc-live"></span></div>
       <div class="big num" id="pc-price">—</div>
       <div class="chg" id="pc-chg"></div></div>
       <div class="periods" id="pc-periods">${PRICE_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
     <div class="hero-chart" id="pc-chart" style="height:240px"></div>
-    <button class="btn small hidden" id="pc-ca" style="margin-top:12px">${ICON.copy}<span></span></button>
   </div>`;
 }
 const chainName = (k) => k === "binance-smart-chain" ? "BNB Chain" : k.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
@@ -394,7 +393,7 @@ async function paintPriceChart() {
   document.querySelectorAll("#pc-periods [data-d]").forEach(b => { b.classList.toggle("on", +b.dataset.d === days); b.onclick = () => { S.pcDays = +b.dataset.d; paintPriceChart(); }; });
   S.pcPeriodChg = S.pcScrub = null; pcHeader();
   const ca = $("#pc-ca"); ca.classList.add("hidden");
-  CG.contracts(id).then(list => { if (id !== S.pcCoin || !list.length) return; ca.lastChild.textContent = `Copy ${symOf(id)} contract`; ca.onclick = () => copyContract(id, list); ca.classList.remove("hidden"); });
+  CG.contracts(id).then(list => { if (id !== S.pcCoin || !list.length) return; ca.onclick = () => copyContract(id, list); ca.classList.remove("hidden"); });
   clearInterval(S.pcTimer); S.pcTimer = setInterval(pcTick, 30000);
   if (!S.charts.pc) box.innerHTML = `<div class="note">Loading chart…</div>`;
   const fresh = (CG.info(id)?.liveAt || 0) > Date.now() - 30000;
