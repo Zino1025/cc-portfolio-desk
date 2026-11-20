@@ -44,7 +44,12 @@ transaction list), put each row in "trades" instead of "holdings" and leave hold
 side (buy/sell), quantity of coins, total_amount + total_currency (the amount paid/received shown for that
 row and its currency: "USD" for $ amounts, or the crypto's symbol such as "ETH" if it shows e.g. 0.05 ETH),
 price_usd only if a per-coin dollar price is shown, date as YYYY-MM-DD. Never convert currencies yourself. Use the coin named in the page header for every row.
-If the image isn't a portfolio, holdings list or transaction history, return nothing and say so in warnings.
+SWAP / ORDER CONFIRMATION (e.g. Uniswap "You're swapping", a wallet swap review, a filled exchange order): one
+trade per screen, in "trades". Bought coin = the one received: side buy, quantity = amount received,
+total_amount + total_currency = what was paid (its USD value if shown, e.g. $243.07 → 243.07 USD; else the paid
+amount and its symbol, e.g. 0.15 ETH). If the coin received is a stablecoin, it's a sell of the coin paid instead.
+Date as shown, else today's date. Separate swap screenshots are separate trades, even for the same coin.
+If the image isn't a portfolio, holdings list, transaction history or swap/order, return nothing and say so in warnings.
 Always answer by calling the report_holdings tool.`;
 
 const TOOL = {
@@ -74,7 +79,7 @@ const TOOL = {
       },
       trades: {
         type: "array",
-        description: "Individual transactions, only when the screenshot is a transaction history",
+        description: "Individual transactions: a transaction history, or swap/order confirmations",
         items: {
           type: "object",
           properties: {
@@ -138,7 +143,7 @@ Deno.serve(async (req) => {
   // --- ask Claude ---
   const content = [
     ...images.map((data) => ({ type: "image", source: { type: "base64", media_type: "image/jpeg", data } })),
-    { type: "text", text: images.length > 1 ? `These ${images.length} images are slices/screenshots of one member's portfolio. List every holding once.` : "List the holdings in this screenshot." },
+    { type: "text", text: `Today is ${new Date().toISOString().slice(0, 10)}. ` + (images.length > 1 ? `These ${images.length} images are slices/screenshots from one member. List every holding once (each swap screen is its own trade).` : "List the holdings or trades in this screenshot.") },
   ];
   let r: Response;
   try {
