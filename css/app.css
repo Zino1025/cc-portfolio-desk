@@ -332,7 +332,6 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .hl-row .q { color:var(--muted); margin-top:2px; }
 .hl-row .rt { text-align:right; }
 .hl-row .val { font-weight:600; margin-bottom:2px; }
-.hl-row .inv { color:var(--muted); font-size:13px; margin-top:2px; }
 @media (max-width: 860px) { .two-col, .ov-grid { grid-template-columns:1fr; } }
 @media (max-width: 640px) {
   .hero { padding:20px 18px 14px; }
