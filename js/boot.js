@@ -170,19 +170,30 @@ function installBanner() {
   const preSignin = !!$(".auth-wrap");
   if (preSignin && !new URLSearchParams(location.search).has("install")) return;   // signed-out screens: only for members sent from the Telegram Desk
   try { if (isStandalone() || $(".install") || Date.now() - (+localStorage.getItem("cc-install-hide") || 0) < 6048e5) return; } catch (e) { return; }
+  // Telegram 8.0+: native Mini App shortcut (opens in Telegram, already signed in). Older Telegram or unsupported device: the browser install below.
+  if (tgHome()) return TG.checkHomeScreenStatus((st) => st === "added" ? null : st === "unsupported" ? browserInstall(preSignin) : paintInstall(preSignin, "One tap to open, already signed in.", "Add", () => TG.addToHomeScreen()));
+  browserInstall(preSignin);
+}
+const tgHome = () => !!TG?.isVersionAtLeast?.("8.0");
+function browserInstall(preSignin) {
   const how = TG ? (isIOS ? "Open it in Safari, then tap Share → Add to Home Screen." : "Open it in your browser, then install it.") : installEvt ? null : isIOS ? `Tap Share, then Add to Home Screen${preSignin ? ", and sign in from there" : ""}.` : "";
   if (how === "") return;
+  paintInstall(preSignin, how, TG ? "Open in browser" : installEvt ? "Install" : null, () => {
+    if (TG) return TG.openLink(location.origin + location.pathname + "?install=1");
+    installEvt.prompt(); installEvt.userChoice.then((c) => c.outcome === "accepted" && $(".install")?.remove());
+  });
+}
+function paintInstall(preSignin, how, label, go) {
+  if ($(".install")) return;
   const el = document.createElement("div");
   el.className = "install" + (preSignin ? " pre-signin" : ""); el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Install the Desk");
-  el.innerHTML = `<img src="icons/icon-192.png" alt=""><div class="t"><b>Get the Desk on your home screen</b>${how ? `<div class="secondary">${how}</div>` : ""}
-    ${TG || installEvt ? `<button class="btn primary small" data-go>${TG ? "Open in browser" : "Install"}</button>` : ""}</div>
+  el.innerHTML = `<img src="icons/icon-192.png?v=20261120b" alt=""><div class="t"><b>Get the Desk on your home screen</b>${how ? `<div class="secondary">${how}</div>` : ""}
+    ${label ? `<button class="btn primary small" data-go>${label}</button>` : ""}</div>
     <button class="icon-btn sm" data-x aria-label="Dismiss">${ICON.x}</button>`;
   document.body.appendChild(el);
   el.querySelector("[data-x]").onclick = () => { try { localStorage.setItem("cc-install-hide", Date.now()); } catch (e) {} el.remove(); };
-  el.querySelector("[data-go]") && (el.querySelector("[data-go]").onclick = () => {
-    if (TG) return TG.openLink(location.origin + location.pathname + "?install=1");
-    installEvt.prompt(); installEvt.userChoice.then((c) => c.outcome === "accepted" && el.remove());
-  });
+  el.querySelector("[data-go]") && (el.querySelector("[data-go]").onclick = go);
 }
+if (TG) try { TG.onEvent("homeScreenAdded", () => { $(".install")?.remove(); toast("Added to your home screen"); }); } catch (e) {}
 try { const go = new URLSearchParams(location.search).get("go"); if (go && /^[\w-]+$/.test(go)) history.replaceState(null, "", location.pathname + "#" + go); } catch (e) {}
 boot();
