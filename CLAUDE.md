@@ -40,6 +40,7 @@ css/app.css: THEME 1 (tokens), LAYOUT 73, CONTROLS 101, TABLES 133, CHART 156, T
 
 ## Design system (every screen, every change)
 - Font: Inter Tight. Title (h1) 22/28 600 −0.7px. Section header (h2) 19/24 600 −0.6px. Body 14.5/18 400 +0.3px. Captions 13px. All headings and big numbers get negative letter-spacing. Weights 400/500/600 only.
+- Brand roles (one meaning per color): yellow `--accent` = primary actions only (fill, black `--accent-ink`), `--link` = yellow text links/focus (darker in light mode for contrast); purple `--brand` = selection/identity (active tab, selected chips, Dkay's messages); black/plum-tinted neutrals everywhere else. Warnings are amber `--warn-*`, never brand yellow. Keep yellow to ~10% of a screen.
 - Colors: `var(--text)` primary, `var(--muted)` secondary, `var(--strong)` icons. No new grays or hex colors in JS/inline styles; add a token in THEME if truly needed (light and dark).
 - Dividers: 1px `var(--track)`. No visible borders anywhere. Status = tinted background, not a colored border.
 - Cards: no border, layered shadows: `--sh-1` normal cards, `--sh-2` hero and modals. Radius by depth: 18 hero/modal, 16 card, 14 nested/CTA, 12 inputs/small.
