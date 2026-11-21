@@ -204,7 +204,6 @@ async function viewProfile(v) {
       <label class="showpw"><input type="checkbox" data-showpw="p-pw"> Show password</label>
       <button class="btn" id="p-pw-save">Change password</button>
       <button class="btn" id="p-signout" style="margin-left:8px">Sign out</button>
-      ${isStandalone() ? "" : `<hr style="border:none;border-top:1px solid var(--track);margin:20px 0"><button class="btn" id="p-install">Add to home screen</button>${tgHome() ? `<button class="btn" id="p-install-web" style="margin-left:8px">${isIOS ? "Safari app" : "Browser app"}</button>` : ""}`}
     </div>
     <div class="card" style="max-width:560px;margin-top:16px"><h2>Report a bug</h2>
       <label class="field"><span>Type</span><select id="tk-kind" class="as-seg"><option value="bug">Bug</option><option value="idea">Idea</option></select></label>
@@ -213,8 +212,6 @@ async function viewProfile(v) {
       <button class="btn primary" id="tk-send">Send</button>
     </div>
     ${p.gets_tickets ? `<div class="card" style="max-width:560px;margin-top:16px"><h2>Open tickets</h2><div id="tk-list"><div class="spinner"></div></div></div>` : ""}`;
-  $("#p-install-web") && ($("#p-install-web").onclick = openBrowserInstall);
-  $("#p-install") && ($("#p-install").onclick = () => { if (tgHome()) return TG.addToHomeScreen(); if (!$(".install")) installBanner(true); if (!$(".install")) toast("Open the Desk in Safari or Chrome to add it."); });
   $("#tk-send").onclick = async () => {
     const body = $("#tk-body").value.trim(); $("#tk-err").textContent = "";
     if (body.length < 3) return $("#tk-err").textContent = "Describe it in a few words first.";

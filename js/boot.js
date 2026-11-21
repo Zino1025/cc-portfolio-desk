@@ -167,13 +167,13 @@ if (isStandalone()) {
   addEventListener("touchend", () => { if (ind?.classList.contains("on")) { ind.classList.add("spin"); location.reload(); } else ind?.remove(); ind = y0 = null; });
 }
 // Pops up on its own only once per member (remembered on the device and in Telegram's CloudStorage, which survives Telegram clearing web storage).
-// Profile → Add to home screen and ?install=1 links show it any time.
+// ?install=1 links show it any time; afterwards members use Telegram's ⋯ menu (Add to Home Screen) or the bot's /home.
 let installForced = false;
-function installBanner(force) {
+function installBanner() {
   const preSignin = !!$(".auth-wrap"), linked = new URLSearchParams(location.search).has("install");
   if (preSignin && !linked) return;   // signed-out screens: only for members sent from the Telegram Desk
   if (isStandalone() || $(".install")) return;
-  installForced = !!force || linked;
+  installForced = linked;
   if (!installForced) {
     try { if (localStorage.getItem("cc-install-seen")) return; } catch (e) {}
     if (TG?.isVersionAtLeast?.("6.9")) return TG.CloudStorage.getItem("install_seen", (e, v) => v ? markInstallSeen() : showInstall(preSignin));
