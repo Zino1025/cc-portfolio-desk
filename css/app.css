@@ -428,3 +428,7 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .install .secondary { font-size:13px; margin-top:2px; }
 .install .btn { margin-top:10px; }
 body:has(.install) main, body:has(.install) .auth-wrap { padding-bottom:150px; }
+/* Pull to refresh, installed app only (boot.js INSTALL) */
+.ptr { position:fixed; top:6px; left:50%; z-index:45; pointer-events:none; opacity:.5; transition:opacity .15s; }
+.ptr.on { opacity:1; color:var(--accent); }
+.ptr.spin svg { animation:spin .8s linear infinite; }

@@ -154,6 +154,18 @@ addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt 
 addEventListener("appinstalled", () => $(".install")?.remove());
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 const isStandalone = () => matchMedia("(display-mode: standalone)").matches || !!navigator.standalone;
+// The installed app has no browser reload: pull down from the top of the page and let go to reload (also picks up new versions).
+if (isStandalone()) {
+  let y0 = null, ind = null;
+  addEventListener("touchstart", (e) => { y0 = scrollY <= 0 && !e.target.closest("canvas, .overlay, .install") ? e.touches[0].clientY : null; }, { passive: true });
+  addEventListener("touchmove", (e) => {
+    const d = y0 == null ? 0 : e.touches[0].clientY - y0;
+    if (d <= 10) return;
+    ind ||= document.body.appendChild(Object.assign(document.createElement("div"), { className: "ptr icon-btn", innerHTML: ICON.refresh }));
+    ind.style.transform = `translate(-50%, ${Math.min(d, 140) * .5}px) rotate(${d * 2}deg)`; ind.classList.toggle("on", d > 90);
+  }, { passive: true });
+  addEventListener("touchend", () => { if (ind?.classList.contains("on")) { ind.classList.add("spin"); location.reload(); } else ind?.remove(); ind = y0 = null; });
+}
 function installBanner() {
   const preSignin = !!$(".auth-wrap");
   if (preSignin && !new URLSearchParams(location.search).has("install")) return;   // signed-out screens: only for members sent from the Telegram Desk
