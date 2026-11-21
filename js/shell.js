@@ -1,5 +1,6 @@
 /* ===================== SHELL ===================== */
 function routes() {
+  if (signalsOnly()) return [["signals", "Signals"], ["elite", "Elite"], ["profile", "Profile"]];
   const r = [["overview", "Portfolio"], ["updates", "Market"], ["signals", "Signals"], ["feedback", "Feedback"], ["trades", "Trades"], ["exit", "Exit Plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]];
   if (isAdmin()) r.push(["sep"], ["members", "Review Queue"], ["insights", "Group"], ["model", "Model portfolio"]);
   r.push(["profile", "Profile"]);
@@ -9,7 +10,7 @@ function currentRoute() {
   const h = location.hash.replace("#", "");
   if (h.startsWith("member-") && isAdmin()) return h;
   const valid = routes().map(r => r[0]);
-  return valid.includes(h) ? h : (isAdmin() ? "members" : "overview");
+  return valid.includes(h) ? h : valid[0] === "signals" ? "signals" : isAdmin() ? "members" : "overview";
 }
 function unreadCount() {
   const seen = S.me?.feedback_seen_at ? new Date(S.me.feedback_seen_at) : new Date(0);
@@ -24,14 +25,16 @@ const TAB_ICON = {
   list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>',
   chart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
   chat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1-4.4A8.5 8.5 0 1 1 20.5 12z"/></svg>',
+  star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/></svg>',
   shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/></svg>',
 };
 const SUB = { plan: "exit", admin: "members", updates: "updates" };   // last page opened in each group
 function tabs() {
+  if (signalsOnly()) return [["signals", "Signals", TAB_ICON.chart], ["elite", "Elite", TAB_ICON.star]];
   const t = [["overview", "Portfolio", TAB_ICON.pie], ["trades", "Trades", TAB_ICON.list], ["plan", "Plan", ICON.target], ["updates", "Market", TAB_ICON.chart]];
   return isAdmin() ? [["admin", "Admin", TAB_ICON.shield], ...t] : [...t, ["feedback", "Feedback", TAB_ICON.chat]];
 }
-const groupOf = (route) => route.startsWith("member-") ? "admin" : Object.keys(GROUPS).find(g => GROUPS[g].some(([k]) => k === route)) || route;
+const groupOf = (route) => signalsOnly() ? route : route.startsWith("member-") ? "admin" : Object.keys(GROUPS).find(g => GROUPS[g].some(([k]) => k === route)) || route;
 async function signOut() { LIVE.stop(); await api.signOut(); location.hash = ""; boot(); }
 
 function render() {
@@ -72,7 +75,7 @@ function renderView(route) {
   if (route.startsWith("member-")) return viewMemberDetail(v, route.slice(7));
   const g = GROUPS[groupOf(route)];
   if (g) { v.innerHTML = `<nav class="seg seg-fill subnav">${g.map(([k, l]) => `<a href="#${k}"${k === route ? ' class="on" aria-current="page"' : ""}>${l}</a>`).join("")}</nav><div id="subview"></div>`; v = $("#subview"); }
-  ({ overview: viewOverview, trades: viewTrades, projections: viewProjections, rebalance: viewRebalance, exit: viewExit, updates: viewUpdates, signals: viewSignals, model: viewModel,
+  ({ overview: viewOverview, trades: viewTrades, projections: viewProjections, rebalance: viewRebalance, exit: viewExit, updates: viewUpdates, signals: viewSignals, elite: viewElite, model: viewModel,
      feedback: viewFeedback, profile: viewProfile, members: viewMembers, insights: viewInsights })[route](v);
 }
 

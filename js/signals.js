@@ -163,3 +163,18 @@ function sigUpdateModal(s, v) {
     }, { yes: "Send" });
   };
 }
+
+/* ===================== ELITE UPSELL (Signals-only members) ===================== */
+function viewElite(v) {
+  const asked = S.msgs.some(m => m.author_id === S.me.id && /^Upgrade to Elite/.test(m.body || ""));
+  v.innerHTML = `
+    <div class="page-head"><div><h1>Elite</h1></div></div>
+    <div class="card hero"><h2>Signals members get 20% off Elite</h2>
+      <div class="sig-rows" style="margin-top:12px">${[["Portfolio review", `${esc(CONFIG.REVIEWER_NAME)} reviews your whole portfolio`], ["Market updates", "Weekly summary and urgent bids"], ["Exit plan", "Know when to take profit, with pings"], ["Model portfolio", `${esc(CONFIG.REVIEWER_NAME)}'s target mix`], ["Signals", "Keep every signal and ping"]].map(([k, d]) => `<div class="sig-k">${k}</div><div class="sig-v" style="font-weight:400">${d}</div>`).join("")}</div>
+      <div class="btn-row" style="margin-top:16px"><button class="btn primary" id="el-ask"${asked ? " disabled" : ""}>${asked ? "Requested" : "I'm interested"}</button></div></div>`;
+  $("#el-ask").onclick = async () => {
+    const b = $("#el-ask"); b.disabled = true;
+    try { S.msgs.push(await api.addMessage({ member_id: S.me.id, kind: "question", body: "Upgrade to Elite: I'd like the 20% Signals member discount." })); b.textContent = "Requested"; toast(`Sent. ${CONFIG.REVIEWER_NAME} will message you.`); }
+    catch (e) { b.disabled = false; toast("Couldn't send. Try again."); }
+  };
+}

@@ -496,5 +496,6 @@ const S = {
 };
 const isAdmin = () => S.me?.role === "admin";
 const canPostSignals = () => isAdmin() || !!S.me?.signals_admin;
+const signalsOnly = () => S.me?.tier === "signals" && !canPostSignals();   // Signals tab + Elite upsell, no Elite screens, no CC group gate
 const seesSignals = () => canPostSignals() || ["signals", "both"].includes(S.me?.tier);
 

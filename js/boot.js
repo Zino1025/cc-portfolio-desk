@@ -93,7 +93,7 @@ async function boot() {
     if (s && recFlag()) { recFlag(false); await api.signOut(); return renderAuth("signin", "Password reset wasn't finished. Tap Forgot password to get a new link."); }
     if (!s) return renderAuth();
     await loadMe(s.user);
-    const gated = () => !isAdmin() && S.me.in_group === false;
+    const gated = () => !isAdmin() && !signalsOnly() && S.me.in_group === false;
     if (gated()) return renderGate();
     // Members always open on their portfolio, whatever page they were on last time.
     if (!isAdmin() && location.hash !== "#overview") history.replaceState(null, "", location.pathname + location.search + "#overview");
