@@ -58,7 +58,8 @@ function sigCheck(f) {
     if (f.tps[i] <= prev) return [i ? `TP${i + 1} must be above TP${i}` : "TP1 must be above the entry", `sg-tp${i + 1}`];
     prev = f.tps[i];
   }
-  if (f.stop_type !== "none" && !(f.stop_price > 0 && f.stop_price < f.entry_low)) return ["Stop must be below the entry", "sg-stop"];
+  if (f.stop_type !== "none" && !(f.stop_price > 0)) return ["Add the stop price or pick None", "sg-stop"];
+  if (f.stop_type !== "none" && f.stop_price >= f.entry_low) return ["Stop must be below the entry", "sg-stop"];
   return null;
 }
 
