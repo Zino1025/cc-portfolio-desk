@@ -16,7 +16,7 @@ function renderAuth(mode = "signin", msg = "") {
       ${mode === "signup" ? `
         <label class="field"><span>Display name</span><input type="text" id="a-name" maxlength="60" autocomplete="nickname"></label>
         <label class="field"><span>Telegram handle</span><input type="text" id="a-tg" maxlength="40" autocapitalize="off" spellcheck="false" placeholder="@yourhandle"></label>` : ""}
-      ${tgBtn ? `<a class="btn primary tg-go" id="a-tg-go" href="https://t.me/${CONFIG.BOT}?start=login_${nonce}" target="_blank" rel="noopener">${pend ? "Waiting for Telegram…" : "Sign in with Telegram"}</a><div class="or">or use email</div>` : ""}
+      ${tgBtn ? `<a class="btn primary tg-go" id="a-tg-go" href="https://t.me/${CONFIG.BOT}?start=login_${nonce}" target="_blank" rel="noopener">${pend ? "Waiting for Telegram…" : "Sign in with Telegram"}</a><div class="secondary tg-hint${pend ? "" : " hidden"}">In the bot chat, tap <b>Approve</b>, then come back here.</div><div class="or">or use email</div>` : ""}
       <label class="field"><span>Email</span><input type="email" id="a-email" autocomplete="email" autocapitalize="off" spellcheck="false"></label>
       <label class="field"><span>Password</span><input type="password" enterkeyhint="go" id="a-pw" minlength="8" autocomplete="${mode === "signup" ? "new-password" : "current-password"}"></label>
       <label class="showpw"><input type="checkbox" data-showpw="a-pw"> Show password</label>
@@ -50,7 +50,7 @@ function renderAuth(mode = "signin", msg = "") {
     try { await api.resetPassword(email); err("If that email has an account, a reset link is on its way."); } catch (e) { err(e.message); }
   });
   $("#a-pw").addEventListener("keydown", e => { if (e.key === "Enter") $("#a-go").click(); });
-  $("#a-tg-go") && ($("#a-tg-go").onclick = (e) => { try { localStorage.setItem("cc-tg-login", JSON.stringify({ n: nonce, t: Date.now() })); } catch (x) {} e.currentTarget.textContent = "Waiting for Telegram…"; setTimeout(tgLoginPoll, 1500); });
+  $("#a-tg-go") && ($("#a-tg-go").onclick = (e) => { try { localStorage.setItem("cc-tg-login", JSON.stringify({ n: nonce, t: Date.now() })); } catch (x) {} e.currentTarget.textContent = "Waiting for Telegram…"; $(".tg-hint").classList.remove("hidden"); setTimeout(tgLoginPoll, 1500); });
   if (pend) tgLoginPoll();
 }
 // The member approves in the bot, then comes back here: poll while visible (iOS pauses the app while Telegram is open).

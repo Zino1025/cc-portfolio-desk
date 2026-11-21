@@ -16,7 +16,7 @@ function serviceKey() {
   return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 }
 const db = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey(), { auth: { persistSession: false } });
-const tg = async (method: string, body: unknown) => (await fetch(`https://api.telegram.org/bot${TOKEN}/${method}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json();
+const tg = async (method: string, body: unknown) => { const r = await (await fetch(`https://api.telegram.org/bot${TOKEN}/${method}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json(); if (!r.ok) console.log("telegram", method, r.description); return r; };
 const say = (chat_id: number, text: string, buttons?: unknown[][]) => tg("sendMessage", { chat_id, text, parse_mode: "HTML", disable_web_page_preview: true, reply_markup: buttons ? { inline_keyboard: buttons } : undefined });
 const openBtn = [[{ text: "Open Desk", web_app: { url: APP } }]];
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -147,7 +147,7 @@ Deno.serve(async (req) => {
     if (prof.role !== "admin" && (await inGroup(m.from.id)) === false) { await say(chat, "The Desk is for CC group members. Join the group, then try again."); return new Response("ok"); }
     const login = text.match(/^\/start login_([a-f0-9]{32})$/)?.[1];
     if (login) {
-      await say(chat, "Sign in to the CC Portfolio Desk app?\n\nOnly tap Approve if you just tapped <b>Sign in with Telegram</b> on your own phone.", [[{ text: "✅ Approve", callback_data: `login:${login}` }]]);
+      await say(chat, "Tap <b>Approve</b> to sign in to the Desk app, then go back to it.\n\nOnly approve if you just tapped Sign in with Telegram yourself.", [[{ text: "✅ Approve", callback_data: `login:${login}` }]]);
       return new Response("ok");
     }
     if (/^\/(start|help)/.test(text)) {
