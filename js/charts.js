@@ -232,9 +232,14 @@ async function shareCard(pf) {
   const mark = (x, y, r) => [[x, B.yellow], [x + r, B.purple]].forEach(([cx, col]) => { c.beginPath(); c.strokeStyle = col; c.lineWidth = r * .44; c.arc(cx, y, r, Math.PI / 4, Math.PI * 7 / 4); c.stroke(); });
   mark(112, 118, 30); c.fillStyle = B.txt; F(600, 40, -1); c.fillText("Portfolio Desk", 186, 132);
   c.fillStyle = B.mut; F(500, 30); c.textAlign = "right"; c.fillText(new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }), W - 80, 130); c.textAlign = "left";
+  // Whose card: Telegram @handle, else display name, next to an initial badge
+  const who = S.me?.telegram_handle ? "@" + S.me.telegram_handle : memberName(S.me);
+  c.fillStyle = B.purple; c.beginPath(); c.arc(108, 236, 28, 0, Math.PI * 2); c.fill();
+  c.fillStyle = B.txt; F(600, 30); c.textAlign = "center"; c.fillText(((who.match(/[A-Za-z0-9]/) || ["?"])[0]).toUpperCase(), 108, 247); c.textAlign = "left";
+  F(600, 36, -.5); c.fillText(who.length > 28 ? who.slice(0, 27) + "…" : who, 152, 249);
   // Hero: the one number that matters
-  c.fillStyle = B.mut; F(500, 36); c.fillText(f && f.dep ? "Total return" : "Return on open positions", 80, 300);
-  c.fillStyle = up ? B.good : B.bad; F(600, 84); c.fillText(up ? "▲" : "▼", 80, 452); F(600, 176, -7); c.fillText(isFinite(ret) ? Math.abs(ret).toFixed(1) + "%" : "—", 186, 470);
+  c.fillStyle = B.mut; F(500, 36); c.fillText(f && f.dep ? "Total return" : "Return on open positions", 80, 345);
+  c.fillStyle = up ? B.good : B.bad; F(600, 84); c.fillText(up ? "▲" : "▼", 80, 497); F(600, 176, -7); c.fillText(isFinite(ret) ? Math.abs(ret).toFixed(1) + "%" : "—", 186, 515);
   const top = pf.holdings.slice(0, 6), other = pf.holdings.slice(6).reduce((a, h) => a + h.alloc, 0);
   // Allocation: donut + legend on a raised card
   c.fillStyle = B.card; c.beginPath(); c.roundRect(48, 620, W - 96, 560, 48); c.fill();
