@@ -1,5 +1,9 @@
 /* ===================== AUTH ===================== */
-function renderAuth(mode = "signin", msg = "") {
+// First-timers see a welcome screen. Devices that have signed in before, and members sent here from the Telegram Desk
+// (?install=1), go straight to sign-in.
+const knownDevice = () => { try { return !!localStorage.getItem("cc-member") || new URLSearchParams(location.search).has("install"); } catch (e) { return false; } };
+function renderAuth(mode = knownDevice() ? "signin" : "welcome", msg = "") {
+  document.querySelector(".install:not(.pre-signin)")?.remove();
   // Outside Telegram (browser / home-screen app), members sign in through the bot instead of typing a password.
   const tgBtn = mode === "signin" && !TG, pend = tgPending();
   const nonce = pend?.n || Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
@@ -11,7 +15,9 @@ function renderAuth(mode = "signin", msg = "") {
         <label class="field"><span>New password</span><input type="password" enterkeyhint="go" id="a-pw" minlength="8" autocomplete="new-password"></label>
         <label class="showpw"><input type="checkbox" data-showpw="a-pw"> Show password</label>
         <div class="err" id="a-err">${esc(msg)}</div>
-        <button class="btn primary" id="a-go" style="width:100%">Save password</button>` : `
+        <button class="btn primary" id="a-go" style="width:100%">Save password</button>` : mode === "welcome" ? `
+        <p class="secondary" style="margin:0 0 18px">Log your trades and get ${esc(CONFIG.REVIEWER_NAME)}'s feedback on your portfolio.</p>
+        <div class="stack"><button class="btn primary" data-m="signup">Create account</button><button class="btn" data-m="signin">I already have an account</button></div>` : `
       <div class="seg" style="width:100%;margin-bottom:16px"><button style="flex:1" class="${mode === "signin" ? "on" : ""}" data-m="signin">Sign in</button><button style="flex:1" class="${mode === "signup" ? "on" : ""}" data-m="signup">Create account</button></div>
       ${mode === "signup" ? `
         <label class="field"><span>Display name</span><input type="text" id="a-name" maxlength="60" autocomplete="nickname"></label>
@@ -26,7 +32,9 @@ function renderAuth(mode = "signin", msg = "") {
     </div>
   </div></div>`;
   document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => renderAuth(b.dataset.m));
+  installBanner();   // shows here only for members sent from the Telegram Desk (?install=1)
   const err = (m) => $("#a-err").textContent = m;
+  if (mode === "welcome") return;
   $("#a-go").onclick = async () => {
     const pw = $("#a-pw").value;
     try {
@@ -91,11 +99,13 @@ async function boot() {
     if (s && recFlag()) { recFlag(false); await api.signOut(); return renderAuth("signin", "Password reset wasn't finished. Tap Forgot password to get a new link."); }
     if (!s) return renderAuth();
     await loadMe(s.user);
+    try { localStorage.setItem("cc-member", "1"); } catch (e) {}
     const gated = () => !isAdmin() && S.me.in_group === false;
     if (gated()) return renderGate();
     // Members always open on their portfolio, whatever page they were on last time.
     if (!isAdmin() && location.hash !== "#overview") history.replaceState(null, "", location.pathname + location.search + "#overview");
     render();
+    installBanner();
     LIVE.start();
     tgLink().then(() => gated() && renderGate());   // re-checks group membership without holding up the first paint
   } catch (e) {
@@ -152,21 +162,22 @@ addEventListener("appinstalled", () => $(".install")?.remove());
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 const isStandalone = () => matchMedia("(display-mode: standalone)").matches || !!navigator.standalone;
 function installBanner() {
+  const preSignin = !!$(".auth-wrap");
+  if (preSignin && !new URLSearchParams(location.search).has("install")) return;   // signed-out screens: only for members sent from the Telegram Desk
   try { if (isStandalone() || $(".install") || Date.now() - (+localStorage.getItem("cc-install-hide") || 0) < 6048e5) return; } catch (e) { return; }
-  const how = TG ? (isIOS ? "Open it in Safari, then tap Share → Add to Home Screen." : "Open it in your browser, then install it.") : installEvt ? null : isIOS ? "Tap Share, then Add to Home Screen." : "";
+  const how = TG ? (isIOS ? "Open it in Safari, then tap Share → Add to Home Screen." : "Open it in your browser, then install it.") : installEvt ? null : isIOS ? `Tap Share, then Add to Home Screen${preSignin ? ", and sign in from there" : ""}.` : "";
   if (how === "") return;
   const el = document.createElement("div");
-  el.className = "install"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Install the Desk");
+  el.className = "install" + (preSignin ? " pre-signin" : ""); el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Install the Desk");
   el.innerHTML = `<img src="icons/icon-192.png" alt=""><div class="t"><b>Get the Desk on your home screen</b>${how ? `<div class="secondary">${how}</div>` : ""}
     ${TG || installEvt ? `<button class="btn primary small" data-go>${TG ? "Open in browser" : "Install"}</button>` : ""}</div>
     <button class="icon-btn sm" data-x aria-label="Dismiss">${ICON.x}</button>`;
   document.body.appendChild(el);
   el.querySelector("[data-x]").onclick = () => { try { localStorage.setItem("cc-install-hide", Date.now()); } catch (e) {} el.remove(); };
   el.querySelector("[data-go]") && (el.querySelector("[data-go]").onclick = () => {
-    if (TG) return TG.openLink(location.origin + location.pathname);
+    if (TG) return TG.openLink(location.origin + location.pathname + "?install=1");
     installEvt.prompt(); installEvt.userChoice.then((c) => c.outcome === "accepted" && el.remove());
   });
 }
-installBanner();
 try { const go = new URLSearchParams(location.search).get("go"); if (go && /^[\w-]+$/.test(go)) history.replaceState(null, "", location.pathname + "#" + go); } catch (e) {}
 boot();
