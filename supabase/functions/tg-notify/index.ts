@@ -67,6 +67,12 @@ const sigRef = (s: any) => s.entry_high ? (Number(s.entry_low) + Number(s.entry_
 const sigPct = (s: any, p: number) => { const v = (p / sigRef(s) - 1) * 100; return (v > 0 ? "+" : "") + v.toFixed(0) + "%"; };
 const SIG_TF: Record<string, string> = { scalp: "Scalp (days)", swing: "Swing (2–8 weeks)", long: "Mid/long term (months)" };
 const SIG_OUT: Record<string, string> = { won: "Won", stopped: "Stopped out", early: "Closed early", expired: "Expired" };
+// Entry, targets and stop, one per line (new signal + edit pings).
+const sigLevels = (s: any) => [
+  `Entry: ${s.entry_type === "zone" ? `Zone ${fp(s.entry_low)} – ${fp(s.entry_high)}` : `${s.entry_type === "now" ? "Now" : "Buy limit"} ${fp(s.entry_low)}`}`,
+  ...[...s.signal_targets].sort((a: any, b: any) => a.n - b.n).map((t: any) => `TP${t.n}: ${fp(t.price)} (${sigPct(s, t.price)})`),
+  s.stop_type === "none" ? "Stop: none, we'll call it" : `${s.stop_type === "close" ? "Invalidation: daily close below" : "Stop:"} ${fp(s.stop_price)} (${sigPct(s, s.stop_price)})`,
+].join("\n");
 async function signalPeople() {
   const { data } = await db.from("profiles").select("id, telegram_chat_id").not("telegram_chat_id", "is", null)
     .or("role.eq.admin,signals_admin.eq.true,tier.in.(signals,both)");
@@ -155,10 +161,7 @@ Deno.serve(async (req) => {
       const { data: s } = await db.from("signals").update({ notified_at: new Date().toISOString() })
         .eq("id", id).is("notified_at", null).select("*, signal_targets(n, price)").maybeSingle();
       if (!s) return Response.json({ skipped: "already" });
-      const entry = s.entry_type === "zone" ? `Zone ${fp(s.entry_low)} – ${fp(s.entry_high)}` : `${s.entry_type === "now" ? "Now" : "Buy limit"} ${fp(s.entry_low)}`;
-      const tps = [...s.signal_targets].sort((a: any, b: any) => a.n - b.n).map((t: any) => `TP${t.n}: ${fp(t.price)} (${sigPct(s, t.price)})`).join("\n");
-      const stop = s.stop_type === "none" ? "Stop: none, we'll call it" : `${s.stop_type === "close" ? "Invalidation: daily close below" : "Stop:"} ${fp(s.stop_price)} (${sigPct(s, s.stop_price)})`;
-      const text = `🚨 <b>New signal: $${esc(s.symbol)}</b>\n${esc(s.exchange)}${s.risk === "high" ? " · High risk, small allocation" : ""} · ${SIG_TF[s.timeframe]}\n\nEntry: ${entry}\n${tps}\n${stop}${s.note ? `\n\n${esc(cut(s.note, 600))}` : ""}${attNote(s.attachments)}\n\n${s.analyst_name ? `By ${esc(s.analyst_name)} · ` : ""}Not financial advice. Never go all-in on one signal.`;
+      const text = `🚨 <b>New signal: $${esc(s.symbol)}</b>\n${esc(s.exchange)}${s.risk === "high" ? " · High risk, small allocation" : ""} · ${SIG_TF[s.timeframe]}\n\n${sigLevels(s)}${s.note ? `\n\n${esc(cut(s.note, 600))}` : ""}${attNote(s.attachments)}\n\n${s.analyst_name ? `By ${esc(s.analyst_name)} · ` : ""}Not financial advice. Never go all-in on one signal.`;
       return Response.json({ ok: true, sent: await broadcast(await signalPeople(), text, "signals") });
     }
     if (table === "signal_updates") {
@@ -172,6 +175,7 @@ Deno.serve(async (req) => {
         breakeven: `🛡️ <b>${sym}: move your stop to entry</b> (${fp(s.entry_low)})`,
         close: `🏁 <b>${sym} closed: ${SIG_OUT[u.outcome]}</b>`,
         note: `📝 <b>${sym} update</b>`,
+        edit: `✏️ <b>${sym} levels changed</b>\n\n${sigLevels(s)}`,
       }[u.kind as string];
       const text = `${head}${u.body ? `\n\n${esc(cut(u.body, 700))}` : ""}${u.author_name ? `\n\n— ${esc(u.author_name)}` : ""}`;
       return Response.json({ ok: true, sent: await broadcast(await signalPeople(), text, "signals") });

@@ -194,3 +194,29 @@ create policy "attachments read" on storage.objects for select to authenticated
     or ((storage.foldername(name))[1] = 'signals' and public.sees_signals())
     or ((storage.foldername(name))[1] = 'msg' and (storage.foldername(name))[2] = auth.uid()::text)
   ));
+
+-- Edit (applied 2026-11-21): new levels replace the old ones (a target keeps its hit only if its price didn't change),
+-- then an 'edit' update pings members with the new levels.
+alter table public.signal_updates drop constraint if exists signal_updates_kind_check;
+alter table public.signal_updates add constraint signal_updates_kind_check check (kind in ('note', 'entry', 'tp', 'breakeven', 'close', 'edit'));
+create or replace function public.edit_signal(sid uuid, sig jsonb, tps numeric[], body text default null) returns void language plpgsql set search_path = '' as $$
+declare s public.signals := jsonb_populate_record(null::public.signals, sig); prev numeric;
+begin
+  if coalesce(array_length(tps, 1), 0) not between 1 and 4 then raise exception 'Add 1 to 4 targets'; end if;
+  prev := coalesce(s.entry_high, s.entry_low);
+  for i in 1 .. array_length(tps, 1) loop
+    if tps[i] is null or tps[i] <= prev then raise exception 'Targets must go up from the entry'; end if;
+    prev := tps[i];
+  end loop;
+  update public.signals set exchange = coalesce(s.exchange, exchange), risk = coalesce(s.risk, risk), entry_type = s.entry_type,
+    entry_low = s.entry_low, entry_high = s.entry_high, stop_type = s.stop_type, stop_price = s.stop_price, timeframe = s.timeframe,
+    review_at = s.review_at, note = s.note, attachments = s.attachments
+  where id = sid and status <> 'closed';
+  if not found then raise exception 'This signal is closed'; end if;
+  delete from public.signal_targets where signal_id = sid and n > array_length(tps, 1);
+  insert into public.signal_targets (signal_id, n, price) select sid, i, tps[i] from generate_subscripts(tps, 1) i
+  on conflict (signal_id, n) do update set price = excluded.price,
+    hit_at = case when public.signal_targets.price = excluded.price then public.signal_targets.hit_at end;
+  insert into public.signal_updates (signal_id, kind, body) values (sid, 'edit', nullif(trim(body), ''));
+end;
+$$;

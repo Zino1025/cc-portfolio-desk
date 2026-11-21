@@ -471,6 +471,7 @@ const api = (() => {
     async deleteUpdate(id) { ok(await sb.from("updates").delete().eq("id", id)); },
     async signals() { return ok(await sb.from("signals").select("*, signal_targets(*), signal_updates(*)").order("created_at", { ascending: false }).limit(200)); },
     async postSignal(sig, tps) { return ok(await sb.rpc("post_signal", { sig, tps })); },
+    async editSignal(sid, sig, tps, body) { ok(await sb.rpc("edit_signal", { sid, sig, tps, body })); },
     async addSignalUpdate(u) { ok(await sb.from("signal_updates").insert(u)); },
     async splitRules() { return ok(await sb.from("split_rules").select("*")); },
     async groupHoldings() { return ok(await sb.rpc("group_holdings")) || []; },

@@ -24,6 +24,7 @@ async function viewSignals(v) {
   v.querySelectorAll("[data-st]").forEach(b => b.onclick = () => { S.sigTab = b.dataset.st; viewSignals(v); });
   $("#sig-new") && ($("#sig-new").onclick = () => sigPostModal(v));
   v.querySelectorAll("[data-sig-up]").forEach(b => b.onclick = () => sigUpdateModal(sigs.find(s => s.id === b.dataset.sigUp), v));
+  v.querySelectorAll("[data-sig-edit]").forEach(b => b.onclick = () => sigPostModal(v, sigs.find(s => s.id === b.dataset.sigEdit)));
 }
 
 function sigCard(s) {
@@ -41,8 +42,8 @@ function sigCard(s) {
       ${row("Stop", stop, s.stop_type === "none" ? "" : sigPct(s, s.stop_price))}
       ${row("Sell plan", split ? split.map((p, i) => `${p}% at TP${i + 1}`).join(" · ") : "TBD")}</div>
     ${s.note ? `<p class="sig-note">${esc(s.note)}</p>` : ""}${ATT.html(s.attachments)}
-    ${ups.length ? `<div class="sig-ups">${ups.map(u => `<div class="sig-up"><b>${u.kind === "tp" ? `TP${u.tp_n} hit` : u.kind === "close" ? `Closed: ${SIG_OUT[u.outcome][0]}` : SIG_UP[u.kind]}</b> <span class="muted">· ${ago(u.created_at)}${u.author_name ? ` · ${esc(u.author_name)}` : ""}</span>${u.body ? `<p>${esc(u.body)}</p>` : ""}</div>`).join("")}</div>` : ""}
-    ${canPostSignals() && s.status !== "closed" ? `<div class="btn-row" style="margin-top:14px"><button class="btn" data-sig-up="${esc(s.id)}">Post update</button></div>` : ""}
+    ${ups.length ? `<div class="sig-ups">${ups.map(u => `<div class="sig-up"><b>${u.kind === "tp" ? `TP${u.tp_n} hit` : u.kind === "close" ? `Closed: ${SIG_OUT[u.outcome][0]}` : u.kind === "edit" ? "Edited" : SIG_UP[u.kind]}</b> <span class="muted">· ${ago(u.created_at)}${u.author_name ? ` · ${esc(u.author_name)}` : ""}</span>${u.body ? `<p>${esc(u.body)}</p>` : ""}</div>`).join("")}</div>` : ""}
+    ${canPostSignals() && s.status !== "closed" ? `<div class="btn-row" style="margin-top:14px"><button class="btn" data-sig-edit="${esc(s.id)}">Edit</button><button class="btn" data-sig-up="${esc(s.id)}">Post update</button></div>` : ""}
   </div>`;
 }
 
@@ -63,31 +64,34 @@ function sigCheck(f) {
   return null;
 }
 
-function sigPostModal(v) {
+/** New signal, or edit `s` (same form, prefilled; coin stays fixed; the edit pings members with the new levels). */
+function sigPostModal(v, s) {
+  const e = s || { exchange: "MEXC", risk: "normal", entry_type: "now", stop_type: "close", timeframe: "swing" }, tps0 = s ? sigTps(s) : [];
   const seg = (id, opts, on) => `<select id="${id}" class="as-seg">${opts.map(([k, l]) => `<option value="${k}"${k === on ? " selected" : ""}>${l}</option>`).join("")}</select>`;
-  const price = (id, label) => `<label class="field"><span><span id="${id}-l">${label}</span> <b class="sig-pct num" data-pct="${id}"></b></span><input type="text" inputmode="decimal" id="${id}" autocomplete="off" placeholder="$"></label>`;
+  const price = (id, label, val) => `<label class="field"><span><span id="${id}-l">${label}</span> <b class="sig-pct num" data-pct="${id}"></b></span><input type="text" inputmode="decimal" id="${id}" autocomplete="off" placeholder="$" value="${val ? +val : ""}"></label>`;
   const { ov, close } = openModal(`
-    <label class="field" style="position:relative"><span>Coin</span><input type="text" id="sg-coin" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Ticker…"><div class="dropdown hidden" id="sg-dd"></div></label>
-    <div class="field-div"><span>Exchange</span>${seg("sg-ex", [["MEXC", "MEXC"], ["KuCoin", "KuCoin"], ["On-chain", "On-chain"]], "MEXC")}</div>
-    <div class="field-div"><span>Risk</span>${seg("sg-risk", [["normal", "Normal"], ["high", "High"]], "normal")}</div>
-    <div class="field-div"><span>Entry</span>${seg("sg-et", [["now", "Now"], ["limit", "Limit"], ["zone", "Zone"]], "now")}</div>
-    <div class="row">${price("sg-lo", "Price")}<div id="sg-hi-w" class="hidden">${price("sg-hi", "To")}</div></div>
-    <div class="row">${price("sg-tp1", "TP1")}${price("sg-tp2", "TP2")}</div>
-    <div class="row">${price("sg-tp3", "TP3")}${price("sg-tp4", "TP4")}</div>
-    <div class="field-div"><span>Stop</span>${seg("sg-st", [["sl", "Stop loss"], ["close", "Daily close"], ["none", "None"]], "close")}</div>
-    <div id="sg-stop-w">${price("sg-stop", "Stop price")}</div>
-    <div class="field-div"><span>Timeframe</span>${seg("sg-tf", [["scalp", "Scalp"], ["swing", "Swing"], ["long", "Long term"]], "swing")}</div>
-    <label class="field"><span>Review on</span><input type="date" id="sg-rev" min="${todayISO()}"></label>
-    <label class="field"><span>Note</span><textarea id="sg-note" rows="3" maxlength="2000" placeholder="Why, sizing, runner advice…"></textarea></label>
+    ${s ? "" : `<label class="field" style="position:relative"><span>Coin</span><input type="text" id="sg-coin" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Ticker…"><div class="dropdown hidden" id="sg-dd"></div></label>`}
+    <div class="field-div"><span>Exchange</span>${seg("sg-ex", [["MEXC", "MEXC"], ["KuCoin", "KuCoin"], ["On-chain", "On-chain"]], e.exchange)}</div>
+    <div class="field-div"><span>Risk</span>${seg("sg-risk", [["normal", "Normal"], ["high", "High"]], e.risk)}</div>
+    <div class="field-div"><span>Entry</span>${seg("sg-et", [["now", "Now"], ["limit", "Limit"], ["zone", "Zone"]], e.entry_type)}</div>
+    <div class="row">${price("sg-lo", "Price", e.entry_low)}<div id="sg-hi-w" class="hidden">${price("sg-hi", "To", e.entry_high)}</div></div>
+    <div class="row">${price("sg-tp1", "TP1", tps0[0]?.price)}${price("sg-tp2", "TP2", tps0[1]?.price)}</div>
+    <div class="row">${price("sg-tp3", "TP3", tps0[2]?.price)}${price("sg-tp4", "TP4", tps0[3]?.price)}</div>
+    <div class="field-div"><span>Stop</span>${seg("sg-st", [["sl", "Stop loss"], ["close", "Daily close"], ["none", "None"]], e.stop_type)}</div>
+    <div id="sg-stop-w">${price("sg-stop", "Stop price", e.stop_price)}</div>
+    <div class="field-div"><span>Timeframe</span>${seg("sg-tf", [["scalp", "Scalp"], ["swing", "Swing"], ["long", "Long term"]], e.timeframe)}</div>
+    <label class="field"><span>Review on</span><input type="date" id="sg-rev" value="${esc(e.review_at || "")}"></label>
+    <label class="field"><span>Note</span><textarea id="sg-note" rows="3" maxlength="2000" placeholder="Why, sizing, runner advice…">${esc(e.note || "")}</textarea></label>
+    ${s ? `<label class="field"><span>What changed</span><textarea id="sg-why" rows="2" maxlength="2000" placeholder="Sent with the new levels…"></textarea></label>` : ""}
     ${ATT.pickerHtml("att-sig")}
-    <div class="btn-row"><button class="btn primary" id="sg-post">Post signal</button></div>`, { title: "New signal", style: "max-width:460px" });
+    <div class="btn-row"><button class="btn primary" id="sg-post">${s ? "Save" : "Post signal"}</button></div>`, { title: s ? `Edit ${esc(s.symbol)}` : "New signal", style: "max-width:460px" });
   ATT.bind("att-sig");
   const val = (id) => $("#" + id, ov).value, d = (id) => { const x = dec(val(id)); return Number.isNaN(x) ? 0 : x; };
   let coin = null;
   const read = () => {
     const tps = ["sg-tp1", "sg-tp2", "sg-tp3", "sg-tp4"].map(d); while (tps.length && !tps.at(-1)) tps.pop();
     const et = val("sg-et"), st = val("sg-st");
-    return { symbol: (coin?.symbol || val("sg-coin")).replace(/^\$/, "").trim().toUpperCase(), coin_id: coin?.id || null, exchange: val("sg-ex"), risk: val("sg-risk"),
+    return { symbol: s ? s.symbol : (coin?.symbol || val("sg-coin")).replace(/^\$/, "").trim().toUpperCase(), coin_id: s ? s.coin_id : coin?.id || null, exchange: val("sg-ex"), risk: val("sg-risk"),
       entry_type: et, entry_low: d("sg-lo"), entry_high: et === "zone" ? d("sg-hi") : null, stop_type: st, stop_price: st === "none" ? null : d("sg-stop"),
       timeframe: val("sg-tf"), review_at: val("sg-rev") || null, note: val("sg-note").trim() || null, tps };
   };
@@ -103,27 +107,33 @@ function sigPostModal(v) {
     });
   };
   const setReview = () => { const t = new Date(Date.now() + SIG_TF_DAYS[val("sg-tf")] * 86400000); $("#sg-rev", ov).value = new Date(t - t.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
-  setReview(); paint();
-  ov.addEventListener("input", paint); ov.addEventListener("change", (e) => { if (e.target.id === "sg-tf") setReview(); paint(); });
-  coinSearch($("#sg-coin", ov), $("#sg-dd", ov), async (c) => {
-    coin = c; $("#sg-coin", ov).value = c.symbol.toUpperCase(); $("#sg-dd", ov).classList.add("hidden");
-    try { await CG.ensure([c.id], 0); const p = CG.info(c.id)?.price; if (p && !val("sg-lo")) { $("#sg-lo", ov).value = +p.toPrecision(4); paint(); } } catch (e) {}
-  });
-  $("#sg-coin", ov).addEventListener("input", () => { coin = null; });
+  if (!s) setReview(); paint();
+  ov.addEventListener("input", paint); ov.addEventListener("change", (ev) => { if (ev.target.id === "sg-tf") setReview(); paint(); });
+  if (!s) {
+    coinSearch($("#sg-coin", ov), $("#sg-dd", ov), async (c) => {
+      coin = c; $("#sg-coin", ov).value = c.symbol.toUpperCase(); $("#sg-dd", ov).classList.add("hidden");
+      try { await CG.ensure([c.id], 0); const p = CG.info(c.id)?.price; if (p && !val("sg-lo")) { $("#sg-lo", ov).value = +p.toPrecision(4); paint(); } } catch (err) {}
+    });
+    $("#sg-coin", ov).addEventListener("input", () => { coin = null; });
+  }
   $("#sg-post", ov).onclick = () => {
     const f = read(), bad = sigCheck(f);
-    if (bad) { toast("Couldn't post: " + bad[0]); return $("#" + bad[1], ov).focus(); }
+    if (bad) { toast("Couldn't save: " + bad[0]); return $("#" + bad[1], ov).focus(); }
     const far = [...f.tps, f.stop_price].filter(Boolean).find(p => p / sigRef(f) > 10 || p / sigRef(f) < 0.1);   // likely a decimal typo
     const go = async () => {
-      const btn = $("#sg-post", ov); btn.disabled = true;
+      const btn = $("#sg-post", ov), label = btn.textContent; btn.disabled = true;
       try {
-        const attachments = await ATT.upload("att-sig", "signals", (i, n) => { btn.textContent = `Uploading ${i}/${n}…`; });
-        btn.textContent = "Posting…";
-        const { tps, ...sig } = f; await api.postSignal({ ...sig, attachments }, tps);
-        close(); toast("Signal posted. Members are getting pinged."); S.sigTab = f.entry_type === "now" ? "active" : "waiting"; viewSignals(v);
-      } catch (e) { toast(e.message, "error"); btn.disabled = false; btn.textContent = "Post signal"; }
+        const added = await ATT.upload("att-sig", "signals", (i, n) => { btn.textContent = `Uploading ${i}/${n}…`; });
+        const all = [...(s?.attachments || []), ...(added || [])], { tps, ...sig } = f;
+        btn.textContent = "Sending…";
+        if (s) await api.editSignal(s.id, { ...sig, attachments: all.length ? all : null }, tps, val("sg-why"));
+        else await api.postSignal({ ...sig, attachments: all.length ? all : null }, tps);
+        close(); toast(s ? "Saved. Members got the new levels." : "Signal posted. Members are getting pinged.");
+        if (!s) S.sigTab = f.entry_type === "now" ? "active" : "waiting"; viewSignals(v);
+      } catch (err) { toast(err.message, "error"); btn.disabled = false; btn.textContent = label; }
     };
-    far ? confirmModal("Check the prices", `${fmtPrice(far)} is ${sigPct(f, far)} from the entry. Post anyway?`, go, { yes: "Post" }) : go();
+    const ping = s ? "Members get a Telegram ping with the new levels." : "Every Signals member gets a Telegram ping.";
+    confirmModal(far ? "Check the prices" : s ? `Save ${f.symbol}?` : `Post ${f.symbol}?`, far ? `${fmtPrice(far)} is ${sigPct(f, far)} from the entry. ${ping}` : ping, go, { yes: s ? "Save" : "Post" });
   };
 }
 
@@ -142,10 +152,14 @@ function sigUpdateModal(s, v) {
   $("#su-send", ov).onclick = async () => {
     const body = $("#su-body", ov).value.trim();
     if (kind === "note" && !body) return $("#su-body", ov).focus();
-    const btn = $("#su-send", ov); btn.disabled = true;
-    try {
-      await api.addSignalUpdate({ signal_id: s.id, kind, body: body || null, tp_n: kind === "tp" ? +$("#su-tp", ov).value : null, outcome: kind === "close" ? $("#su-out", ov).value : null });
-      close(); toast("Sent to members"); if (kind === "close") S.sigTab = "closed"; else if (kind !== "note") S.sigTab = "active"; viewSignals(v);
-    } catch (e) { toast(e.message, "error"); btn.disabled = false; }
+    const tp_n = kind === "tp" ? +$("#su-tp", ov).value : null, outcome = kind === "close" ? $("#su-out", ov).value : null;
+    const what = kind === "tp" ? `TP${tp_n} hit` : kind === "close" ? `Close as ${SIG_OUT[outcome][0].toLowerCase()}` : SIG_UP[kind];
+    confirmModal(`${s.symbol}: ${what}?`, "Every Signals member gets a Telegram ping.", async () => {
+      const btn = $("#su-send", ov); btn.disabled = true;
+      try {
+        await api.addSignalUpdate({ signal_id: s.id, kind, body: body || null, tp_n, outcome });
+        close(); toast("Sent to members"); if (kind === "close") S.sigTab = "closed"; else if (kind !== "note") S.sigTab = "active"; viewSignals(v);
+      } catch (e) { toast(e.message, "error"); btn.disabled = false; }
+    }, { yes: "Send" });
   };
 }
