@@ -17,24 +17,39 @@ function unreadCount() {
 }
 function openReviewCount() { return S.admin.profiles.filter(p => p.review_requested && p.role !== "admin").length; }
 
+// Bottom tab bar (Apple HIG: 5 tabs max, icon + label). Plan and Admin hold several pages behind a segmented control; Profile opens from the avatar.
+const GROUPS = { plan: [["exit", "Exit Plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]], admin: [["members", "Review"], ["insights", "Group"], ["model", "Model"]] };
+const TAB_ICON = {
+  pie: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15.5 3.7A9 9 0 0 1 20.3 8.5h-4.8z"/></svg>',
+  list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>',
+  chat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1-4.4A8.5 8.5 0 1 1 20.5 12z"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/></svg>',
+};
+const SUB = { plan: "exit", admin: "members" };   // last page opened in each group
+function tabs() {
+  const t = [["overview", "Portfolio", TAB_ICON.pie], ["trades", "Trades", TAB_ICON.list], ["plan", "Plan", ICON.target], ["updates", "Market", TAB_ICON.chart]];
+  return isAdmin() ? [["admin", "Admin", TAB_ICON.shield], ...t] : [...t, ["feedback", "Feedback", TAB_ICON.chat]];
+}
+const groupOf = (route) => route.startsWith("member-") ? "admin" : Object.keys(GROUPS).find(g => GROUPS[g].some(([k]) => k === route)) || route;
+async function signOut() { LIVE.stop(); await api.signOut(); location.hash = ""; boot(); }
+
 function render() {
-  const route = currentRoute(), badge = (n) => n ? `<span class="badge">${n}</span>` : "";
-  const counts = { feedback: unreadCount(), members: openReviewCount(), updates: alertCount() };
+  const route = currentRoute(), tab = groupOf(route), badge = (n) => n ? `<span class="badge">${n}</span>` : "";
+  if (SUB[tab] && !route.startsWith("member-")) SUB[tab] = route;
+  const counts = { feedback: unreadCount(), admin: openReviewCount(), updates: alertCount() }, me = memberName(S.me);
   $("#app").innerHTML = `
     <header class="top"><div class="top-inner">
-      <div class="brand"><span class="logo" role="img" aria-label="${esc(CONFIG.GROUP_NAME)}"></span><span class="hide-sm">Portfolio Desk</span></div>
-      <nav class="tabs">${routes().map(([k, l]) => k === "sep" ? `<span class="sep"></span>` :
-        `<a href="#${k}" class="${route === k || (k === "members" && route.startsWith("member-")) ? "active" : ""}">${esc(l)}${badge(counts[k])}</a>`).join("")}</nav>
-      <div class="user-chip"><span class="hide-sm secondary">${esc(memberName(S.me))}</span>
+      <div class="brand"><span class="logo" role="img" aria-label="${esc(CONFIG.GROUP_NAME)}"></span>Portfolio Desk</div>
+      <div class="user-chip">
         ${canFullscreen() ? `<button class="icon-btn sm" id="fs-btn"></button>` : ""}
         <button class="icon-btn sm" id="theme-btn" title="Toggle light/dark" aria-label="Toggle theme">${ICON.moon}</button>
-        <button class="btn small" id="signout">Sign out</button></div>
+        <a href="#profile" class="avatar${route === "profile" ? " on" : ""}" aria-label="Profile">${esc((me.match(/[A-Za-z0-9]/) || ["?"])[0].toUpperCase())}</a></div>
     </div></header>
-    <main id="view"></main>`;
+    <main id="view"></main>
+    <nav class="tabbar" aria-label="Sections">${tabs().map(([k, l, ic]) => `<a data-tab="${k}" href="#${SUB[k] || k}"${tab === k ? ' class="active" aria-current="page"' : ""}>${ic}<span>${l}</span>${badge(counts[k])}</a>`).join("")}</nav>`;
   $("#theme-btn").onclick = toggleTheme;
   $("#fs-btn") && ($("#fs-btn").onclick = () => TG.isFullscreen ? TG.exitFullscreen() : TG.requestFullscreen()) && paintFsBtn();
-  $("#signout").onclick = async () => { LIVE.stop(); await api.signOut(); location.hash = ""; boot(); };
-  const act = $("nav.tabs a.active"); act && act.scrollIntoView({ block: "nearest", inline: "center" });
   renderView(route);
 }
 // Telegram Desktop: expand the Mini App window to full screen and back.
@@ -53,8 +68,10 @@ window.addEventListener("hashchange", () => { if (location.hash !== "#trades") S
 
 function renderView(route) {
   Object.values(S.charts).forEach(c => c.destroy()); S.charts = {}; clearInterval(S.pcTimer);
-  const v = $("#view");
+  let v = $("#view");
   if (route.startsWith("member-")) return viewMemberDetail(v, route.slice(7));
+  const g = GROUPS[groupOf(route)];
+  if (g) { v.innerHTML = `<nav class="seg seg-fill subnav">${g.map(([k, l]) => `<a href="#${k}"${k === route ? ' class="on" aria-current="page"' : ""}>${l}</a>`).join("")}</nav><div id="subview"></div>`; v = $("#subview"); }
   ({ overview: viewOverview, trades: viewTrades, projections: viewProjections, rebalance: viewRebalance, exit: viewExit, updates: viewUpdates, model: viewModel,
      feedback: viewFeedback, profile: viewProfile, members: viewMembers, insights: viewInsights })[route](v);
 }

@@ -203,6 +203,7 @@ async function viewProfile(v) {
       <label class="field"><span>New password</span><input type="password" enterkeyhint="go" id="p-pw" minlength="8" autocomplete="new-password"></label>
       <label class="showpw"><input type="checkbox" data-showpw="p-pw"> Show password</label>
       <button class="btn" id="p-pw-save">Change password</button>
+      <button class="btn" id="p-signout" style="margin-left:8px">Sign out</button>
       ${isStandalone() ? "" : `<hr style="border:none;border-top:1px solid var(--track);margin:20px 0"><button class="btn" id="p-install">Add to home screen</button>`}
     </div>
     <div class="card" style="max-width:560px;margin-top:16px"><h2>Report a bug</h2>
@@ -236,6 +237,7 @@ async function viewProfile(v) {
       toast("Profile saved"); render();
     } catch (e) { $("#p-err").textContent = e.message; }
   };
+  $("#p-signout").onclick = signOut;
   $("#p-pw-save").onclick = async () => {
     const pw = $("#p-pw").value; if (pw.length < 8) return $("#p-err").textContent = "Password needs 8+ characters.";
     try { await api.updatePassword(pw); toast("Password changed"); $("#p-pw").value = ""; } catch (e) { $("#p-err").textContent = e.message; }
@@ -372,7 +374,7 @@ async function markAlertsSeen() {
   paintBadge("updates", alertCount());
 }
 function paintBadge(route, n) {
-  const a = document.querySelector(`nav.tabs a[href="#${route}"]`); if (!a) return;
+  const a = document.querySelector(`nav.tabbar [data-tab="${groupOf(route)}"]`); if (!a) return;
   a.querySelector(".badge")?.remove();
   if (n) a.insertAdjacentHTML("beforeend", `<span class="badge">${n}</span>`);
 }

@@ -27,7 +27,7 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 |---|---|
 | `core.js` | CONFIG 1 (Supabase URL/publishable key, REVIEWER_NAME), UTILITIES 9 (formatters, `openModal`/`confirmModal`, `coinSearch`, `plural`), ATTACHMENTS 160 (photos, voice notes incl. in-app recording, videos, PDFs on Dkay's posts and both sides of the thread), COINGECKO 268 (last prices saved on the device as `cc-prices` so the portfolio paints instantly), PORTFOLIO MATH 346 (average cost, `applyTx`), DATA LAYER 384 (all Supabase reads/writes), STATE 444 |
 | `charts.js` | CHARTS 1 (donut + allocation rewind), DELTA-STYLE CHARTS 53 (portfolio history), share card PNG 220, live prices 239 (Coinbase BTC/ETH + MEXC via `prices` function, CoinGecko fallback), chart helpers 288 (price tag, axes, hold-to-scrub: header shows the held point, no tooltips), price charts 330 (BTC, ETH, group coins) |
-| `shell.js` | SHELL 1 (tabs, navigation), MEMBER: OVERVIEW 57 |
+| `shell.js` | SHELL 1 (bottom tab bar, max 5 tabs per Apple HIG: `tabs()`; `GROUPS` put Plan = Exit Plan/Rebalance/Projections and Admin = Review/Group/Model behind a `.subnav` segmented control; Profile opens from the header avatar, Sign out lives in Profile), MEMBER: OVERVIEW 57 |
 | `trades.js` | MEMBER: TRADES 1 (export: Desk backup or Koinly tax file), money in/out 111 (`cash_flows`), trade modal 141 |
 | `trade-import.js` | Screenshot import 1, CSV import 120 |
 | `member.js` | FEEDBACK THREAD 1, PROJECTIONS 72 (My portfolio / Custom; What if hero: past value + dashed line to target, Today/Profit/Return stats; Targets list: 1×·2×·3×·5×·10×·50×·100× for all, per-coin Price or Exit TP (Dkay's exit prices)), MEMBER: PROFILE 232 (incl. bug/idea tickets: `tickets` table, only `profiles.gets_tickets` admins see them and get the tg-notify ping, set by SQL, not in the app; Mark done pings the reporter), MODEL PORTFOLIO 266 (Dkay's target mix), MARKET ALERTS 372 (badge = unseen alerts, `profiles.alerts_seen`; opening Market updates clears it), GROUP TOTAL 414, MEMBER: REBALANCE 426 (add-only) |
@@ -44,6 +44,7 @@ css/app.css: THEME 1 (tokens), LAYOUT 73, CONTROLS 101, TABLES 133, CHART 156, T
 - Colors: `var(--text)` primary, `var(--muted)` secondary, `var(--strong)` icons. No new grays or hex colors in JS/inline styles; add a token in THEME if truly needed (light and dark).
 - Dividers: 1px `var(--track)`. No visible borders anywhere. Status = tinted background, not a colored border.
 - Cards: no border, layered shadows: `--sh-1` normal cards, `--sh-2` hero and modals. Radius by depth: 18 hero/modal, 16 card, 14 nested/CTA, 12 inputs/small.
+- Feedback: `toast(msg)` treats "Couldn't…"-style messages as errors (5s, tap to dismiss, Telegram error haptic) and the rest as success; pass `"error"` as the 2nd arg for raw `e.message`. Dark-mode modals use `--surface-elev`.
 - Modals: use `openModal()` / `confirmModal()` from core.js, never build the overlay by hand.
 - Buttons: never flat fills. Text buttons = `.btn` / `.btn.primary`. Icon buttons = `.icon-btn` (38 `.sm`, 40, 46 `.lg`) with an `ICON` svg and an `aria-label`. No emoji in buttons. Icon + text buttons: icon side gets less padding than the text side (CSS handles it when the svg is a direct first/last child).
 
