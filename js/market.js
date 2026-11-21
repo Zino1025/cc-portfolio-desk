@@ -63,7 +63,7 @@ async function viewModel(v) {
     v.querySelectorAll("[data-tp]").forEach(inp => inp.onchange = () => { const t = draft.tps[+inp.dataset.tp], val = dec(inp.value); if (Number.isNaN(val) || !inp.value.trim()) delete t[inp.dataset.tk]; else t[inp.dataset.tk] = val; });
     $("#d24").onchange = e => { draft.drop24 = Math.max(1, decOr0(e.target.value)); };
     $("#d7").onchange = e => { draft.drop7 = Math.max(1, decOr0(e.target.value)); };
-    $("#reset").onclick = () => confirmModal("Reset model?", "Go back to TET 40%, ACN 30% and a flexible 30% split between PAAL, VELO and OTK? Nothing is saved until you press Save model.", () => { Object.assign(draft, JSON.parse(JSON.stringify(DEFAULT_MODEL))); paint(); });
+    $("#reset").onclick = () => confirmModal("Reset model?", "Back to TET 40%, ACN 30%, and 30% across PAAL, VELO and OTK. Nothing saves until you tap Save model.", () => { Object.assign(draft, JSON.parse(JSON.stringify(DEFAULT_MODEL))); paint(); });
     $("#save").onclick = async () => {
       if (!draft.fixed.length && !draft.flex.length) return toast("Add at least one coin");
       const bad = draft.presets.find(p => Math.abs(draft.flex.reduce((s, f) => s + num(p.mix[f.coin]), 0) - poolSize(draft)) > 0.01);

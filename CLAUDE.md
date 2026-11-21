@@ -54,6 +54,7 @@ Build first, then check the new screen fits the rest of the app:
 - No subtitles under page titles, no hints for obvious actions, no captions that just restate a label. Keep only text that changes what the user does (warnings, errors, real numbers).
 - Touch targets ≥44px on phones; inputs stay 16px (no iOS zoom).
 - `:hover` styles go only in the `@media (hover:hover)` block (else they stick after a tap). Anything tappable gets an `:active` response: `scale(.96)` (never below .95), never `transition: all`.
+- Copy: rewrite every label until it can't get shorter; one name per thing, used everywhere; buttons are short verbs. Paragraph text (`p`, `.hint`, `.callout`, `.empty`, `.msg`) uses line-height 1.45; keep line-heights unitless so they scale with text size.
 - Counts use `plural(n, "word")` (no "1 members"). Placeholders and loading text end with `…`. Handle/email inputs get `autocapitalize="off" spellcheck="false"`.
 - Images get the `--img-line` outline (pure black/white at 10%), already set for `.coin img` and `.atts img`.
 - Worst-case data at 320px: long names/handles/URLs and 7-figure values must not overflow. Flex/grid text columns need `min-width:0`; never truncate numbers.

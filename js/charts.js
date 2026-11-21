@@ -175,7 +175,7 @@ async function paintHero(txs, chartId = "hero") {
   if (tok !== S.heroTok || !document.body.contains(box)) return;
   if (S.charts[chartId]) { S.charts[chartId].destroy(); delete S.charts[chartId]; }
   const per = document.getElementById(chartId + "-period");
-  if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">${CG.offline ? "The chart needs live CoinGecko prices. Try again in a minute." : "Not enough price history yet."}</div>`; if (per) per.textContent = ""; return; }
+  if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">${CG.offline ? "Prices offline. Try again in a minute." : "Not enough price history yet."}</div>`; if (per) per.textContent = ""; return; }
   box.innerHTML = `<canvas id="${chartId}-cv" role="img" aria-label="${mode === "pnl" ? "Profit and loss" : "Holdings value"} over time"></canvas>`;
   const a = pts[0], z = pts[pts.length - 1], label = HIST_PERIODS.find(x => x[0] === days)?.[1] || "";
   const pnl = mode === "pnl", ys = pts.map(p => pnl ? p.pnl : p.value);

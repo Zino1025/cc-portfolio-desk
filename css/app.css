@@ -53,7 +53,7 @@
 }
 
 * { box-sizing: border-box; }
-body { margin:0; background:var(--page); color:var(--text); font-size:14.5px; line-height:18px; letter-spacing:.3px; -webkit-font-smoothing:antialiased; }
+body { margin:0; background:var(--page); color:var(--text); font-size:14.5px; line-height:1.25; letter-spacing:.3px; -webkit-font-smoothing:antialiased; }
 button, input, select, textarea { font: inherit; color: inherit; }
 a, button, select, label, summary, [role=button] { -webkit-tap-highlight-color:transparent; touch-action:manipulation; }   /* no grey tap flash, no double-tap-zoom delay */
 :focus-visible { outline:2px solid var(--link); outline-offset:2px; }
@@ -81,7 +81,7 @@ html.in-telegram header.top { padding-top:calc(var(--tg-safe-area-inset-top, 0px
 main { max-width:1180px; margin:0 auto; padding:28px 20px 96px; }
 
 h1, h2, .empty .big { text-wrap:balance; }
-p, .hint, .callout, .empty, .cta-card .d { text-wrap:pretty; }
+p, .hint, .callout, .empty, .cta-card .d, .msg { text-wrap:pretty; line-height:1.45; }
 h1 { font-size:22px; line-height:28px; font-weight:600; margin:0 0 2px; letter-spacing:-0.7px; }
 h2 { font-size:19px; line-height:24px; font-weight:600; margin:0 0 14px; letter-spacing:-0.6px; }
 .page-head { display:flex; align-items:flex-end; justify-content:space-between; gap:14px; margin-bottom:22px; flex-wrap:wrap; }

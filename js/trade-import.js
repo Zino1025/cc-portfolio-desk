@@ -287,7 +287,7 @@ function openImportModal() {
     rows = mode === "trades"
       ? result.trades.map(t => ({ name: t.name, symbol: t.symbol, quantity: t.quantity, avg_buy_price: t.price_usd, total_usd: t.total_usd, current_price: null, coingecko_id_guess: t.coingecko_id_guess, side: t.side, date: t.date, time: t.time, paid: t.paid || null, fee: t.fee, exchange: t.exchange, note: t.note, include: true }))
       : (result.holdings || []).map(h => ({ ...h, include: true }));
-    if (!rows.length) throw new Error((result.warnings || [])[0] || "No holdings found in that screenshot. Try one that shows your coin list with amounts.");
+    if (!rows.length) throw new Error((result.warnings || [])[0] || "No holdings found. Use a screenshot showing coins and amounts.");
     status("Matching coins on CoinGecko…");
     await matchImportedCoins(rows, (d, t) => { const p = body.querySelector("p"); if (p) p.textContent = `Matching coins on CoinGecko… ${d}/${t}`; });
     for (const r of rows) { if (mode === "trades") applyDup(r); else applyHeld(r); if (!r.quantity) r.include = false; }
@@ -303,7 +303,7 @@ function openImportModal() {
       status("Preparing screenshots…");
       let slices = [];
       for (const f of files) slices = slices.concat(await screenshotSlices(f));
-      if (slices.length > IMPORT_MAX_SLICES) throw new Error("Those screenshots are very long. Try fewer at a time (or crop them).");
+      if (slices.length > IMPORT_MAX_SLICES) throw new Error("Screenshots too long. Try fewer, or crop them.");
       status("Reading your holdings… (10–20 seconds)");
       result = await api.parseScreenshots(slices, /tx|trade|history/i.test(files[0]?.name || "") ? "trades" : "");
       await prepareRows();

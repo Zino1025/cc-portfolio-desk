@@ -179,7 +179,7 @@ async function viewExit(v) {
       <div class="add-coin"><select id="ex-add-sel" aria-label="Coin with ${esc(CONFIG.REVIEWER_NAME)}'s targets"></select><button class="btn" id="ex-add-btn">Add</button></div>
       <div class="search-wrap" style="margin-top:10px"><input type="search" id="ex-add-q" placeholder="Search coin…" autocomplete="off"><div class="dropdown hidden" id="ex-add-dd"></div></div>
     </div>
-    ${getTps().some(t => !t.main) ? `<div class="card" style="margin-top:16px"><h2>Targets for Other Coins</h2><div class="tp-list">${getTps().filter(t => !t.main).map(t => `<div><b>${esc(t.sym)}</b><span class="num secondary">${tpLevels(t).filter(l => l.k !== "mid").map(l => fmtPrice(l.price)).join(" / ")}</span></div>`).join("")}</div><div class="hint">Not part of the main five. Add one above to plan its exit.</div></div>` : ""}`;
+    ${getTps().some(t => !t.main) ? `<div class="card" style="margin-top:16px"><h2>Targets for Other Coins</h2><div class="tp-list">${getTps().filter(t => !t.main).map(t => `<div><b>${esc(t.sym)}</b><span class="num secondary">${tpLevels(t).filter(l => l.k !== "mid").map(l => fmtPrice(l.price)).join(" / ")}</span></div>`).join("")}</div><div class="hint">Outside the main five. Add one above to plan its exit.</div></div>` : ""}`;
   const paintStatus = () => {
     if (!$("#ex-status") || !v.isConnected) return;
     const st = exitStatus({ exit_plan: { ...plan, updated_at: dirty ? new Date().toISOString() : plan.updated_at } });

@@ -1,6 +1,6 @@
 /* ===================== MEMBER: TRADES ===================== */
 function tradesTable(txs, editable) {
-  if (!txs.length) return `<div class="empty"><div class="big">No trades logged</div>${editable ? "Use “Add trade” to log your buys and sells with the exact time." : ""}</div>`;
+  if (!txs.length) return `<div class="empty"><div class="big">No trades logged</div>${editable ? "Log buys and sells with “Add trade”." : ""}</div>`;
   const rows = [...txs].sort((a, b) => new Date(b.executed_at) - new Date(a.executed_at));
   return `<div class="table-wrap"><table><thead><tr>${editable ? "<th></th>" : ""}<th>Date &amp; time</th><th>Side</th><th>Coin</th><th class="r">Qty</th><th class="r">Price</th><th class="r">Total</th><th class="r hide-sm">Fee</th><th class="hide-sm">Exchange</th><th class="hide-sm">Note</th>${editable ? "<th></th>" : ""}</tr></thead><tbody>
     ${rows.map(t => `<tr>
@@ -105,7 +105,7 @@ function exportCsv(tax) {
   saveFile(["Date,Sent Amount,Sent Currency,Received Amount,Received Currency,Fee Amount,Fee Currency,Net Worth Amount,Net Worth Currency,Label,Description,TxHash", ...rows.map(r => r.map(q).join(","))].join("\n"), "cc-tax-koinly.csv");
 }
 function openExport() {
-  confirmModal("Export", "The tax file uses the Koinly format, which most crypto tax tools import. They work out the tax for your country.", () => exportCsv(true), { yes: "Tax file", alt: ["Desk backup", () => exportCsv(false)] });
+  confirmModal("Export", "Tax file is in Koinly format. Most crypto tax tools import it.", () => exportCsv(true), { yes: "Tax file", alt: ["Desk backup", () => exportCsv(false)] });
 }
 
 /* ---------- Money in / out (deposits and withdrawals) ---------- */

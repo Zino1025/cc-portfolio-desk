@@ -78,7 +78,7 @@ function renderView(route) {
 
 /* ===================== MEMBER: OVERVIEW ===================== */
 function holdingsTable(pf, editable = false) {
-  if (!pf.holdings.length) return `<div class="empty"><div class="big">No holdings yet</div>Add your first buy, or import everything at once from a screenshot or CSV file.${editable ? `<div style="margin-top:12px"><button class="btn primary" id="empty-import">Import screenshot or CSV</button></div>` : ""}</div>`;
+  if (!pf.holdings.length) return `<div class="empty"><div class="big">No holdings yet</div>Add a buy, or import your whole portfolio.${editable ? `<div style="margin-top:12px"><button class="btn primary" id="empty-import">Import screenshot or CSV</button></div>` : ""}</div>`;
   const list = `<div class="hl-list">${pf.holdings.map(h => `<div class="hl-row" ${editable ? `data-coin="${esc(h.coin_id)}"` : ""}>
       <div class="coin">${coinIcon(h)}</div>
       <div style="min-width:0"><div class="nm">${esc((h.symbol || h.coin_id).toUpperCase())}</div><div class="q num">${h.alloc.toFixed(0)}% · ${fmtPrice(h.price)}${h.priceEstimated ? "*" : ""}</div></div>

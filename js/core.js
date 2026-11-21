@@ -188,7 +188,7 @@ const ATT = {
     btn._starting = true; btn.innerHTML = `${ICON.mic}<span>Starting mic…</span>`;
     let stream;
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-    catch (e) { btn._starting = false; idle(); return toast("Microphone blocked. Allow mic access for Telegram in Settings, then try again."); }
+    catch (e) { btn._starting = false; idle(); return toast("Mic blocked. Allow it for Telegram in Settings."); }
     const mime = ["audio/mp4", "audio/webm;codecs=opus", "audio/webm", "audio/ogg"].find(t => MediaRecorder.isTypeSupported(t)) || "";
     const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : {}), chunks = [];
     let t0 = 0, iv = 0;
