@@ -67,25 +67,19 @@ function bindMsgDelete(v, after) {
 }
 
 /* ===================== PROJECTIONS ===================== */
-const PROJ_MULTS = [2, 3, 5, 10, 25, 50, 100];
+const PROJ_MULTS = [0, 2, 3, 5, 10];   // 0 = today's price
 function projFromPortfolio() {
   const pf = computePortfolio(S.txs);
-  return pf.holdings.map(h => ({ id: uid(), coin_id: h.coin_id, symbol: h.symbol, name: h.name, image: h.image, own: true, qty: h.qty, cost: h.cost, invest: "", entry: "", target: "", mult: "" }));
+  return pf.holdings.map(h => ({ id: uid(), coin_id: h.coin_id, symbol: h.symbol, name: h.name, image: h.image, own: true, qty: h.qty, cost: h.cost, invest: "", target: "", mult: "" }));
 }
 function projRowCalc(r) {
   const now = CG.info(r.coin_id)?.price ?? 0;
-  let qty = r.qty, cost = r.cost;
-  if (!r.own) {
-    const entry = r.entry !== "" && !Number.isNaN(dec(r.entry)) ? dec(r.entry) : now;
-    const inv = decOr0(r.invest);
-    qty = entry > 0 ? inv / entry : 0; cost = inv;
-  }
+  const qty = r.own ? r.qty : now > 0 ? decOr0(r.invest) / now : 0, cost = r.own ? r.cost : decOr0(r.invest);
   let target = r.target !== "" ? dec(r.target) : NaN;
-  if (Number.isNaN(target) && r.mult !== "" && !Number.isNaN(dec(r.mult))) target = now * dec(r.mult);
+  if (Number.isNaN(target) && r.mult !== "") target = now * dec(r.mult);
   if (Number.isNaN(target)) target = now;
-  const valueNow = qty * now, valueProj = qty * target;
-  const mcap = CG.info(r.coin_id)?.mcap;
-  return { now, qty, cost, target, valueNow, valueProj, gainVsNow: valueProj - valueNow, profit: valueProj - cost, roi: cost > 0 ? (valueProj - cost) / cost * 100 : 0, mult: now > 0 ? target / now : 0, mcapAtTarget: mcap && now > 0 ? mcap * target / now : null };
+  const valueNow = qty * now, valueProj = qty * target, mcap = CG.info(r.coin_id)?.mcap;
+  return { now, qty, cost, target, valueNow, valueProj, profit: valueProj - cost, mult: now > 0 ? target / now : 0, mcapAtTarget: mcap && now > 0 ? mcap * target / now : null };
 }
 function openCoinPicker(onPick) {
   const { ov, close } = openModal(`<div class="search-wrap"><input type="search" id="pick-q" placeholder="Search coin…" autocomplete="off"><div class="dropdown hidden" id="pick-dd"></div></div>`, { title: "Add a coin" });
@@ -93,90 +87,48 @@ function openCoinPicker(onPick) {
   coinSearch(q, $("#pick-dd", ov), (c) => { close(); onPick(c); });
 }
 async function viewProjections(v) {
-  if (!S.proj) S.proj = { rows: S.txs.length ? projFromPortfolio() : [] };
-  await CG.ensure([...S.txs.map(t => t.coin_id), ...S.proj.rows.map(r => r.coin_id)]);
   const hasPf = computePortfolio(S.txs).holdings.length > 0;
+  if (!S.proj) S.proj = { src: hasPf ? "pf" : "blank", rows: hasPf ? projFromPortfolio() : [] };
+  await CG.ensure([...S.txs.map(t => t.coin_id), ...S.proj.rows.map(r => r.coin_id)]);
   v.innerHTML = `
-    <div class="page-head"><div><h1>Projections</h1></div>
-      <div class="row" style="flex:0 1 auto;flex-wrap:wrap;justify-content:flex-end">${hasPf ? `<button class="btn" id="pj-load">Load portfolio</button>` : ""}<button class="btn" id="pj-clear">Start blank</button><button class="btn primary" id="pj-add">+ Add coin</button></div></div>
-    <div class="card" style="margin-bottom:16px">
-      <div class="toolbar" style="margin:0">
-        <span class="secondary" style="font-size:13px">Apply to all coins:</span>
-        <div class="chips">${PROJ_MULTS.map(m => `<button class="chip" data-mall="${m}">${m}×</button>`).join("")}</div>
-        <input type="text" inputmode="decimal" id="pj-mall" placeholder="Custom ×" style="width:110px">
-        <button class="btn small" id="pj-mall-go">Apply</button>
-        <button class="link-btn" id="pj-reset">Reset targets to today's price</button>
-      </div>
-    </div>
-    <div id="pj-kpis"></div>
+    <div class="page-head"><div><h1>Projections</h1></div><button class="icon-btn primary" id="pj-add" aria-label="Add coin">${ICON.plus}</button></div>
+    ${hasPf ? `<div class="seg" id="pj-src" style="width:100%;margin-bottom:16px"><button style="flex:1" data-src="pf">My portfolio</button><button style="flex:1" data-src="blank">From scratch</button></div>` : ""}
     <div id="pj-wi"></div>
-    <div class="card" style="margin-bottom:16px"><h2>Coins</h2><div id="pj-table"></div></div>
-    <div id="pj-chart" style="max-width:440px"></div>`;
-  const rerender = paintProj;
+    <div class="card"><div class="section-head" style="flex-wrap:wrap"><h2>Targets</h2><div class="periods" id="pj-mall">${PROJ_MULTS.map(m => `<button data-m="${m}">${m ? m + "×" : "Today"}</button>`).join("")}</div></div><div id="pj-list"></div></div>`;
   $("#pj-add").onclick = () => openCoinPicker(async c => {
-    if (!S.proj.rows.some(r => r.coin_id === c.id && !r.own)) S.proj.rows.push({ id: uid(), coin_id: c.id, symbol: c.symbol, name: c.name, image: c.image, own: false, qty: 0, cost: 0, invest: "1000", entry: "", target: "", mult: "" });
-    await CG.ensure([c.id]); rerender();
+    if (!S.proj.rows.some(r => r.coin_id === c.id && !r.own)) S.proj.rows.push({ id: uid(), coin_id: c.id, symbol: c.symbol, name: c.name, image: c.image, own: false, qty: 0, cost: 0, invest: "1000", target: "", mult: "" });
+    await CG.ensure([c.id]); paintProj();
   });
-  $("#pj-load") && ($("#pj-load").onclick = () => { S.proj.rows = projFromPortfolio(); rerender(); });
-  $("#pj-clear").onclick = () => { S.proj.rows = []; rerender(); };
-  const applyAll = (m) => { if (!(m > 0)) return; S.proj.rows.forEach(r => { r.mult = String(m); r.target = ""; }); rerender(); };
-  v.querySelectorAll("[data-mall]").forEach(b => b.onclick = () => applyAll(+b.dataset.mall));
-  $("#pj-mall-go").onclick = () => applyAll(dec($("#pj-mall").value));
-  $("#pj-reset").onclick = () => { S.proj.rows.forEach(r => { r.mult = ""; r.target = ""; }); rerender(); };
+  v.querySelectorAll("[data-src]").forEach(b => b.onclick = () => { S.proj.src = b.dataset.src; S.proj.rows = b.dataset.src === "pf" ? projFromPortfolio() : []; paintProj(); });
+  v.querySelectorAll("#pj-mall [data-m]").forEach(b => b.onclick = () => { S.proj.rows.forEach(r => { r.mult = b.dataset.m === "0" ? "" : b.dataset.m; r.target = ""; }); paintProj(); });
   paintProj();
 }
 function paintProj() {
-  if (!$("#pj-kpis")) return;
+  const list = $("#pj-list"); if (!list) return;
   const rows = S.proj.rows, calcs = rows.map(projRowCalc);
-  const T = calcs.reduce((a, c) => ({ now: a.now + c.valueNow, proj: a.proj + c.valueProj, cost: a.cost + c.cost }), { now: 0, proj: 0, cost: 0 });
-  const profit = T.proj - T.cost;
-  $("#pj-kpis").innerHTML = rows.length ? `<div class="kpis">
-    <div class="card kpi"><div class="label">Value today</div><div class="value num">${fmtUsd(T.now)}</div></div>
-    <div class="card kpi"><div class="label">Projected value</div><div class="value num">${fmtUsd(T.proj, { compact: true })}</div><div class="sub num">${T.now > 0 ? (T.proj / T.now).toFixed(2) + "× today" : "—"}</div></div>
-    <div class="card kpi"><div class="label">Projected profit</div><div class="value num ${signCls(profit)}">${fmtUsd(profit, { compact: true })}</div></div>
-    <div class="card kpi"><div class="label">Return on cost</div><div class="value num ${signCls(profit)}">${T.cost > 0 ? fmtPct(profit / T.cost * 100) : "—"}</div><div class="sub muted">${T.cost > 0 ? (T.proj / T.cost).toFixed(2) + "× your money" : ""}</div></div>
-  </div>` : "";
-  const pieRows = rows.map((r, i) => ({ coin_id: r.coin_id, symbol: r.symbol, name: r.name, value: calcs[i].valueProj })).filter(h => h.value > 0).sort((a, b) => b.value - a.value);
-  pieRows.forEach(h => h.alloc = T.proj > 0 ? h.value / T.proj * 100 : 0);
-  if (S.charts["pie-proj"]) { S.charts["pie-proj"].destroy(); delete S.charts["pie-proj"]; }
-  $("#pj-chart").innerHTML = pieRows.length ? donutCard("pie-proj", "Projected allocation") : `<div class="card empty"><div class="big">Nothing to project yet</div>${S.txs.length ? "Load your portfolio or add a coin." : "Add a coin and an amount to see what it could be worth."}</div>`;
-  if (pieRows.length) renderDonut("pie-proj", pieRows, "Projected", T.proj);
-  const tbl = $("#pj-table");
-  if (!rows.length) { tbl.innerHTML = `<div class="empty">Tap <b>+ Add coin</b> to start${S.txs.length ? ", or <b>Load portfolio</b>" : ""}.</div>`; return; }
-  tbl.innerHTML = `<div class="table-wrap"><table><thead><tr><th>Coin</th><th>Amount</th><th class="r">Price</th><th>Target</th><th>Multiple</th><th class="r">Projected</th><th class="r">Profit</th><th></th></tr></thead><tbody>
-    ${rows.map((r, i) => { const c = calcs[i]; return `<tr data-row="${esc(r.id)}">
-      <td data-l="Coin">${coinCell(r)}</td>
-      <td data-l="Amount">${r.own ? `<div class="num">${fmtQty(c.qty)}</div><div class="muted" style="font-size:12px">paid ${fmtUsd(c.cost)}</div>`
-        : `<input type="text" inputmode="decimal" data-f="invest" value="${esc(r.invest)}" placeholder="$ to invest" style="width:110px"><div class="muted" style="font-size:12px">${c.qty ? "= " + fmtQty(c.qty) + " coins" : "USD"}</div>
-           <input type="text" inputmode="decimal" data-f="entry" value="${esc(r.entry)}" placeholder="buy at ${esc(fmtPrice(c.now))}" style="width:110px;margin-top:4px">`}</td>
-      <td class="r num" data-l="Price">${fmtPrice(c.now)}<div class="muted" style="font-size:12px">${fmtUsd(c.valueNow)}</div></td>
-      <td data-l="Target"><input type="text" inputmode="decimal" data-f="target" value="${esc(r.target !== "" ? r.target : (r.mult !== "" ? +c.target.toPrecision(6) : ""))}" placeholder="${esc(fmtPrice(c.now))}" style="width:115px">
-        ${(L => L.length ? `<select data-tp style="width:115px;margin-top:4px" aria-label="${esc(CONFIG.REVIEWER_NAME)}'s exit prices"><option value="">${esc(CONFIG.REVIEWER_NAME)}'s exits…</option>${L.map(l => `<option value="${l.price}" ${num(r.target) === l.price ? "selected" : ""}>${l.label} · ${fmtPrice(l.price)}</option>`).join("")}</select>` : "")(tpLevels(tpFor(r.coin_id, r.symbol) || {}).filter(l => l.k !== "mid"))}
-        ${c.mcapAtTarget ? `<div class="muted" style="font-size:11px">MC ${fmtUsd(c.mcapAtTarget, { compact: true })}</div>` : ""}</td>
-      <td data-l="Multiple"><input type="text" inputmode="decimal" data-f="mult" value="${esc(r.mult !== "" ? r.mult : (r.target !== "" && c.now > 0 ? +c.mult.toFixed(2) : ""))}" placeholder="1" style="width:64px"></td>
-      <td class="r num" data-l="Projected">${fmtUsd(c.valueProj)}</td>
-      <td class="r num ${signCls(c.profit)}" data-l="Profit">${fmtUsd(c.profit)}<div style="font-size:12px">${c.cost > 0 ? fmtPct(c.roi) : ""}</div></td>
-      <td class="pj-rm"><button class="link-btn" data-rm="${esc(r.id)}" style="color:var(--muted)" aria-label="Remove">✕</button></td>
-    </tr>`; }).join("")}
-    <tr class="pj-total">
-      <td data-l="Coin"><b>Portfolio total</b></td>
-      <td data-l="Paid" class="num">${fmtUsd(T.cost)}</td>
-      <td class="r num" data-l="Value now">${fmtUsd(T.now)}</td>
-      <td class="pj-empty"></td><td data-l="Multiple" class="num">${T.now > 0 ? (T.proj / T.now).toFixed(2) + "×" : "—"}</td>
-      <td class="r num" data-l="Projected"><b>${fmtUsd(T.proj)}</b></td>
-      <td class="r num ${signCls(profit)}" data-l="Profit"><b>${fmtUsd(profit)}</b><div style="font-size:12px">${T.cost > 0 ? fmtPct(profit / T.cost * 100) : ""}</div></td>
-      <td class="pj-empty"></td>
-    </tr></tbody></table></div>
-`;
+  document.querySelectorAll("#pj-src [data-src]").forEach(b => b.classList.toggle("on", b.dataset.src === S.proj.src));
+  const allM = rows.length && rows.every(r => r.target === "" && r.mult === rows[0].mult) ? (rows[0].mult || "0") : null;
+  document.querySelectorAll("#pj-mall [data-m]").forEach(b => b.classList.toggle("on", b.dataset.m === allM));
+  if (!rows.length) { list.innerHTML = `<div class="empty">Tap <b>+</b> to add a coin and see what it could be worth.</div>`; paintWhatIf(rows, calcs); return; }
+  list.innerHTML = rows.map((r, i) => { const c = calcs[i], L = tpLevels(tpFor(r.coin_id, r.symbol) || {}).filter(l => l.k !== "mid"); return `<div class="pj-row" data-row="${esc(r.id)}">
+      <div class="hl-row"><div class="coin">${coinIcon(r)}</div>
+        <div style="min-width:0"><div class="nm">${esc(symOf(r.coin_id) || r.symbol.toUpperCase())}</div><div class="q num">${c.qty ? fmtQty(c.qty) + " · " : ""}${fmtPrice(c.now)}</div></div>
+        <div class="rt"><div class="val num">${fmtUsd(c.valueProj)}</div><div class="num ${signCls(c.profit)}">${signed(c.profit)}</div></div></div>
+      <div class="pj-in">
+        ${r.own ? "" : `<label class="field"><span>$ to invest</span><input type="text" inputmode="decimal" data-f="invest" value="${esc(r.invest)}"></label>`}
+        <label class="field"><span>Target price</span><input type="text" inputmode="decimal" data-f="target" value="${esc(r.target !== "" ? r.target : r.mult !== "" ? +c.target.toPrecision(6) : "")}" placeholder="${esc(fmtPrice(c.now))}"></label>
+        ${L.length ? `<label class="field"><span>${esc(CONFIG.REVIEWER_NAME)}'s exits</span><select data-tp><option value="">Pick…</option>${L.map(l => `<option value="${l.price}" ${num(r.target) === l.price ? "selected" : ""}>${l.label} · ${fmtPrice(l.price)}</option>`).join("")}</select></label>` : ""}
+      </div>
+      <div class="pj-foot"><span class="muted num">${c.mult ? +c.mult.toFixed(2) + "× today" : ""}${c.mcapAtTarget ? ` · market cap ${fmtUsd(c.mcapAtTarget, { compact: true })}` : ""}</span><button class="link-btn" data-rm="${esc(r.id)}">Remove</button></div>
+    </div>`; }).join("");
   const commit = debounce(() => paintProjKeepFocus(), 600);
-  tbl.querySelectorAll("input[data-f]").forEach(inp => inp.oninput = () => {
-    const r = rows.find(x => x.id === inp.closest("tr").dataset.row), f = inp.dataset.f;
-    r[f] = inp.value.trim();
-    if (f === "target") r.mult = ""; if (f === "mult") r.target = "";
+  list.querySelectorAll("input[data-f]").forEach(inp => inp.oninput = () => {
+    const r = rows.find(x => x.id === inp.closest("[data-row]").dataset.row);
+    r[inp.dataset.f] = inp.value.trim(); if (inp.dataset.f === "target") r.mult = "";
     commit();
   });
-  tbl.querySelectorAll("[data-tp]").forEach(sel => sel.onchange = () => { if (!sel.value) return; const r = rows.find(x => x.id === sel.closest("tr").dataset.row); r.target = sel.value; r.mult = ""; paintProj(); });
-  tbl.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { S.proj.rows = rows.filter(x => x.id !== b.dataset.rm); paintProj(); });
+  list.querySelectorAll("[data-tp]").forEach(sel => sel.onchange = () => { if (!sel.value) return; const r = rows.find(x => x.id === sel.closest("[data-row]").dataset.row); r.target = sel.value; r.mult = ""; paintProj(); });
+  list.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { S.proj.rows = rows.filter(x => x.id !== b.dataset.rm); paintProj(); });
   paintWhatIf(rows, calcs);
 }
 /* What if: these coins (amounts from the table) at past prices, then a dashed line to the projected value. Whole portfolio or one coin. */
@@ -185,16 +137,20 @@ async function paintWhatIf(rows, calcs) {
   const tok = (S.wiTok = (S.wiTok || 0) + 1), ids = [...new Set(rows.map(r => r.coin_id))];
   if (!ids.length) { box.innerHTML = ""; return; }
   if (S.proj.scope !== "all" && !ids.includes(S.proj.scope)) S.proj.scope = "all";
-  const scope = S.proj.scope, days = S.proj.days ||= 365, label = HIST_PERIODS.find(x => x[0] === days)?.[1] || "";
+  const scope = S.proj.scope, days = S.proj.days ||= 365;
   const pick = rows.map((r, i) => [r, calcs[i]]).filter(([r, c]) => c.qty > 0 && (scope === "all" || r.coin_id === scope));
   const proj = pick.reduce((a, [, c]) => a + c.valueProj, 0), nowV = pick.reduce((a, [, c]) => a + c.valueNow, 0);
+  const cost = pick.reduce((a, [, c]) => a + c.cost, 0), profit = proj - cost;
   if (!box.querySelector(".hero")) box.innerHTML = `<div class="card hero" style="margin-bottom:16px">
     <div class="hero-head"><div><div class="label" id="wi-label">What if</div><div class="big num" id="wi-big"></div><div class="chg" id="wi-chg"></div></div>
-      <div class="periods" id="wi-days">${HIST_PERIODS.map(([d, l]) => `<button data-d="${d}">${l}</button>`).join("")}</div></div>
+      <div class="periods" id="wi-days">${HIST_PERIODS.filter(([d]) => d >= 30).map(([d, l]) => `<button data-d="${d}">${l}</button>`).join("")}</div></div>
     <div class="chips" id="wi-scope" style="margin:14px 0 2px"></div>
-    <div class="hero-chart" id="wi-chart"><div class="note">Loading chart…</div></div></div>`;
+    <div class="hero-chart" id="wi-chart"><div class="note">Loading chart…</div></div><div class="hero-stats" id="wi-stats"></div></div>`;
   box.querySelectorAll("#wi-days button").forEach(b => { b.classList.toggle("on", +b.dataset.d === days); b.onclick = () => { S.proj.days = +b.dataset.d; paintWhatIf(rows, calcs); }; });
-  $("#wi-scope").innerHTML = [["all", "Portfolio"], ...ids.map(id => [id, symOf(id)])].map(([k, l]) => `<button class="chip ${scope === k ? "on" : ""}" data-sc="${esc(k)}">${esc(l)}</button>`).join("");
+  $("#wi-stats").innerHTML = `<div><div class="l">Today</div><div class="v num">${fmtUsd(nowV)}</div></div>
+    <div><div class="l">Profit</div><div class="v num ${signCls(profit)}">${signed(profit)}</div></div>
+    <div><div class="l">Return</div><div class="v num ${signCls(profit)}">${cost > 0 ? (proj / cost).toFixed(2) + "×" : "—"}</div><div class="s num ${signCls(profit)}">${cost > 0 ? fmtPct(profit / cost * 100) : ""}</div></div>`;
+  $("#wi-scope").innerHTML = ids.length > 1 ? [["all", "Portfolio"], ...ids.map(id => [id, symOf(id)])].map(([k, l]) => `<button class="chip ${scope === k ? "on" : ""}" data-sc="${esc(k)}">${esc(l)}</button>`).join("") : "";
   box.querySelectorAll("[data-sc]").forEach(b => b.onclick = () => { S.proj.scope = b.dataset.sc; paintWhatIf(rows, calcs); });
   const series = {};
   await Promise.all(pick.map(async ([r]) => { try { series[r.coin_id] = await CG.chart(r.coin_id, days); } catch (e) {} }));
@@ -223,9 +179,9 @@ async function paintWhatIf(rows, calcs) {
   scrubEnd(S.charts.wi, onScrub);
 }
 function paintProjKeepFocus() {
-  const a = document.activeElement, rowId = a?.closest?.("tr")?.dataset.row, f = a?.dataset?.f, pos = a?.selectionStart;
+  const a = document.activeElement, rowId = a?.closest?.("[data-row]")?.dataset.row, f = a?.dataset?.f, pos = a?.selectionStart;
   paintProj();
-  if (rowId && f) { const el = document.querySelector(`tr[data-row="${rowId}"] input[data-f="${f}"]`); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} } }
+  if (rowId && f) { const el = document.querySelector(`[data-row="${rowId}"] input[data-f="${f}"]`); if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch (e) {} } }
 }
 
 /* ===================== MEMBER: PROFILE ===================== */
