@@ -145,6 +145,7 @@ Deno.serve(async (req) => {
     }
     if (!prof) { await say(chat, "Open the Desk once with the button below to link your account. Then you can log trades right here.", openBtn); return new Response("ok"); }
     if (prof.role !== "admin" && (await inGroup(m.from.id)) === false) { await say(chat, "The Desk is for CC group members. Join the group, then try again."); return new Response("ok"); }
+    if (text.startsWith("/start")) console.log("start", JSON.stringify(text.slice(0, 60)));   // debug: Sign in with Telegram
     const login = text.match(/^\/start login_([a-f0-9]{32})$/)?.[1];
     if (login) {
       await say(chat, "Tap <b>Approve</b> to sign in to the Desk app, then go back to it.\n\nOnly approve if you just tapped Sign in with Telegram yourself.", [[{ text: "✅ Approve", callback_data: `login:${login}` }]]);
