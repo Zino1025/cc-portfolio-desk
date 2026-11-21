@@ -1,4 +1,5 @@
-// tg-notify: sends Telegram messages for new feedback/messages, review requests and bug/idea tickets (new -> ticket admins, done -> the reporter).
+// tg-notify: sends Telegram messages for new feedback/messages, review requests, bug/idea tickets (new -> ticket admins, done -> the reporter),
+// market updates, and Signals (new signal + analyst updates -> Signals/Both members, Signals Admins and admins).
 // "tp-check" (hourly cron): exit-plan step pings for members who opted in + CC group membership re-check.
 // Called by a database trigger with {table, id}. It re-reads the row and marks it
 // notified, so calling it again (or by anyone else) never sends duplicates.
@@ -48,6 +49,28 @@ async function send(chatId: number | string, text: string, go: string) {
   });
   if (!r.ok) console.log("telegram error", r.status, await r.text());
   return r.ok;
+}
+
+// Send one text to many people, staying under Telegram's rate limit.
+async function broadcast(people: any[], text: string, go: string, exceptId?: string) {
+  let sent = 0;
+  for (const p of people) {
+    if (p.id === exceptId) continue;
+    if (await send(p.telegram_chat_id, text, go)) sent++;
+    await new Promise((r) => setTimeout(r, 40));
+  }
+  return sent;
+}
+const fp = (v: number) => "$" + (+Number(v).toPrecision(4)).toLocaleString("en-US", { maximumFractionDigits: 12 });
+// Signals: % is measured from the entry (middle of the zone for zone entries).
+const sigRef = (s: any) => s.entry_high ? (Number(s.entry_low) + Number(s.entry_high)) / 2 : Number(s.entry_low);
+const sigPct = (s: any, p: number) => { const v = (p / sigRef(s) - 1) * 100; return (v > 0 ? "+" : "") + v.toFixed(0) + "%"; };
+const SIG_TF: Record<string, string> = { scalp: "Scalp (days)", swing: "Swing (2–8 weeks)", long: "Mid/long term (months)" };
+const SIG_OUT: Record<string, string> = { won: "Won", stopped: "Stopped out", early: "Closed early", expired: "Expired" };
+async function signalPeople() {
+  const { data } = await db.from("profiles").select("id, telegram_chat_id").not("telegram_chat_id", "is", null)
+    .or("role.eq.admin,signals_admin.eq.true,tier.in.(signals,both)");
+  return data ?? [];
 }
 
 async function admins(exceptId?: string) {
@@ -126,13 +149,32 @@ Deno.serve(async (req) => {
       } else {
         text = `📰 <b>${esc(u.title)}</b>${u.body ? `\n\n${esc(cut(u.body, 700))}` : ""}${attNote(u.attachments)}`;
       }
-      let sent = 0;
-      for (const p of people ?? []) {
-        if (p.id === u.author_id) continue;
-        if (await send(p.telegram_chat_id, text, "updates")) sent++;
-        await new Promise((r) => setTimeout(r, 40)); // stay under Telegram's rate limit
-      }
-      return Response.json({ ok: true, sent });
+      return Response.json({ ok: true, sent: await broadcast(people ?? [], text, "updates", u.author_id) });
+    }
+    if (table === "signals") {
+      const { data: s } = await db.from("signals").update({ notified_at: new Date().toISOString() })
+        .eq("id", id).is("notified_at", null).select("*, signal_targets(n, price)").maybeSingle();
+      if (!s) return Response.json({ skipped: "already" });
+      const entry = s.entry_type === "zone" ? `Zone ${fp(s.entry_low)} – ${fp(s.entry_high)}` : `${s.entry_type === "now" ? "Now" : "Buy limit"} ${fp(s.entry_low)}`;
+      const tps = [...s.signal_targets].sort((a: any, b: any) => a.n - b.n).map((t: any) => `TP${t.n}: ${fp(t.price)} (${sigPct(s, t.price)})`).join("\n");
+      const stop = s.stop_type === "none" ? "Stop: none, we'll call it" : `${s.stop_type === "close" ? "Invalidation: daily close below" : "Stop:"} ${fp(s.stop_price)} (${sigPct(s, s.stop_price)})`;
+      const text = `🚨 <b>New signal: $${esc(s.symbol)}</b>\n${esc(s.exchange)}${s.risk === "high" ? " · High risk, small allocation" : ""} · ${SIG_TF[s.timeframe]}\n\nEntry: ${entry}\n${tps}\n${stop}${s.note ? `\n\n${esc(cut(s.note, 600))}` : ""}${attNote(s.attachments)}\n\n${s.analyst_name ? `By ${esc(s.analyst_name)} · ` : ""}Not financial advice. Never go all-in on one signal.`;
+      return Response.json({ ok: true, sent: await broadcast(await signalPeople(), text, "signals", s.analyst_id) });
+    }
+    if (table === "signal_updates") {
+      const { data: u } = await db.from("signal_updates").update({ notified_at: new Date().toISOString() })
+        .eq("id", id).is("notified_at", null).select("*, signals(*, signal_targets(n, price))").maybeSingle();
+      if (!u) return Response.json({ skipped: "already" });
+      const s = u.signals, sym = `$${esc(s.symbol)}`, tp = s.signal_targets.find((t: any) => t.n === u.tp_n);
+      const head = {
+        entry: `✅ <b>${sym} entry filled</b> at ${fp(s.entry_low)}${s.entry_high ? ` – ${fp(s.entry_high)}` : ""}`,
+        tp: `🎯 <b>${sym} TP${u.tp_n} hit</b>${tp ? ` at ${fp(tp.price)} (${sigPct(s, tp.price)})` : ""}`,
+        breakeven: `🛡️ <b>${sym}: move your stop to entry</b> (${fp(s.entry_low)})`,
+        close: `🏁 <b>${sym} closed: ${SIG_OUT[u.outcome]}</b>`,
+        note: `📝 <b>${sym} update</b>`,
+      }[u.kind as string];
+      const text = `${head}${u.body ? `\n\n${esc(cut(u.body, 700))}` : ""}${u.author_name ? `\n\n— ${esc(u.author_name)}` : ""}`;
+      return Response.json({ ok: true, sent: await broadcast(await signalPeople(), text, "signals", u.author_id) });
     }
 
     if (table === "price-check") {
@@ -166,7 +208,6 @@ Deno.serve(async (req) => {
       if (ids.length) {
         const r = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}`);
         const mk: Record<string, any> = Object.fromEntries((r.ok ? await r.json() : []).map((c: any) => [c.id, c]));
-        const fp = (v: number) => "$" + (+Number(v).toPrecision(4)).toLocaleString("en-US");
         for (const p of ps ?? []) {
           const done = p.tp_pinged ?? {}, lines: string[] = [];
           for (const [id, cp] of Object.entries<any>(p.exit_plan.coins ?? {})) {

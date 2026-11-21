@@ -1,6 +1,6 @@
 /* ===================== SHELL ===================== */
 function routes() {
-  const r = [["overview", "Portfolio"], ["updates", "Market"], ["feedback", "Feedback"], ["trades", "Trades"], ["exit", "Exit Plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]];
+  const r = [["overview", "Portfolio"], ["updates", "Market"], ["signals", "Signals"], ["feedback", "Feedback"], ["trades", "Trades"], ["exit", "Exit Plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]];
   if (isAdmin()) r.push(["sep"], ["members", "Review Queue"], ["insights", "Group"], ["model", "Model portfolio"]);
   r.push(["profile", "Profile"]);
   return r;
@@ -17,8 +17,8 @@ function unreadCount() {
 }
 function openReviewCount() { return S.admin.profiles.filter(p => p.review_requested && p.role !== "admin").length; }
 
-// Bottom tab bar (Apple HIG: 5 tabs max, icon + label). Plan and Admin hold several pages behind a segmented control; Profile opens from the avatar.
-const GROUPS = { plan: [["exit", "Exit Plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]], admin: [["members", "Review"], ["insights", "Group"], ["model", "Model"]] };
+// Bottom tab bar (Apple HIG: 5 tabs max, icon + label). Plan, Market and Admin hold several pages behind a segmented control; Profile opens from the avatar.
+const GROUPS = { updates: [["updates", "Updates"], ["signals", "Signals"]], plan: [["exit", "Exit Plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]], admin: [["members", "Review"], ["insights", "Group"], ["model", "Model"]] };
 const TAB_ICON = {
   pie: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15.5 3.7A9 9 0 0 1 20.3 8.5h-4.8z"/></svg>',
   list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>',
@@ -26,7 +26,7 @@ const TAB_ICON = {
   chat: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 0 1-12.3 7.6L3.5 20.5l1-4.4A8.5 8.5 0 1 1 20.5 12z"/></svg>',
   shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/></svg>',
 };
-const SUB = { plan: "exit", admin: "members" };   // last page opened in each group
+const SUB = { plan: "exit", admin: "members", updates: "updates" };   // last page opened in each group
 function tabs() {
   const t = [["overview", "Portfolio", TAB_ICON.pie], ["trades", "Trades", TAB_ICON.list], ["plan", "Plan", ICON.target], ["updates", "Market", TAB_ICON.chart]];
   return isAdmin() ? [["admin", "Admin", TAB_ICON.shield], ...t] : [...t, ["feedback", "Feedback", TAB_ICON.chat]];
@@ -72,7 +72,7 @@ function renderView(route) {
   if (route.startsWith("member-")) return viewMemberDetail(v, route.slice(7));
   const g = GROUPS[groupOf(route)];
   if (g) { v.innerHTML = `<nav class="seg seg-fill subnav">${g.map(([k, l]) => `<a href="#${k}"${k === route ? ' class="on" aria-current="page"' : ""}>${l}</a>`).join("")}</nav><div id="subview"></div>`; v = $("#subview"); }
-  ({ overview: viewOverview, trades: viewTrades, projections: viewProjections, rebalance: viewRebalance, exit: viewExit, updates: viewUpdates, model: viewModel,
+  ({ overview: viewOverview, trades: viewTrades, projections: viewProjections, rebalance: viewRebalance, exit: viewExit, updates: viewUpdates, signals: viewSignals, model: viewModel,
      feedback: viewFeedback, profile: viewProfile, members: viewMembers, insights: viewInsights })[route](v);
 }
 

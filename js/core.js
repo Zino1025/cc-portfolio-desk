@@ -469,6 +469,10 @@ const api = (() => {
     async updates() { return ok(await sb.from("updates").select("*").order("created_at", { ascending: false }).limit(60)); },
     async addUpdate(u) { return ok(await sb.from("updates").insert(u).select().single()); },
     async deleteUpdate(id) { ok(await sb.from("updates").delete().eq("id", id)); },
+    async signals() { return ok(await sb.from("signals").select("*, signal_targets(*), signal_updates(*)").order("created_at", { ascending: false }).limit(200)); },
+    async postSignal(sig, tps) { return ok(await sb.rpc("post_signal", { sig, tps })); },
+    async addSignalUpdate(u) { ok(await sb.from("signal_updates").insert(u)); },
+    async splitRules() { return ok(await sb.from("split_rules").select("*")); },
     async groupHoldings() { return ok(await sb.rpc("group_holdings")) || []; },
     async removeMember(id) {
       const { error } = await sb.rpc("admin_remove_member", { target: id });
@@ -485,9 +489,11 @@ const S = {
   admin: { profiles: [], txs: [], meta: [], loadedAt: 0 },
   tradeFilter: null,
   proj: null,
-  model: null, modelUpdatedAt: null, updates: [], reb: null,
+  model: null, modelUpdatedAt: null, updates: [], reb: null, sigs: [], splitRules: {}, sigTab: null,
   memberFilter: "all", memberSort: "review", memberQuery: "",
   charts: {},
 };
 const isAdmin = () => S.me?.role === "admin";
+const canPostSignals = () => isAdmin() || !!S.me?.signals_admin;
+const seesSignals = () => canPostSignals() || ["signals", "both"].includes(S.me?.tier);
 

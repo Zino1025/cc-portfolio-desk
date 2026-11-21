@@ -437,3 +437,18 @@ body:has(.install) main, body:has(.install) .auth-wrap { padding-bottom:150px; }
 .pj-foot .link-btn { color:var(--muted); }
 #pj-mall { display:flex; width:100%; }
 #pj-mall button { flex:1; min-width:0; padding-left:0; padding-right:0; white-space:nowrap; font-size:13.5px; letter-spacing:0; }
+/* Signals (signals.js) */
+.tag.good { background:color-mix(in srgb, var(--good) 12%, var(--surface-1)); color:var(--good); }
+.tag.bad { background:color-mix(in srgb, var(--bad) 12%, var(--surface-1)); color:var(--bad); }
+.sig-top .tag { white-space:nowrap; }
+.sig-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px; }
+.sig-sym { font-size:19px; line-height:24px; font-weight:600; letter-spacing:-0.6px; }
+.sig-meta { font-size:13px; margin-top:2px; }
+.sig-rows { display:grid; grid-template-columns:auto minmax(0,1fr); }
+.sig-k, .sig-v { padding:9px 0; border-top:1px solid var(--track); }
+.sig-k { color:var(--muted); padding-right:16px; } .sig-v { text-align:right; font-weight:500; overflow-wrap:anywhere; }
+.sig-note { white-space:pre-wrap; margin:14px 0 0; }
+.sig-ups { margin-top:14px; }
+.sig-up { padding:10px 0; border-top:1px solid var(--track); font-size:14px; }
+.sig-up p { margin:4px 0 0; white-space:pre-wrap; }
+.sig-pct { font-weight:500; margin-left:4px; }

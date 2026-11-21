@@ -5,7 +5,7 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 ## Files
 - `index.html`: shell only (CDN libraries + links to the CSS and the JS files below). Every script is `defer`, and library versions are pinned so phones cache them; keep both when adding one.
 - `css/app.css`: all styles (~25 KB).
-- `js/*.js`: app logic, split into 10 plain `<script>` files (not modules), each under ~37 KB. See the map below. Open only the file you need.
+- `js/*.js`: app logic, split into 11 plain `<script>` files (not modules), each under ~37 KB. See the map below. Open only the file you need.
 - `supabase/functions/*`: backups of the deployed Edge Functions (see their README).
 - `supabase/*.sql`: migrations that have already been applied.
 - `sw.js`: network-first pages, cache-first for `?v=` files and pinned CDN libs. If you ever add an unversioned file it must not match those rules, or bump `C`.
@@ -27,11 +27,12 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 |---|---|
 | `core.js` | CONFIG 1 (Supabase URL/publishable key, REVIEWER_NAME), UTILITIES 9 (formatters, `openModal`/`confirmModal`, `coinSearch`, `plural`), ATTACHMENTS 160 (photos, voice notes incl. in-app recording, videos, PDFs on Dkay's posts and both sides of the thread), COINGECKO 268 (last prices saved on the device as `cc-prices` so the portfolio paints instantly), PORTFOLIO MATH 346 (average cost, `applyTx`), DATA LAYER 384 (all Supabase reads/writes), STATE 444 |
 | `charts.js` | CHARTS 1 (donut + allocation rewind), DELTA-STYLE CHARTS 53 (portfolio history), share card PNG 220 (always the dark brand look with fixed brand colors, the one place hex colors are allowed in JS), live prices 239 (Coinbase BTC/ETH + MEXC via `prices` function, CoinGecko fallback), chart helpers 288 (price tag, axes, hold-to-scrub: header shows the held point, no tooltips), price charts 330 (BTC, ETH, group coins) |
-| `shell.js` | SHELL 1 (bottom tab bar, max 5 tabs per Apple HIG: `tabs()`; `GROUPS` put Plan = Exit Plan/Rebalance/Projections and Admin = Review/Group/Model behind a `.subnav` segmented control; Profile opens from the header avatar, Sign out lives in Profile), MEMBER: OVERVIEW 57 |
+| `shell.js` | SHELL 1 (bottom tab bar, max 5 tabs per Apple HIG: `tabs()`; `GROUPS` put Plan = Exit Plan/Rebalance/Projections, Market = Updates/Signals and Admin = Review/Group/Model behind a `.subnav` segmented control; Profile opens from the header avatar, Sign out lives in Profile), MEMBER: OVERVIEW 57 |
 | `trades.js` | MEMBER: TRADES 1 (export: Desk backup or Koinly tax file), money in/out 111 (`cash_flows`), trade modal 141 |
 | `trade-import.js` | Screenshot import 1, CSV import 120 |
 | `member.js` | FEEDBACK THREAD 1, PROJECTIONS 72 (My portfolio / Custom; What if hero: past value + dashed line to target, Today/Profit/Return stats; Targets list: 1×·2×·3×·5×·10×·50×·100× for all, per-coin Price or Exit TP (Dkay's exit prices)), MEMBER: PROFILE 232 (incl. bug/idea tickets: `tickets` table, only `profiles.gets_tickets` admins see them and get the tg-notify ping, set by SQL, not in the app; Mark done pings the reporter), MODEL PORTFOLIO 266 (Dkay's target mix), MARKET ALERTS 372 (badge = unseen alerts, `profiles.alerts_seen`; opening Market updates clears it), GROUP TOTAL 414, MEMBER: REBALANCE 426 (add-only) |
 | `market.js` | ADMIN: MODEL EDITOR 1, MARKET UPDATES 79 (weekly summary + urgent bids) |
+| `signals.js` | SIGNALS 1 (Waiting/Active/Closed cards, post form with `sigCheck` validation, update modal; `seesSignals()`/`canPostSignals()` in core.js STATE; tables, RLS, `post_signal` RPC and the triggers that apply updates are in `supabase/signals.sql`; tier + Signals Admin are set in Member detail) |
 | `exit-plan.js` | EXIT PLAN 1 (steps store their price in `st.at` for the hourly TP-hit pings) |
 | `admin.js` | ADMIN: BROADCAST 1, ADMIN DATA 77, REVIEW QUEUE 99, MEMBER DETAIL 157, GROUP INSIGHTS 302 |
 | `boot.js` | AUTH 1 (a reset link only opens the set-password screen; unfinished resets are signed out on next open; outside Telegram, Sign in with Telegram: nonce → bot Approve → `tg-login` poll → `api.tgLogin`, maps via `profiles.telegram_chat_id`), BOOT 51 (startup reads in parallel; group data and tg-link run after the first paint; calls `boot()` at the end), TELEGRAM MINI APP (tg-link on every open + CC group gate), MOBILE KEYBOARD (adds `enterkeyhint="done"` to every input, so don't write it in markup), INSTALL (service worker + home-screen banner; inside Telegram 8.0+ it uses the native Mini App shortcut `TG.addToHomeScreen()` (opens in Telegram, signed in), older Telegram falls back to the browser steps; signed-in members only, except on sign-in for `?install=1` from the Telegram Desk: Install prompt / iPhone Share steps / Open in browser from Telegram; pops up on its own only once per member (localStorage + Telegram CloudStorage `install_seen`); after that members use Telegram's ⋯ menu → Add to Home Screen or the bot's /home (no button in Profile); pull-to-refresh in the installed app) |
@@ -67,6 +68,7 @@ Build first, then check the new screen fits the rest of the app:
 - Members always open on the Portfolio tab. Profile opens from the header avatar.
 - Charts show the live price and must be readable and tappable straight away.
 - Model portfolio: TET 40% and ACN 30% are fixed. The other 30% is split however the member likes across PAAL/VELO/OTK. No stablecoin slice.
+- Signals: tier `elite` (default) / `signals` / `both`; Signals Admins (`profiles.signals_admin`) post. Pings only for new signal and analyst updates (tg-notify). Profit split = `split_rules` rows, empty until Dkay decides (cards show "TBD"). Auto TP/stop pings are phase 3.
 - Don't add new Telegram price-drop alert messages. (TP-hit pings are opt-in, per member, from their own exit plan.)
 - CC group gate: an admin sends `/setgroup` in the CC group once. Until then nobody is gated. `profiles.in_group` is set only by tg-link / tg-notify.
 - Secrets live in Supabase → Edge Functions → Secrets, never in this repo. The publishable key in CONFIG is safe to keep (RLS protects the data).

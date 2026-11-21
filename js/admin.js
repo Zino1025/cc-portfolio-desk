@@ -201,6 +201,8 @@ async function viewMemberDetail(v, id) {
         <label class="field" style="margin-bottom:0"><span>Joined ${esc(CONFIG.GROUP_NAME)} <span class="muted">(optional)</span></span><input type="date" id="cc-joined" max="${todayISO()}" value="${esc(p.cc_joined_on || "")}"></label>
         <button class="btn" id="cc-joined-save" style="flex:none">Save date</button></div>
       <div class="secondary" id="cc-joined-label" style="font-size:13px;margin-bottom:12px">${p.cc_joined_on ? "In " + esc(CONFIG.GROUP_NAME) + " since " + fmtJoined(p.cc_joined_on) : "No join date set yet."}</div>
+      ${p.role === "admin" ? "" : `<div class="row"><div class="field-div"><span>Plan</span><select id="m-tier" class="as-seg">${[["elite", "Elite"], ["signals", "Signals"], ["both", "Both"]].map(([k, l]) => `<option value="${k}"${(p.tier || "elite") === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
+        <div class="field-div"><span>Signals Admin</span><select id="m-sigadmin" class="as-seg"><option value="0">Off</option><option value="1"${p.signals_admin ? " selected" : ""}>On</option></select></div></div>`}
       <label class="field"><span>Add a note about ${esc(memberName(p))}</span><textarea id="note-body" rows="3" maxlength="4000" placeholder="e.g. Prefers to DCA weekly. Sold TET in panic last dip, check in when it drops again."></textarea></label>
       <div class="row" style="justify-content:flex-end;margin-bottom:10px"><button class="btn primary" id="note-add" style="flex:none">Save note</button></div>
       <div id="notes-list"><div class="muted">Loading notes…</div></div></div>
@@ -210,6 +212,14 @@ async function viewMemberDetail(v, id) {
       <button class="btn" id="remove-member" style="color:var(--bad)">Remove member</button></div>` : ""}`;
   $("#remove-member") && ($("#remove-member").onclick = () => removeMemberModal(p));
   bindMemberNotes(p, names);
+  if ($("#m-tier")) {
+    const save = async (patch, msg) => {
+      try { Object.assign(p, await api.updateProfile(p.id, patch)); toast(msg); }
+      catch (e) { toast("Couldn't save: " + (e.message || e)); render(); }
+    };
+    $("#m-tier").onchange = () => save({ tier: $("#m-tier").value }, "Plan saved");
+    $("#m-sigadmin").onchange = () => save({ signals_admin: $("#m-sigadmin").value === "1" }, $("#m-sigadmin").value === "1" ? "Can post signals now" : "Signals Admin removed");
+  }
   $("#cc-joined-save").onclick = async () => {
     const val = $("#cc-joined").value || null;
     try {
