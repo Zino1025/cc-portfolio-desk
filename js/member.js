@@ -92,7 +92,7 @@ async function viewProjections(v) {
   await CG.ensure([...S.txs.map(t => t.coin_id), ...S.proj.rows.map(r => r.coin_id)]);
   v.innerHTML = `
     <div class="page-head"><div><h1>Projections</h1></div><button class="icon-btn primary" id="pj-add" aria-label="Add coin">${ICON.plus}</button></div>
-    ${hasPf ? `<div class="seg" id="pj-src" style="width:100%;margin-bottom:16px"><button style="flex:1" data-src="pf">My portfolio</button><button style="flex:1" data-src="blank">From scratch</button></div>` : ""}
+    ${hasPf ? `<div class="seg" id="pj-src" style="width:100%;margin-bottom:16px"><button style="flex:1" data-src="pf">My portfolio</button><button style="flex:1" data-src="blank">Custom</button></div>` : ""}
     <div id="pj-wi"></div>
     <div class="card"><div class="section-head" style="flex-wrap:wrap"><h2>Targets</h2><div class="periods" id="pj-mall">${PROJ_MULTS.map(m => `<button data-m="${m}">${(m || 1) + "×"}</button>`).join("")}</div></div><div id="pj-list"></div></div>`;
   $("#pj-add").onclick = () => openCoinPicker(async c => {
