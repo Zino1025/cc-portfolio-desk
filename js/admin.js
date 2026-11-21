@@ -106,7 +106,7 @@ async function viewMembers(v) {
   const total = all.reduce((s, r) => s + r.pf.totals.value, 0);
   const stale = all.filter(isStale).length;
   v.innerHTML = `
-    <div class="page-head"><div><h1>Review queue</h1></div><div class="row" style="flex:none"><button class="btn" id="reload">Reload</button><button class="btn primary" id="bcast">Broadcast</button></div></div>
+    <div class="page-head"><div><h1>Review Queue</h1></div><div class="row" style="flex:none"><button class="btn" id="reload">Reload</button><button class="btn primary" id="bcast">Broadcast</button></div></div>
     <div class="kpis">
       <div class="card kpi"><div class="label">Members</div><div class="value num">${all.length}</div><div class="sub muted">${all.filter(r => r.txs.length).length} with trades logged</div></div>
       <div class="card kpi"><div class="label">Open review requests</div><div class="value num">${all.filter(r => r.p.review_requested).length}</div></div>
@@ -172,7 +172,7 @@ async function viewMemberDetail(v, id) {
   const names = Object.fromEntries(S.admin.profiles.map(p => [p.id, p.role === "admin" ? (p.display_name || CONFIG.REVIEWER_NAME) : memberName(p)]));
   const { p, pf } = r;
   v.innerHTML = `
-    <div style="margin-bottom:10px"><a href="#members" style="text-decoration:none">← Review queue</a></div>
+    <div style="margin-bottom:10px"><a href="#members" style="text-decoration:none">← Review Queue</a></div>
     <div class="page-head"><div><h1>${esc(memberName(p))}</h1>
       <div class="secondary">${handleLink(p.telegram_handle)}${p.risk_level ? ` · ${esc(p.risk_level)} risk` : ""}${p.cc_joined_on ? ` · in ${esc(CONFIG.GROUP_NAME)} since ${fmtJoined(p.cc_joined_on).split(" (")[0]}` : ""} · last reviewed ${ago(p.last_reviewed_at)}</div>
       ${p.goal ? `<div class="secondary" style="margin-top:4px">Goal: ${esc(p.goal)}</div>` : ""}</div>

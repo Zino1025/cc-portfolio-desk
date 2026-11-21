@@ -91,8 +91,8 @@ function exitCoins(pf, plan) {
 function exitStatus(p) {
   const ep = p?.exit_plan;
   if (!ep || !ep.committed_at) return { state: "none", label: "No exit plan" };
-  if (ep.updated_at && new Date(ep.updated_at) > new Date(ep.committed_at)) return { state: "edited", label: "Exit plan edited, not re-committed" };
-  return { state: "committed", label: "Exit plan committed " + ago(ep.committed_at) };
+  if (ep.updated_at && new Date(ep.updated_at) > new Date(ep.committed_at)) return { state: "edited", label: "Exit Plan edited, not re-committed" };
+  return { state: "committed", label: "Exit Plan committed " + ago(ep.committed_at) };
 }
 const exitTag = (st, style) => `<span class="tag ${{ committed: "buy", edited: "req" }[st.state] || "flag"}" style="${style}">${st.state === "committed" ? "✓ " : ""}${esc(st.label)}</span>`;
 const fp = (v) => { const n = num(v); return n >= 1 ? "$" + (+n.toPrecision(4)).toLocaleString("en-US") : fmtPrice(n).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1"); };
@@ -150,7 +150,7 @@ async function viewExit(v) {
       </div></div>`;
   };
   v.innerHTML = `
-    <div class="page-head"><div><h1>Exit plan</h1></div><div id="ex-status"></div></div>
+    <div class="page-head"><div><h1>Exit Plan</h1></div><div id="ex-status"></div></div>
     <div class="card guide"><h2>${esc(CONFIG.REVIEWER_NAME)}'s exit rules</h2>
       <ul class="guide-list">
         <li><b>Set your targets now.</b></li>
@@ -298,7 +298,7 @@ async function viewExit(v) {
     if (over.length) return $("#ex-err").textContent = `Your ${over.map(c => symOf(c.id)).join(", ")} plan sells more than 100%.`;
     if (missing.length) return $("#ex-err").textContent = `Tick all ${EXIT_PLEDGES.length} rules to commit (${missing.length} left).`;
     if (!num(plan.goal)) return $("#ex-err").textContent = "Set your money goal first.";
-    try { stamp(); const now = new Date().toISOString(); plan.updated_at = now; plan.committed_at = now; S.me = await api.updateProfile(S.me.id, { exit_plan: plan }); dirty = false; paintStatus(); toast("Exit plan committed. Stick to it!"); }
+    try { stamp(); const now = new Date().toISOString(); plan.updated_at = now; plan.committed_at = now; S.me = await api.updateProfile(S.me.id, { exit_plan: plan }); dirty = false; paintStatus(); toast("Exit Plan committed. Stick to it!"); }
     catch (e) { $("#ex-err").textContent = e.message; }
   };
   bind(); paintAdd(); paintSummary(); paintStatus();
@@ -306,12 +306,12 @@ async function viewExit(v) {
 /** Dkay's read-only view of a member's exit plan. */
 function exitCard(p, pf) {
   const st = exitStatus(p), ep = p.exit_plan;
-  if (!ep || !ep.coins || !Object.keys(ep.coins).length) return `<div class="card" style="margin-top:16px"><h2>Exit plan</h2><div class="secondary">${esc(memberName(p))} hasn't made an exit plan yet.</div></div>`;
+  if (!ep || !ep.coins || !Object.keys(ep.coins).length) return `<div class="card" style="margin-top:16px"><h2>Exit Plan</h2><div class="secondary">${esc(memberName(p))} hasn't made an exit plan yet.</div></div>`;
   const lines = Object.entries(ep.coins).map(([id, cp]) => {
     const h = pf.holdings.find(x => x.coin_id === id), tp = tpFor(id, h?.symbol || cp.sym), k = exitCalc(tp, cp, h);
     return `<tr><td><b>${esc(symOf(id))}</b></td><td>${k.rows.map(r => `${r.pct}% @ ${fmtPrice(r.price)}`).join(" · ") || "—"}</td><td class="r num">${k.keep}%</td><td class="r num">${h ? fmtUsd(k.total, { compact: k.total >= 1e6 }) : "—"}</td><td>${h?.cost ? (k.initialsAt != null ? '<span class="good">yes</span>' : '<span class="bad">no</span>') : "—"}</td></tr>`;
   }).join("");
-  return `<div class="card" style="margin-top:16px"><h2>Exit plan ${exitTag(st, "margin-left:6px")}</h2>
+  return `<div class="card" style="margin-top:16px"><h2>Exit Plan ${exitTag(st, "margin-left:6px")}</h2>
     <div class="secondary" style="margin-bottom:8px">Money goal: <b>${ep.goal ? fmtUsd(ep.goal) : "not set"}</b> · rules agreed: ${EXIT_PLEDGES.filter(([k]) => ep.pledges?.[k]).length}/${EXIT_PLEDGES.length}</div>
     <div class="table-wrap"><table><thead><tr><th>Coin</th><th>Steps</th><th class="r">Moonbag</th><th class="r">≈ Cash out</th><th>Initials back</th></tr></thead><tbody>${lines}</tbody></table></div></div>`;
 }

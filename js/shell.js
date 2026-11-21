@@ -1,7 +1,7 @@
 /* ===================== SHELL ===================== */
 function routes() {
-  const r = [["overview", "Portfolio"], ["updates", "Market updates"], ["feedback", "Feedback"], ["trades", "Trades"], ["exit", "Exit plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]];
-  if (isAdmin()) r.push(["sep"], ["members", "Review queue"], ["insights", "Group insights"], ["model", "Model portfolio"]);
+  const r = [["overview", "Portfolio"], ["updates", "Market"], ["feedback", "Feedback"], ["trades", "Trades"], ["exit", "Exit Plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]];
+  if (isAdmin()) r.push(["sep"], ["members", "Review Queue"], ["insights", "Group"], ["model", "Model portfolio"]);
   r.push(["profile", "Profile"]);
   return r;
 }
@@ -99,7 +99,7 @@ async function viewOverview(v) {
       <button class="act" id="add"><span class="icon-btn lg primary">${ICON.plus}</span>Add trade</button>
       <button class="act" id="import-shot"><span class="icon-btn lg">${ICON.upload}</span>Import</button>
       <a class="act" href="#rebalance"><span class="icon-btn lg">${ICON.scale}</span>Rebalance</a>
-      <a class="act" href="#exit"><span class="icon-btn lg">${ICON.target}</span>${ex === "edited" ? "Re-commit" : "Exit plan"}${ex === "committed" ? `<span class="d">committed</span>` : ""}</a>
+      <a class="act" href="#exit"><span class="icon-btn lg">${ICON.target}</span>${ex === "edited" ? "Re-commit" : "Exit Plan"}${ex === "committed" ? `<span class="d">committed</span>` : ""}</a>
     </div>
     ${has ? `<div class="ov-grid">${donutCard("pie-me", "Allocation", true)}${perfCard("perf-me")}</div>` : ""}
     <div class="section-head"><h2>Holdings</h2>${has ? `<span class="muted">${plural(has, "coin")}</span>` : ""}</div>
