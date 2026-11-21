@@ -338,10 +338,10 @@ const CG = {
   info(id) { return this.cache[id]; },
   /** [chain, address] pairs for a token (empty for native coins like BTC), fetched once per session. */
   contracts(id) {
+    if (CONTRACTS[id]) return Promise.resolve(CONTRACTS[id]);
     const c = (this._ca ||= {});
     return c[id] ||= this.get(`/coins/${encodeURIComponent(id)}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false`)
-      .then(d => { const l = Object.entries(d.platforms || {}).filter(([k, a]) => k && a); return l.length ? l : KNOWN_CONTRACTS[id] || []; })
-      .catch(() => { delete c[id]; return KNOWN_CONTRACTS[id] || []; });
+      .then(d => Object.entries(d.platforms || {}).filter(([k, a]) => k && a)).catch(() => { delete c[id]; return []; });
   },
 };
 // Used only if CoinGecko can't be reached. Illustrative, not live.
@@ -358,8 +358,11 @@ const SAMPLE_PRICES = {
   "usd-coin":        { name: "USDC", symbol: "usdc", price: 1, change24: 0, change7: 0, rank: 7 },
 };
 
-// Contracts CoinGecko doesn't list (it files VELO under Stellar and OTK under its own chain).
-const KNOWN_CONTRACTS = {
+// The group's coins: fixed here so the CA button never depends on CoinGecko. Other coins come from CoinGecko.
+const CONTRACTS = {
+  "tectum": [["ethereum", "0x68a47fe1cf42eba4a030a10cd4d6a1031ca3ca0a"]],
+  "solidus-aitech": [["ethereum", "0x3e76dd57e649a263a532cc9bcc58b32a065fb2a4"]],
+  "paal-ai": [["ethereum", "0x14fee680690900ba0cccfc76ad70fd1b95d10e16"]],
   "velo": [["binance-smart-chain", "0xf486ad071f3bee968384d2e39e2d8af0fcf6fd46"], ["stellar", "VELO-GDM4RQUQQUVSKQA7S6EM7XBZP3FCGH4Q7CL6TABQ7B2BEJ5ERARM2M5M"]],
   "octo-gaming": [["solana", "octo82drBEdm8CSDaEKBymVn86TBtgmPnDdmE64PTqJ"]],
 };

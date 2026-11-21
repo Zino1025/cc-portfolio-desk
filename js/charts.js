@@ -344,10 +344,9 @@ function priceChartCard() {
   </div>`;
 }
 const chainName = (k) => k === "binance-smart-chain" ? "BNB Chain" : k.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-/** Copy a token's contract address; asks which chain when it's on more than one. */
+/** Show a token's contract address(es) with the chain, then copy the one tapped. */
 async function copyContract(id, list) {
   const copy = async ([k, a]) => { await copyText(a); toast(`${symOf(id)} contract (${chainName(k)}) copied`); };
-  if (list.length === 1) return copy(list[0]);
   const { ov, close } = openModal(list.map(([k, a], i) => `<div class="row" style="align-items:center;padding:10px 0;border-bottom:1px solid var(--track)"><div><b>${esc(chainName(k))}</b><div class="muted num" style="font-size:13px;word-break:break-all">${esc(a)}</div></div><button class="icon-btn sm" style="flex:none" data-i="${i}" aria-label="Copy ${esc(chainName(k))} address">${ICON.copy}</button></div>`).join(""), { title: `${esc(symOf(id))} contract` });
   ov.querySelectorAll("[data-i]").forEach(b => b.onclick = () => { copy(list[+b.dataset.i]); close(); });
 }
