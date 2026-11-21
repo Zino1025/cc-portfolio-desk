@@ -17,7 +17,7 @@ function renderAuth(mode = "signin", msg = "") {
       ${mode === "signup" ? `
         <label class="field"><span>Display name</span><input type="text" id="a-name" maxlength="60" autocomplete="nickname"></label>
         <label class="field"><span>Telegram handle</span><input type="text" id="a-tg" maxlength="40" autocapitalize="off" spellcheck="false" placeholder="@yourhandle"></label>` : ""}
-      ${tgBtn ? `<a class="btn primary tg-go" id="a-tg-go" href="https://t.me/${CONFIG.BOT}?start=login_${nonce}" target="_blank" rel="noopener">${pend ? "Waiting for Telegram…" : "Sign in with Telegram"}</a><div class="secondary tg-hint${pend ? "" : " hidden"}">In the bot chat, tap <b>Approve</b>, then come back here.</div><div class="or">or use email</div>` : ""}
+      ${tgBtn ? `<a class="btn primary tg-go" id="a-tg-go" href="https://t.me/${CONFIG.BOT}?start=login_${nonce}" target="_blank" rel="noopener">${pend ? "Waiting for Telegram…" : "Sign in with Telegram"}</a><div class="secondary tg-hint${pend ? "" : " hidden"}">In Telegram, tap <b>Start</b>, then <b>Approve</b>, then come back here.</div><div class="or">or use email</div>` : ""}
       <label class="field"><span>Email</span><input type="email" id="a-email" autocomplete="email" autocapitalize="off" spellcheck="false"></label>
       <label class="field"><span>Password</span><input type="password" enterkeyhint="go" id="a-pw" minlength="8" autocomplete="${mode === "signup" ? "new-password" : "current-password"}"></label>
       <label class="showpw"><input type="checkbox" data-showpw="a-pw"> Show password</label>
