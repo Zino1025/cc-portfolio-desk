@@ -22,6 +22,8 @@ const openBtn = [[{ text: "Open Desk", web_app: { url: APP } }]];
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const fmt = (v: number) => v >= 1 ? "$" + (+v.toPrecision(6)).toLocaleString("en-US") : "$" + (+v.toPrecision(4));
 const secret = async () => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("cc-hook:" + TOKEN)))).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 48);
+// One Telegram account can be linked to several Desk accounts (e.g. an admin testing a member account): use the one opened last.
+const profOf = async (tgId: number, cols: string) => (await db.from("profiles").select(cols).eq("telegram_chat_id", tgId).order("updated_at", { ascending: false }).limit(1)).data?.[0] as any;
 const cg = async (path: string) => { const r = await fetch("https://api.coingecko.com/api/v3" + path); return r.ok ? r.json() : null; };
 
 const SYSTEM = `You read crypto trades a member sends: a short text ("bought 500 PAAL at 0.12", "sold half my TET at 40")
@@ -96,14 +98,14 @@ async function handleTrade(chat: number, prof: any, text: string, image?: string
 async function onCallback(q: any) {
   const [act, id] = String(q.data || "").split(":"), msg = q.message;
   if (act === "login") {   // approve a home-screen app sign-in (tg-login hands the app its session)
-    const { data: prof } = await db.from("profiles").select("id").eq("telegram_chat_id", q.from.id).maybeSingle();
+    const prof = await profOf(q.from.id, "id");
     const ok = prof && !(await db.from("tg_logins").insert({ nonce: id, user_id: prof.id })).error;
     await tg("answerCallbackQuery", { callback_query_id: q.id });
     await tg("editMessageText", { chat_id: msg.chat.id, message_id: msg.message_id, text: ok ? "Signed in ✓ Go back to the Desk." : "That sign-in link was already used. Tap Sign in with Telegram again." });
     return;
   }
   const { data: d } = await db.from("bot_drafts").delete().eq("id", id).select().maybeSingle();   // claim once
-  const { data: prof } = await db.from("profiles").select("id").eq("telegram_chat_id", q.from.id).maybeSingle();
+  const prof = await profOf(q.from.id, "id");
   if (!d || d.user_id !== prof?.id) { await tg("answerCallbackQuery", { callback_query_id: q.id, text: "Already handled." }); return; }
   let text = "Cancelled.";
   if (act === "ok") {
@@ -134,7 +136,7 @@ Deno.serve(async (req) => {
     if (u.callback_query) { await onCallback(u.callback_query); return new Response("ok"); }
     const m = u.message; if (!m?.from) return new Response("ok");
     const chat = m.chat.id, text: string = m.text || m.caption || "";
-    const { data: prof } = await db.from("profiles").select("id, role, in_group").eq("telegram_chat_id", m.from.id).maybeSingle();
+    const prof = await profOf(m.from.id, "id, role, in_group");
 
     if (m.chat.type !== "private") {   // in groups the bot only answers /setgroup from an admin
       if (/^\/setgroup(@\w+)?$/.test(text.trim()) && prof?.role === "admin") {
@@ -145,7 +147,6 @@ Deno.serve(async (req) => {
     }
     if (!prof) { await say(chat, "Open the Desk once with the button below to link your account. Then you can log trades right here.", openBtn); return new Response("ok"); }
     if (prof.role !== "admin" && (await inGroup(m.from.id)) === false) { await say(chat, "The Desk is for CC group members. Join the group, then try again."); return new Response("ok"); }
-    if (text.startsWith("/start")) console.log("start", JSON.stringify(text.slice(0, 60)));   // debug: Sign in with Telegram
     const login = text.match(/^\/start login_([a-f0-9]{32})$/)?.[1];
     if (login) {
       await say(chat, "Tap <b>Approve</b> to sign in to the Desk app, then go back to it.\n\nOnly approve if you just tapped Sign in with Telegram yourself.", [[{ text: "✅ Approve", callback_data: `login:${login}` }]]);
