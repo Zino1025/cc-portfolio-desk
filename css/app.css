@@ -426,3 +426,5 @@ body:has(.install) main, body:has(.install) .auth-wrap { padding-bottom:150px; }
 .pj-in { display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0 12px; }
 .pj-foot { display:flex; justify-content:space-between; align-items:center; gap:12px; font-size:13px; }
 .pj-foot .link-btn { color:var(--muted); }
+#pj-mall { display:flex; width:100%; }
+#pj-mall button { flex:1; min-width:0; padding-left:0; padding-right:0; white-space:nowrap; font-size:13.5px; letter-spacing:0; }

@@ -67,7 +67,7 @@ function bindMsgDelete(v, after) {
 }
 
 /* ===================== PROJECTIONS ===================== */
-const PROJ_MULTS = [0, 2, 3, 5, 10];   // 0 = today's price
+const PROJ_MULTS = [0, 2, 3, 5, 10, 50, 100];   // 0 = today's price
 function projFromPortfolio() {
   const pf = computePortfolio(S.txs);
   return pf.holdings.map(h => ({ id: uid(), coin_id: h.coin_id, symbol: h.symbol, name: h.name, image: h.image, own: true, qty: h.qty, cost: h.cost, invest: "", target: "", mult: "" }));
@@ -94,7 +94,7 @@ async function viewProjections(v) {
     <div class="page-head"><div><h1>Projections</h1></div><button class="icon-btn primary" id="pj-add" aria-label="Add coin">${ICON.plus}</button></div>
     ${hasPf ? `<div class="seg" id="pj-src" style="width:100%;margin-bottom:16px"><button style="flex:1" data-src="pf">My portfolio</button><button style="flex:1" data-src="blank">From scratch</button></div>` : ""}
     <div id="pj-wi"></div>
-    <div class="card"><div class="section-head" style="flex-wrap:wrap"><h2>Targets</h2><div class="periods" id="pj-mall">${PROJ_MULTS.map(m => `<button data-m="${m}">${m ? m + "×" : "Today"}</button>`).join("")}</div></div><div id="pj-list"></div></div>`;
+    <div class="card"><div class="section-head" style="flex-wrap:wrap"><h2>Targets</h2><div class="periods" id="pj-mall">${PROJ_MULTS.map(m => `<button data-m="${m}">${(m || 1) + "×"}</button>`).join("")}</div></div><div id="pj-list"></div></div>`;
   $("#pj-add").onclick = () => openCoinPicker(async c => {
     if (!S.proj.rows.some(r => r.coin_id === c.id && !r.own)) S.proj.rows.push({ id: uid(), coin_id: c.id, symbol: c.symbol, name: c.name, image: c.image, own: false, qty: 0, cost: 0, invest: "1000", target: "", mult: "" });
     await CG.ensure([c.id]); paintProj();
@@ -119,7 +119,7 @@ function paintProj() {
         <label class="field"><span>Target price</span><input type="text" inputmode="decimal" data-f="target" value="${esc(r.target !== "" ? r.target : r.mult !== "" ? +c.target.toPrecision(6) : "")}" placeholder="${esc(fmtPrice(c.now))}"></label>
         ${L.length ? `<label class="field"><span>${esc(CONFIG.REVIEWER_NAME)}'s exits</span><select data-tp><option value="">Pick…</option>${L.map(l => `<option value="${l.price}" ${num(r.target) === l.price ? "selected" : ""}>${l.label} · ${fmtPrice(l.price)}</option>`).join("")}</select></label>` : ""}
       </div>
-      <div class="pj-foot"><span class="muted num">${c.mult ? +c.mult.toFixed(2) + "× today" : ""}${c.mcapAtTarget ? ` · market cap ${fmtUsd(c.mcapAtTarget, { compact: true })}` : ""}</span><button class="link-btn" data-rm="${esc(r.id)}">Remove</button></div>
+      <div class="pj-foot"><span class="muted num">${c.mult ? +c.mult.toFixed(2) + "× today" : ""}${c.mcapAtTarget ? ` · MC ${fmtUsd(c.mcapAtTarget, { compact: true })}` : ""}</span><button class="link-btn" data-rm="${esc(r.id)}">Remove</button></div>
     </div>`; }).join("");
   const commit = debounce(() => paintProjKeepFocus(), 600);
   list.querySelectorAll("input[data-f]").forEach(inp => inp.oninput = () => {
