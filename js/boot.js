@@ -144,14 +144,15 @@ document.addEventListener("pointerdown", (e) => {
 }, true);
 /* ===================== INSTALL (PWA) ===================== */
 // Home-screen install: Android/desktop Chrome get the real Install prompt, iPhone gets the Share → Add to Home Screen steps,
-// Telegram gets "Open in browser". Hidden once installed; dismissing hides it for a week.
+// Telegram gets "Open in browser". Hidden once installed; dismissing hides it for a week (Profile → Add to home screen brings it back).
 let installEvt = null;
 const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent));
 addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; installBanner(); });
 addEventListener("appinstalled", () => $(".install")?.remove());
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || !!navigator.standalone;
 function installBanner() {
-  try { if (matchMedia("(display-mode: standalone)").matches || navigator.standalone || $(".install") || Date.now() - (+localStorage.getItem("cc-install-hide") || 0) < 6048e5) return; } catch (e) { return; }
+  try { if (isStandalone() || $(".install") || Date.now() - (+localStorage.getItem("cc-install-hide") || 0) < 6048e5) return; } catch (e) { return; }
   const how = TG ? (isIOS ? "Open it in Safari, then tap Share → Add to Home Screen." : "Open it in your browser, then install it.") : installEvt ? null : isIOS ? "Tap Share, then Add to Home Screen." : "";
   if (how === "") return;
   const el = document.createElement("div");

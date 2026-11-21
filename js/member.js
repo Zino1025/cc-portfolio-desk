@@ -247,6 +247,7 @@ async function viewProfile(v) {
       <label class="field"><span>New password</span><input type="password" enterkeyhint="go" id="p-pw" minlength="8" autocomplete="new-password"></label>
       <label class="showpw"><input type="checkbox" data-showpw="p-pw"> Show password</label>
       <button class="btn" id="p-pw-save">Change password</button>
+      ${isStandalone() ? "" : `<hr style="border:none;border-top:1px solid var(--track);margin:20px 0"><button class="btn" id="p-install">Add to home screen</button>`}
     </div>
     <div class="card" style="max-width:560px;margin-top:16px"><h2>Report a bug</h2>
       <label class="field"><span>Type</span><select id="tk-kind" class="as-seg"><option value="bug">Bug</option><option value="idea">Idea</option></select></label>
@@ -255,6 +256,7 @@ async function viewProfile(v) {
       <button class="btn primary" id="tk-send">Send</button>
     </div>
     ${p.gets_tickets ? `<div class="card" style="max-width:560px;margin-top:16px"><h2>Open tickets</h2><div id="tk-list"><div class="spinner"></div></div></div>` : ""}`;
+  $("#p-install") && ($("#p-install").onclick = () => { try { localStorage.removeItem("cc-install-hide"); } catch (e) {} if (!$(".install")) installBanner(); if (!$(".install")) toast("Open the Desk in Safari or Chrome to add it."); });
   $("#tk-send").onclick = async () => {
     const body = $("#tk-body").value.trim(); $("#tk-err").textContent = "";
     if (body.length < 3) return $("#tk-err").textContent = "Describe it in a few words first.";
