@@ -217,21 +217,42 @@ async function paintHero(txs, chartId = "hero") {
   });
   scrubEnd(S.charts[chartId], onScrub);
 }
-/* ---------- Share card: a PNG of returns + allocation, percentages only (no dollar amounts) ---------- */
+/* ---------- Share card: a PNG of returns + allocation, percentages only (no dollar amounts) ----------
+   Always the dark CC brand look, whatever theme the app is in, so every shared card looks the same (fixed brand colors live here only).
+   One hero number with an arrow (not color alone), a one-line summary, then the same donut + legend as the app. */
 async function shareCard(pf) {
   const W = 1080, H = 1350, cv = Object.assign(document.createElement("canvas"), { width: W, height: H }), c = cv.getContext("2d");
-  const F = (w, px) => `${w} ${px}px "Inter Tight", system-ui, sans-serif`, txt = cssVar("--text"), mut = cssVar("--muted");
-  const t = pf.totals, f = S.flows.length ? flowTotals() : null, ret = f && f.dep ? (t.value + f.wd - f.dep) / f.dep * 100 : t.pnlPct;
-  c.fillStyle = cssVar("--surface-1"); c.fillRect(0, 0, W, H);
-  c.fillStyle = txt; c.font = F(600, 44); c.fillText(CONFIG.GROUP_NAME + " Portfolio Desk", 80, 130);
-  c.fillStyle = mut; c.font = F(500, 34); c.fillText(f && f.dep ? "Total return" : "Return on open positions", 80, 250);
-  c.fillStyle = cssVar(ret < 0 ? "--bad" : "--good"); c.font = F(600, 150); c.fillText(fmtPct(ret), 72, 400);
+  const B = { bg: "#000000", card: "#15121b", line: "#2a2433", txt: "#faf8fd", mut: "#a39cb3", good: "#3ce38a", bad: "#ff5d7d", yellow: "#facc15", purple: "#8b5cf6",
+    series: ["#9d4bff", "#d9c2ff", "#fef0a4", "#3ce38a", "#ff8fc8", "#3cc9f5"], other: "#3d3648" };
+  try { await document.fonts.load('600 40px "Inter Tight"'); } catch (e) {}
+  const F = (w, px, ls = 0) => { c.font = `${w} ${px}px "Inter Tight", system-ui, sans-serif`; c.letterSpacing = ls + "px"; };
+  const t = pf.totals, f = S.flows.length ? flowTotals() : null, ret = f && f.dep ? (t.value + f.wd - f.dep) / f.dep * 100 : t.pnlPct, up = !(ret < 0);
+  c.fillStyle = B.bg; c.fillRect(0, 0, W, H);
+  // Header: CC mark + name, date on the right
+  const mark = (x, y, r) => [[x, B.yellow], [x + r, B.purple]].forEach(([cx, col]) => { c.beginPath(); c.strokeStyle = col; c.lineWidth = r * .44; c.arc(cx, y, r, Math.PI / 4, Math.PI * 7 / 4); c.stroke(); });
+  mark(112, 118, 30); c.fillStyle = B.txt; F(600, 40, -1); c.fillText("Portfolio Desk", 186, 132);
+  c.fillStyle = B.mut; F(500, 30); c.textAlign = "right"; c.fillText(new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }), W - 80, 130); c.textAlign = "left";
+  // Hero: the one number that matters
+  c.fillStyle = B.mut; F(500, 36); c.fillText(f && f.dep ? "Total return" : "Return on open positions", 80, 300);
+  c.fillStyle = up ? B.good : B.bad; F(600, 84); c.fillText(up ? "▲" : "▼", 80, 452); F(600, 176, -7); c.fillText(isFinite(ret) ? Math.abs(ret).toFixed(1) + "%" : "—", 186, 470);
   const top = pf.holdings.slice(0, 6), other = pf.holdings.slice(6).reduce((a, h) => a + h.alloc, 0);
-  const sl = [...top.map((h, i) => [symOf(h.coin_id), h.alloc, cssVar(SERIES[i])]), ...(other > 0.05 ? [["Other", other, cssVar("--other")]] : [])];
-  let a0 = -Math.PI / 2; const cx = 330, cy = 820, R = 230;
-  for (const [, pct, col] of sl) { const a1 = a0 + pct / 100 * Math.PI * 2; c.beginPath(); c.strokeStyle = col; c.lineWidth = 70; c.arc(cx, cy, R, a0 + 0.02, a1 - 0.02); c.stroke(); a0 = a1; }
-  sl.forEach(([sym, pct, col], i) => { const y = 640 + i * 66; c.fillStyle = col; c.beginPath(); c.arc(660, y - 12, 13, 0, Math.PI * 2); c.fill(); c.fillStyle = txt; c.font = F(600, 38); c.fillText(sym, 690, y); c.fillStyle = mut; c.font = F(500, 38); c.textAlign = "right"; c.fillText(pct.toFixed(0) + "%", 1000, y); c.textAlign = "left"; });
-  c.fillStyle = mut; c.font = F(500, 30); c.fillText(new Date().toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }), 80, H - 90);
+  c.fillStyle = B.mut; F(500, 34); c.fillText(`${plural(pf.holdings.length, "coin")} · biggest ${symOf(top[0].coin_id)} ${top[0].alloc.toFixed(0)}%`, 80, 540);
+  // Allocation: donut + legend on a raised card
+  c.fillStyle = B.card; c.beginPath(); c.roundRect(48, 620, W - 96, 560, 48); c.fill();
+  const sl = [...top.map((h, i) => [symOf(h.coin_id), h.alloc, B.series[i]]), ...(other > 0.05 ? [["Other", other, B.other]] : [])];
+  let a0 = -Math.PI / 2; const cx = 300, cy = 900, R = 190;
+  c.lineCap = "butt";
+  for (const [, pct, col] of sl) { const a1 = a0 + pct / 100 * Math.PI * 2; c.beginPath(); c.strokeStyle = col; c.lineWidth = 60; c.arc(cx, cy, R, a0 + 0.025, Math.max(a0 + 0.03, a1 - 0.025)); c.stroke(); a0 = a1; }
+  c.fillStyle = B.txt; F(600, 64, -2); c.textAlign = "center"; c.fillText(String(pf.holdings.length), cx, cy + 10); c.fillStyle = B.mut; F(500, 28); c.fillText(pf.holdings.length === 1 ? "coin" : "coins", cx, cy + 50); c.textAlign = "left";
+  const rowH = Math.min(72, 440 / sl.length), y0 = cy - (sl.length - 1) * rowH / 2 + 12;
+  sl.forEach(([sym, pct, col], i) => {
+    const y = y0 + i * rowH; c.fillStyle = col; c.beginPath(); c.arc(588, y - 12, 12, 0, Math.PI * 2); c.fill();
+    c.fillStyle = B.txt; F(600, 38, -.5); c.fillText(sym, 618, y); F(500, 38, -.5); c.textAlign = "right"; c.fillText(pct.toFixed(0) + "%", W - 110, y); c.textAlign = "left";
+  });
+  // Footer
+  c.fillStyle = B.line; c.fillRect(80, H - 130, W - 160, 2);
+  c.fillStyle = B.mut; F(500, 30); c.fillText(`Tracked with ${CONFIG.GROUP_NAME} Portfolio Desk`, 80, H - 70);
+  c.textAlign = "right"; c.fillText("Percentages only", W - 80, H - 70); c.textAlign = "left";
   const url = cv.toDataURL("image/png");
   if (!TG && navigator.canShare) { try { const file = new File([await (await fetch(url)).blob()], "cc-portfolio.png", { type: "image/png" }); if (navigator.canShare({ files: [file] })) return await navigator.share({ files: [file] }); } catch (e) { if (e.name === "AbortError") return; } }
   saveFile(url, "cc-portfolio.png");
