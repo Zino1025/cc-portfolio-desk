@@ -214,7 +214,7 @@ async function viewProfile(v) {
     </div>
     ${p.gets_tickets ? `<div class="card" style="max-width:560px;margin-top:16px"><h2>Open tickets</h2><div id="tk-list"><div class="spinner"></div></div></div>` : ""}`;
   $("#p-install-web") && ($("#p-install-web").onclick = openBrowserInstall);
-  $("#p-install") && ($("#p-install").onclick = () => { if (tgHome()) return TG.addToHomeScreen(); try { localStorage.removeItem("cc-install-hide"); } catch (e) {} if (!$(".install")) installBanner(); if (!$(".install")) toast("Open the Desk in Safari or Chrome to add it."); });
+  $("#p-install") && ($("#p-install").onclick = () => { if (tgHome()) return TG.addToHomeScreen(); if (!$(".install")) installBanner(true); if (!$(".install")) toast("Open the Desk in Safari or Chrome to add it."); });
   $("#tk-send").onclick = async () => {
     const body = $("#tk-body").value.trim(); $("#tk-err").textContent = "";
     if (body.length < 3) return $("#tk-err").textContent = "Describe it in a few words first.";

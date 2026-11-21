@@ -166,10 +166,22 @@ if (isStandalone()) {
   }, { passive: true });
   addEventListener("touchend", () => { if (ind?.classList.contains("on")) { ind.classList.add("spin"); location.reload(); } else ind?.remove(); ind = y0 = null; });
 }
-function installBanner() {
-  const preSignin = !!$(".auth-wrap");
-  if (preSignin && !new URLSearchParams(location.search).has("install")) return;   // signed-out screens: only for members sent from the Telegram Desk
-  try { if (isStandalone() || $(".install") || Date.now() - (+localStorage.getItem("cc-install-hide") || 0) < 6048e5) return; } catch (e) { return; }
+// Pops up on its own only once per member (remembered on the device and in Telegram's CloudStorage, which survives Telegram clearing web storage).
+// Profile → Add to home screen and ?install=1 links show it any time.
+let installForced = false;
+function installBanner(force) {
+  const preSignin = !!$(".auth-wrap"), linked = new URLSearchParams(location.search).has("install");
+  if (preSignin && !linked) return;   // signed-out screens: only for members sent from the Telegram Desk
+  if (isStandalone() || $(".install")) return;
+  installForced = !!force || linked;
+  if (!installForced) {
+    try { if (localStorage.getItem("cc-install-seen")) return; } catch (e) {}
+    if (TG?.isVersionAtLeast?.("6.9")) return TG.CloudStorage.getItem("install_seen", (e, v) => v ? markInstallSeen() : showInstall(preSignin));
+  }
+  showInstall(preSignin);
+}
+function markInstallSeen() { try { localStorage.setItem("cc-install-seen", "1"); } catch (e) {} try { TG?.isVersionAtLeast?.("6.9") && TG.CloudStorage.setItem("install_seen", "1"); } catch (e) {} }
+function showInstall(preSignin) {
   // Telegram 8.0+: native Mini App shortcut (opens in Telegram, already signed in). Older Telegram or unsupported device: the browser install below.
   if (tgHome()) return TG.checkHomeScreenStatus((st) => st === "added" ? null : st === "unsupported" ? browserInstall(preSignin) :
     paintInstall(preSignin, `Telegram shortcut opens here, signed in. The ${isIOS ? "Safari" : "browser"} app runs full screen on its own.`, "Telegram shortcut", () => TG.addToHomeScreen(), [isIOS ? "Safari app" : "Browser app", openBrowserInstall]));
@@ -187,17 +199,18 @@ function browserInstall(preSignin) {
 }
 function paintInstall(preSignin, how, label, go, alt) {
   if ($(".install")) return;
+  if (!installForced) markInstallSeen();
   const el = document.createElement("div");
   el.className = "install" + (preSignin ? " pre-signin" : ""); el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Install the Desk");
   el.innerHTML = `<img src="icons/icon-192.png?v=20261120b" alt=""><div class="t"><b>Get the Desk on your home screen</b>${how ? `<div class="secondary">${how}</div>` : ""}
     ${label ? `<div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn primary small" data-go>${label}</button>${alt ? `<button class="btn small" data-alt>${alt[0]}</button>` : ""}</div>` : ""}</div>
     <button class="icon-btn sm" data-x aria-label="Dismiss">${ICON.x}</button>`;
   document.body.appendChild(el);
-  el.querySelector("[data-x]").onclick = () => { try { localStorage.setItem("cc-install-hide", Date.now()); } catch (e) {} el.remove(); };
+  el.querySelector("[data-x]").onclick = () => el.remove();
   el.querySelector("[data-go]") && (el.querySelector("[data-go]").onclick = go);
   el.querySelector("[data-alt]") && (el.querySelector("[data-alt]").onclick = alt[1]);
 }
-if (TG && tgHome() && new URLSearchParams(location.search).get("add") === "home") try { TG.addToHomeScreen(); } catch (e) {}   // from the bot's /home button
+if (TG && tgHome() && new URLSearchParams(location.search).get("add") === "home") try { history.replaceState(null, "", location.pathname + location.hash); TG.addToHomeScreen(); } catch (e) {}   // from the bot's /home button, once
 if (TG) try { TG.onEvent("homeScreenAdded", () => { $(".install")?.remove(); toast("Added to your home screen"); }); } catch (e) {}
 try { const go = new URLSearchParams(location.search).get("go"); if (go && /^[\w-]+$/.test(go)) history.replaceState(null, "", location.pathname + "#" + go); } catch (e) {}
 boot();
