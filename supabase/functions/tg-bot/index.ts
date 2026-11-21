@@ -2,6 +2,7 @@
 // - Members log trades in the chat: type "bought 500 PAAL at 0.12" or forward an exchange screenshot.
 //   Claude reads it, the bot shows what it understood, and ✅ saves it to their Desk.
 // - An admin sends /setgroup inside the CC group once, so the Desk can check who is a member.
+// - /home: buttons to add the Desk to the home screen (Telegram shortcut via ?add=home, or the Safari/browser app).
 // - /start login_<nonce> (from the home-screen app) asks the member to approve that sign-in; see tg-login.
 // GET ?setup=1 points the bot's webhook here; GET ?info=1 shows the webhook status.
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
@@ -126,7 +127,8 @@ async function inGroup(userId: number) {
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   if (req.method === "GET") {
-    if (url.searchParams.has("setup")) return Response.json(await tg("setWebhook", { url: HOOK, secret_token: await secret(), allowed_updates: ["message", "callback_query"] }));
+    if (url.searchParams.has("setup")) return Response.json([await tg("setWebhook", { url: HOOK, secret_token: await secret(), allowed_updates: ["message", "callback_query"] }),
+      await tg("setMyCommands", { commands: [{ command: "home", description: "Add the Desk to your home screen" }, { command: "help", description: "How to log a trade" }], scope: { type: "all_private_chats" } })]);
     if (url.searchParams.has("info")) { const r = await tg("getWebhookInfo", {}); return Response.json({ url: r.result?.url, pending: r.result?.pending_update_count, last_error: r.result?.last_error_message }); }
     return new Response("ok");
   }
@@ -150,6 +152,11 @@ Deno.serve(async (req) => {
     const login = text.match(/^\/start login_([a-f0-9]{32})$/)?.[1];
     if (login) {
       await say(chat, "Tap <b>Approve</b> to sign in to the Desk app, then go back to it.\n\nOnly approve if you just tapped Sign in with Telegram yourself.", [[{ text: "✅ Approve", callback_data: `login:${login}` }]]);
+      return new Response("ok");
+    }
+    if (/^\/home\b/.test(text)) {
+      await say(chat, "Put the Desk on your home screen:\n\n<b>Telegram shortcut</b>: opens inside Telegram, already signed in.\n<b>Safari app</b>: full-screen app of its own (on iPhone: Share → Add to Home Screen).",
+        [[{ text: "📲 Telegram shortcut", web_app: { url: APP + "?add=home" } }], [{ text: "🧭 Safari app", url: APP + "?install=1" }]]);
       return new Response("ok");
     }
     if (/^\/(start|help)/.test(text)) {

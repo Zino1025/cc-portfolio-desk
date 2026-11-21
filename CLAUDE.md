@@ -63,7 +63,7 @@ Build first, then check the new screen fits the rest of the app:
 ## Product rules
 - The name is spelled "Dkay", never "DKay".
 - Coins are shown by ticker only (TET, ACN, PAAL, VELO, OTK…), not full names.
-- Members always open on the Portfolio tab. Profile is the last tab.
+- Members always open on the Portfolio tab. Profile opens from the header avatar.
 - Charts show the live price and must be readable and tappable straight away.
 - Model portfolio: TET 40% and ACN 30% are fixed. The other 30% is split however the member likes across PAAL/VELO/OTK. No stablecoin slice.
 - Don't add new Telegram price-drop alert messages. (TP-hit pings are opt-in, per member, from their own exit plan.)
