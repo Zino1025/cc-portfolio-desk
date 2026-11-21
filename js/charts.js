@@ -219,7 +219,7 @@ async function paintHero(txs, chartId = "hero") {
 }
 /* ---------- Share card: a PNG of returns + allocation, percentages only (no dollar amounts) ----------
    Always the dark CC brand look, whatever theme the app is in, so every shared card looks the same (fixed brand colors live here only).
-   One hero number with an arrow (not color alone), a one-line summary, then the same donut + legend as the app. */
+   One hero number with an arrow (not color alone), then the same donut + legend as the app. */
 async function shareCard(pf) {
   const W = 1080, H = 1350, cv = Object.assign(document.createElement("canvas"), { width: W, height: H }), c = cv.getContext("2d");
   const B = { bg: "#000000", card: "#15121b", line: "#2a2433", txt: "#faf8fd", mut: "#a39cb3", good: "#3ce38a", bad: "#ff5d7d", yellow: "#facc15", purple: "#8b5cf6",
@@ -236,7 +236,6 @@ async function shareCard(pf) {
   c.fillStyle = B.mut; F(500, 36); c.fillText(f && f.dep ? "Total return" : "Return on open positions", 80, 300);
   c.fillStyle = up ? B.good : B.bad; F(600, 84); c.fillText(up ? "▲" : "▼", 80, 452); F(600, 176, -7); c.fillText(isFinite(ret) ? Math.abs(ret).toFixed(1) + "%" : "—", 186, 470);
   const top = pf.holdings.slice(0, 6), other = pf.holdings.slice(6).reduce((a, h) => a + h.alloc, 0);
-  c.fillStyle = B.mut; F(500, 34); c.fillText(`${plural(pf.holdings.length, "coin")} · biggest ${symOf(top[0].coin_id)} ${top[0].alloc.toFixed(0)}%`, 80, 540);
   // Allocation: donut + legend on a raised card
   c.fillStyle = B.card; c.beginPath(); c.roundRect(48, 620, W - 96, 560, 48); c.fill();
   const sl = [...top.map((h, i) => [symOf(h.coin_id), h.alloc, B.series[i]]), ...(other > 0.05 ? [["Other", other, B.other]] : [])];
@@ -252,7 +251,6 @@ async function shareCard(pf) {
   // Footer
   c.fillStyle = B.line; c.fillRect(80, H - 130, W - 160, 2);
   c.fillStyle = B.mut; F(500, 30); c.fillText(`Tracked with ${CONFIG.GROUP_NAME} Portfolio Desk`, 80, H - 70);
-  c.textAlign = "right"; c.fillText("Percentages only", W - 80, H - 70); c.textAlign = "left";
   const url = cv.toDataURL("image/png");
   if (!TG && navigator.canShare) { try { const file = new File([await (await fetch(url)).blob()], "cc-portfolio.png", { type: "image/png" }); if (navigator.canShare({ files: [file] })) return await navigator.share({ files: [file] }); } catch (e) { if (e.name === "AbortError") return; } }
   saveFile(url, "cc-portfolio.png");
