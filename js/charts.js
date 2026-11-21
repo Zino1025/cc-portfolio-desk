@@ -53,7 +53,7 @@ function bindRewind(id, txs, holdings, total) {
 /* ===================== DELTA-STYLE CHARTS ===================== */
 // Longest range starts July 2023 so the run-up to CC's start (Nov 2023) and everything since is visible.
 const SINCE_JUL23 = Math.ceil((Date.now() - Date.UTC(2023, 6, 1)) / 864e5);
-const HIST_PERIODS = [[7, "7D"], [30, "1M"], [90, "3M"], [365, "1Y"], [SINCE_JUL23, "3Y"]];
+const HIST_PERIODS = [[1, "24H"], [7, "7D"], [30, "1M"], [90, "3M"], [365, "1Y"], [SINCE_JUL23, "3Y"]];
 CG.hist = {};
 /* Price history for charts: exchange candles first (Coinbase for BTC/ETH, MEXC via our Supabase "prices"
    function for the alts), CoinGecko as the fallback. Returns [[timeMs, price], ...] oldest first. */
@@ -189,7 +189,7 @@ async function paintHero(txs, chartId = "hero") {
     if (per) per.innerHTML = `<span class="${signCls(gain)}">${signed(gain)}${base > 0 ? ` (${fmtPct(gain / base * 100)})` : ""}</span> · ${label}`;
   }
   const good = cssVar("--good"), bad = cssVar("--bad");
-  const fmtT = (t) => new Date(t).toLocaleString(undefined, days <= 7 ? { month: "short", day: "numeric", hour: "numeric" } : { month: "short", day: "numeric", year: days > 90 ? "2-digit" : undefined });
+  const fmtT = (t) => new Date(t).toLocaleString(undefined, days <= 7 ? { month: "short", day: "numeric", hour: "numeric", minute: days <= 1 ? "2-digit" : undefined } : { month: "short", day: "numeric", year: days > 90 ? "2-digit" : undefined });
   const ds = pnl
     ? { data: ys, borderWidth: 2.5, pointRadius: 0, pointHoverRadius: 4, tension: 0.35,
         segment: { borderColor: (c) => (c.p1.parsed.y < 0 ? bad : good) }, borderColor: col, pointHoverBackgroundColor: col,
