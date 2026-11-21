@@ -1,5 +1,5 @@
 // tg-notify: sends Telegram messages for new feedback/messages, review requests, bug/idea tickets (new -> ticket admins, done -> the reporter),
-// market updates, and Signals (new signal + analyst updates -> Signals/Both members, Signals Admins and admins).
+// market updates, and Signals (new signal + analyst updates -> Signals/Both members, Signals Admins and admins, incl. the poster as a receipt).
 // "tp-check" (hourly cron): exit-plan step pings for members who opted in + CC group membership re-check.
 // Called by a database trigger with {table, id}. It re-reads the row and marks it
 // notified, so calling it again (or by anyone else) never sends duplicates.
@@ -159,7 +159,7 @@ Deno.serve(async (req) => {
       const tps = [...s.signal_targets].sort((a: any, b: any) => a.n - b.n).map((t: any) => `TP${t.n}: ${fp(t.price)} (${sigPct(s, t.price)})`).join("\n");
       const stop = s.stop_type === "none" ? "Stop: none, we'll call it" : `${s.stop_type === "close" ? "Invalidation: daily close below" : "Stop:"} ${fp(s.stop_price)} (${sigPct(s, s.stop_price)})`;
       const text = `🚨 <b>New signal: $${esc(s.symbol)}</b>\n${esc(s.exchange)}${s.risk === "high" ? " · High risk, small allocation" : ""} · ${SIG_TF[s.timeframe]}\n\nEntry: ${entry}\n${tps}\n${stop}${s.note ? `\n\n${esc(cut(s.note, 600))}` : ""}${attNote(s.attachments)}\n\n${s.analyst_name ? `By ${esc(s.analyst_name)} · ` : ""}Not financial advice. Never go all-in on one signal.`;
-      return Response.json({ ok: true, sent: await broadcast(await signalPeople(), text, "signals", s.analyst_id) });
+      return Response.json({ ok: true, sent: await broadcast(await signalPeople(), text, "signals") });
     }
     if (table === "signal_updates") {
       const { data: u } = await db.from("signal_updates").update({ notified_at: new Date().toISOString() })
@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
         note: `📝 <b>${sym} update</b>`,
       }[u.kind as string];
       const text = `${head}${u.body ? `\n\n${esc(cut(u.body, 700))}` : ""}${u.author_name ? `\n\n— ${esc(u.author_name)}` : ""}`;
-      return Response.json({ ok: true, sent: await broadcast(await signalPeople(), text, "signals", u.author_id) });
+      return Response.json({ ok: true, sent: await broadcast(await signalPeople(), text, "signals") });
     }
 
     if (table === "price-check") {
