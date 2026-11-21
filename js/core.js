@@ -340,7 +340,8 @@ const CG = {
   contracts(id) {
     const c = (this._ca ||= {});
     return c[id] ||= this.get(`/coins/${encodeURIComponent(id)}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false`)
-      .then(d => Object.entries(d.platforms || {}).filter(([k, a]) => k && a)).catch(() => { delete c[id]; return []; });
+      .then(d => { const l = Object.entries(d.platforms || {}).filter(([k, a]) => k && a); return l.length ? l : KNOWN_CONTRACTS[id] || []; })
+      .catch(() => { delete c[id]; return KNOWN_CONTRACTS[id] || []; });
   },
 };
 // Used only if CoinGecko can't be reached. Illustrative, not live.
@@ -355,6 +356,12 @@ const SAMPLE_PRICES = {
   "solidus-aitech": { name: "AITECH Cloud Network", symbol: "acn", price: 0.03, change24: 6.2, change7: 11.4, rank: 650 },
   "tether":          { name: "Tether", symbol: "usdt", price: 1, change24: 0, change7: 0, rank: 3 },
   "usd-coin":        { name: "USDC", symbol: "usdc", price: 1, change24: 0, change7: 0, rank: 7 },
+};
+
+// Contracts CoinGecko doesn't list (it files VELO under Stellar and OTK under its own chain).
+const KNOWN_CONTRACTS = {
+  "velo": [["binance-smart-chain", "0xf486ad071f3bee968384d2e39e2d8af0fcf6fd46"], ["stellar", "VELO-GDM4RQUQQUVSKQA7S6EM7XBZP3FCGH4Q7CL6TABQ7B2BEJ5ERARM2M5M"]],
+  "octo-gaming": [["solana", "octo82drBEdm8CSDaEKBymVn86TBtgmPnDdmE64PTqJ"]],
 };
 
 /* ===================== PORTFOLIO MATH (average cost) ===================== */
