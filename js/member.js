@@ -116,7 +116,7 @@ function paintProj() {
         <div class="rt"><div class="val num">${fmtUsd(c.valueProj)}</div><div class="num ${signCls(c.profit)}">${signed(c.profit)}</div></div></div>
       <div class="pj-in">
         ${r.own ? "" : `<label class="field"><span>$ to invest</span><input type="text" inputmode="decimal" data-f="invest" value="${esc(r.invest)}"></label>`}
-        <label class="field"><span>Target price</span><input type="text" inputmode="decimal" data-f="target" value="${esc(r.target !== "" ? r.target : r.mult !== "" ? +c.target.toPrecision(6) : "")}" placeholder="${esc(fmtPrice(c.now))}"></label>
+        <label class="field"><span>Price</span><input type="text" inputmode="decimal" data-f="target" value="${esc(r.target !== "" ? r.target : r.mult !== "" ? +c.target.toPrecision(6) : "")}" placeholder="${esc(fmtPrice(c.now))}"></label>
         ${L.length ? `<label class="field"><span>Exit TP</span><select data-tp><option value="">Pick…</option>${L.map(l => `<option value="${l.price}" ${num(r.target) === l.price ? "selected" : ""}>${l.label} · ${fmtPrice(l.price)}</option>`).join("")}</select></label>` : ""}
       </div>
       <div class="pj-foot"><span class="muted num">${c.mult ? +c.mult.toFixed(2) + "× today" : ""}${c.mcapAtTarget ? ` · MC ${fmtUsd(c.mcapAtTarget, { compact: true })}` : ""}</span><button class="link-btn" data-rm="${esc(r.id)}">Remove</button></div>
