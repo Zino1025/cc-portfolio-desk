@@ -4,6 +4,7 @@ const CONFIG = {
   SUPABASE_ANON_KEY: "sb_publishable_RK-nD_oFF3KHWQM2leIsrw_OW2kASrj",   // publishable key (safe in browser; RLS protects data)
   REVIEWER_NAME: "Dkay",
   GROUP_NAME: "CC",
+  BOT: "CCPortfolioManagerBot",
 };
 
 /* ===================== UTILITIES ===================== */
@@ -145,6 +146,7 @@ const ICON = {
   shrink: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>',
   copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>',
+  x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
 };
 function coinIcon(c) {
   const ab = esc((c.symbol || "?").slice(0, 3).toUpperCase());
@@ -418,6 +420,8 @@ const api = (() => {
   return {
     async session() { const { data } = await sb.auth.getSession(); return data.session; },
     async signIn(email, password) { ok(await sb.auth.signInWithPassword({ email, password })); },
+    // Sign in with Telegram: true once the bot approved this nonce (tg-login returns a one-time token), null while waiting.
+    async tgLogin(nonce) { const { data } = await sb.functions.invoke("tg-login", { body: { nonce } }); if (data?.error) throw new Error("Telegram sign-in didn't work. Try again or use email."); if (!data?.token_hash) return null; ok(await sb.auth.verifyOtp({ token_hash: data.token_hash, type: "magiclink" })); return true; },
     async signUp(email, password, meta) { const d = ok(await sb.auth.signUp({ email, password, options: { data: meta } })); return !!d.session; },
     async resetPassword(email) { ok(await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })); },
     async updatePassword(pw) { ok(await sb.auth.updateUser({ password: pw })); },

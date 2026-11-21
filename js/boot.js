@@ -1,5 +1,8 @@
 /* ===================== AUTH ===================== */
 function renderAuth(mode = "signin", msg = "") {
+  // Outside Telegram (browser / home-screen app), members sign in through the bot instead of typing a password.
+  const tgBtn = mode === "signin" && !TG, pend = tgPending();
+  const nonce = pend?.n || Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
   $("#app").innerHTML = `<div class="auth-wrap"><div class="auth">
     <div class="brand"><span class="logo">${esc(CONFIG.GROUP_NAME)}</span>Portfolio Desk</div>
     <div class="card">
@@ -13,11 +16,12 @@ function renderAuth(mode = "signin", msg = "") {
       ${mode === "signup" ? `
         <label class="field"><span>Display name</span><input type="text" id="a-name" maxlength="60" autocomplete="nickname"></label>
         <label class="field"><span>Telegram handle</span><input type="text" id="a-tg" maxlength="40" autocapitalize="off" spellcheck="false" placeholder="@yourhandle"></label>` : ""}
+      ${tgBtn ? `<a class="btn primary tg-go" id="a-tg-go" href="https://t.me/${CONFIG.BOT}?start=login_${nonce}" target="_blank" rel="noopener">${pend ? "Waiting for Telegram…" : "Sign in with Telegram"}</a><div class="or">or use email</div>` : ""}
       <label class="field"><span>Email</span><input type="email" id="a-email" autocomplete="email" autocapitalize="off" spellcheck="false"></label>
       <label class="field"><span>Password</span><input type="password" enterkeyhint="go" id="a-pw" minlength="8" autocomplete="${mode === "signup" ? "new-password" : "current-password"}"></label>
       <label class="showpw"><input type="checkbox" data-showpw="a-pw"> Show password</label>
       <div class="err" id="a-err">${esc(msg)}</div>
-      <button class="btn primary" id="a-go" style="width:100%">${mode === "signup" ? "Create account" : "Sign in"}</button>
+      <button class="btn${tgBtn ? "" : " primary"}" id="a-go" style="width:100%">${mode === "signup" ? "Create account" : "Sign in"}</button>
       ${mode === "signin" ? `<div style="text-align:center;margin-top:12px"><button class="link-btn" id="a-forgot">Forgot password?</button></div>` : ""}`}
     </div>
   </div></div>`;
@@ -46,7 +50,22 @@ function renderAuth(mode = "signin", msg = "") {
     try { await api.resetPassword(email); err("If that email has an account, a reset link is on its way."); } catch (e) { err(e.message); }
   });
   $("#a-pw").addEventListener("keydown", e => { if (e.key === "Enter") $("#a-go").click(); });
+  $("#a-tg-go") && ($("#a-tg-go").onclick = (e) => { try { localStorage.setItem("cc-tg-login", JSON.stringify({ n: nonce, t: Date.now() })); } catch (x) {} e.currentTarget.textContent = "Waiting for Telegram…"; setTimeout(tgLoginPoll, 1500); });
+  if (pend) tgLoginPoll();
 }
+// The member approves in the bot, then comes back here: poll while visible (iOS pauses the app while Telegram is open).
+const tgPending = () => { try { const p = JSON.parse(localStorage.getItem("cc-tg-login")); return p && Date.now() - p.t < 6e5 ? p : null; } catch (e) { return null; } };
+let tgPoll = 0;
+async function tgLoginPoll() {
+  clearTimeout(tgPoll);
+  const p = tgPending();
+  if (!p || document.hidden) return;
+  try {
+    if (await api.tgLogin(p.n)) { localStorage.removeItem("cc-tg-login"); return boot(); }
+    tgPoll = setTimeout(tgLoginPoll, 2000);
+  } catch (e) { localStorage.removeItem("cc-tg-login"); renderAuth("signin", e.message); }
+}
+document.addEventListener("visibilitychange", tgLoginPoll);
 
 /* ===================== BOOT ===================== */
 // All startup reads run in parallel. Group data (Dkay) loads in the background; admin views await it themselves.
@@ -123,5 +142,30 @@ document.addEventListener("pointerdown", (e) => {
   if (t === a || (t.closest && t.closest("input, textarea, select, label, button, a, [contenteditable], [tabindex], .dropdown, .chip"))) return;
   a.blur();
 }, true);
+/* ===================== INSTALL (PWA) ===================== */
+// Home-screen install: Android/desktop Chrome get the real Install prompt, iPhone gets the Share → Add to Home Screen steps,
+// Telegram gets "Open in browser". Hidden once installed; dismissing hides it for a week.
+let installEvt = null;
+const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent));
+addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; installBanner(); });
+addEventListener("appinstalled", () => $(".install")?.remove());
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+function installBanner() {
+  try { if (matchMedia("(display-mode: standalone)").matches || navigator.standalone || $(".install") || Date.now() - (+localStorage.getItem("cc-install-hide") || 0) < 6048e5) return; } catch (e) { return; }
+  const how = TG ? (isIOS ? "Open it in Safari, then tap Share → Add to Home Screen." : "Open it in your browser, then install it.") : installEvt ? null : isIOS ? "Tap Share, then Add to Home Screen." : "";
+  if (how === "") return;
+  const el = document.createElement("div");
+  el.className = "install"; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Install the Desk");
+  el.innerHTML = `<img src="icons/icon-192.png" alt=""><div class="t"><b>Get the Desk on your home screen</b>${how ? `<div class="secondary">${how}</div>` : ""}
+    ${TG || installEvt ? `<button class="btn primary small" data-go>${TG ? "Open in browser" : "Install"}</button>` : ""}</div>
+    <button class="icon-btn sm" data-x aria-label="Dismiss">${ICON.x}</button>`;
+  document.body.appendChild(el);
+  el.querySelector("[data-x]").onclick = () => { try { localStorage.setItem("cc-install-hide", Date.now()); } catch (e) {} el.remove(); };
+  el.querySelector("[data-go]") && (el.querySelector("[data-go]").onclick = () => {
+    if (TG) return TG.openLink(location.origin + location.pathname);
+    installEvt.prompt(); installEvt.userChoice.then((c) => c.outcome === "accepted" && el.remove());
+  });
+}
+installBanner();
 try { const go = new URLSearchParams(location.search).get("go"); if (go && /^[\w-]+$/.test(go)) history.replaceState(null, "", location.pathname + "#" + go); } catch (e) {}
 boot();

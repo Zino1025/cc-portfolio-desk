@@ -1,6 +1,6 @@
 # CC Portfolio Desk
 
-Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dkay reviews each portfolio and leaves feedback. Plain HTML/JS, no build step. Hosted on GitHub Pages (pushing to `main` = deploying). Backend: Supabase project `cc-portfolio`. Opens inside Telegram as a Mini App via @CCPortfolioManagerBot.
+Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dkay reviews each portfolio and leaves feedback. Plain HTML/JS, no build step. Hosted on GitHub Pages (pushing to `main` = deploying). Backend: Supabase project `cc-portfolio`. Opens inside Telegram as a Mini App via @CCPortfolioManagerBot, or as an installed home-screen app (PWA: `manifest.webmanifest`, `sw.js`, `icons/`).
 
 ## Files
 - `index.html`: shell only (CDN libraries + links to the CSS and the JS files below). Every script is `defer`, and library versions are pinned so phones cache them; keep both when adding one.
@@ -8,6 +8,7 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 - `js/*.js`: app logic, split into 10 plain `<script>` files (not modules), each under ~37 KB. See the map below. Open only the file you need.
 - `supabase/functions/*`: backups of the deployed Edge Functions (see their README).
 - `supabase/*.sql`: migrations that have already been applied.
+- `sw.js`: network-first pages, cache-first for `?v=` files and pinned CDN libs. If you ever add an unversioned file it must not match those rules, or bump `C`.
 
 ## How to work efficiently (read this first)
 1. Find the file and section in the map below, `grep -n` for the exact function, then `Read` only that range (offset/limit). Don't scan the repo.
@@ -33,7 +34,7 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 | `market.js` | ADMIN: MODEL EDITOR 1, MARKET UPDATES 79 (weekly summary + urgent bids) |
 | `exit-plan.js` | EXIT PLAN 1 (steps store their price in `st.at` for the hourly TP-hit pings) |
 | `admin.js` | ADMIN: BROADCAST 1, ADMIN DATA 77, REVIEW QUEUE 99, MEMBER DETAIL 157, GROUP INSIGHTS 302 |
-| `boot.js` | AUTH 1 (a reset link only opens the set-password screen; unfinished resets are signed out on next open), BOOT 51 (startup reads in parallel; group data and tg-link run after the first paint; calls `boot()` at the end), TELEGRAM MINI APP (tg-link on every open + CC group gate), MOBILE KEYBOARD 107 (adds `enterkeyhint="done"` to every input, so don't write it in markup) |
+| `boot.js` | AUTH 1 (a reset link only opens the set-password screen; unfinished resets are signed out on next open; outside Telegram, Sign in with Telegram: nonce → bot Approve → `tg-login` poll → `api.tgLogin`, maps via `profiles.telegram_chat_id`), BOOT 51 (startup reads in parallel; group data and tg-link run after the first paint; calls `boot()` at the end), TELEGRAM MINI APP (tg-link on every open + CC group gate), MOBILE KEYBOARD (adds `enterkeyhint="done"` to every input, so don't write it in markup), INSTALL (service worker + home-screen banner: Install prompt / iPhone Share steps / Open in browser from Telegram; dismiss hides it a week) |
 
 css/app.css: THEME 1 (tokens), LAYOUT 73, CONTROLS 101, TABLES 133, CHART 156, THREAD 167, MODAL/AUTH 196, DELTA-STYLE COMPONENTS 278, CALM COMPONENTS (end: `.icon-btn`, `.acts`, `.section-head`, `.cta-card`). Icons: `ICON` in core.js.
 

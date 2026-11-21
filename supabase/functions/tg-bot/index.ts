@@ -2,6 +2,7 @@
 // - Members log trades in the chat: type "bought 500 PAAL at 0.12" or forward an exchange screenshot.
 //   Claude reads it, the bot shows what it understood, and ✅ saves it to their Desk.
 // - An admin sends /setgroup inside the CC group once, so the Desk can check who is a member.
+// - /start login_<nonce> (from the home-screen app) asks the member to approve that sign-in; see tg-login.
 // GET ?setup=1 points the bot's webhook here; GET ?info=1 shows the webhook status.
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
 
@@ -94,6 +95,13 @@ async function handleTrade(chat: number, prof: any, text: string, image?: string
 
 async function onCallback(q: any) {
   const [act, id] = String(q.data || "").split(":"), msg = q.message;
+  if (act === "login") {   // approve a home-screen app sign-in (tg-login hands the app its session)
+    const { data: prof } = await db.from("profiles").select("id").eq("telegram_chat_id", q.from.id).maybeSingle();
+    const ok = prof && !(await db.from("tg_logins").insert({ nonce: id, user_id: prof.id })).error;
+    await tg("answerCallbackQuery", { callback_query_id: q.id });
+    await tg("editMessageText", { chat_id: msg.chat.id, message_id: msg.message_id, text: ok ? "Signed in ✓ Go back to the Desk." : "That sign-in link was already used. Tap Sign in with Telegram again." });
+    return;
+  }
   const { data: d } = await db.from("bot_drafts").delete().eq("id", id).select().maybeSingle();   // claim once
   const { data: prof } = await db.from("profiles").select("id").eq("telegram_chat_id", q.from.id).maybeSingle();
   if (!d || d.user_id !== prof?.id) { await tg("answerCallbackQuery", { callback_query_id: q.id, text: "Already handled." }); return; }
@@ -137,6 +145,11 @@ Deno.serve(async (req) => {
     }
     if (!prof) { await say(chat, "Open the Desk once with the button below to link your account. Then you can log trades right here.", openBtn); return new Response("ok"); }
     if (prof.role !== "admin" && (await inGroup(m.from.id)) === false) { await say(chat, "The Desk is for CC group members. Join the group, then try again."); return new Response("ok"); }
+    const login = text.match(/^\/start login_([a-f0-9]{32})$/)?.[1];
+    if (login) {
+      await say(chat, "Sign in to the CC Portfolio Desk app?\n\nOnly tap Approve if you just tapped <b>Sign in with Telegram</b> on your own phone.", [[{ text: "✅ Approve", callback_data: `login:${login}` }]]);
+      return new Response("ok");
+    }
     if (/^\/(start|help)/.test(text)) {
       await say(chat, "Log a trade by typing it, like <b>bought 500 PAAL at 0.12</b>, or send a screenshot of the order. I'll show you what I read before saving anything.", openBtn);
       return new Response("ok");

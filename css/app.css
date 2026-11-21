@@ -284,6 +284,9 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .auth-wrap { min-height:100vh; display:grid; place-items:center; padding:20px; }
 .auth { width:100%; max-width:400px; }
 .auth .brand { justify-content:center; font-size:20px; margin-bottom:6px; }
+.auth .tg-go { display:flex; align-items:center; justify-content:center; width:100%; min-height:44px; text-decoration:none; }
+.auth .or { display:flex; align-items:center; gap:12px; margin:16px 0; color:var(--muted); font-size:13px; }
+.auth .or::before, .auth .or::after { content:""; flex:1; height:1px; background:var(--track); }
 .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); animation:toast .18s cubic-bezier(.2,.8,.2,1); background:var(--text); color:var(--surface-1); padding:11px 18px; border-radius:999px; font-size:14px; z-index:60; box-shadow:0 6px 20px rgba(0,0,0,.25); }
 .spinner { width:22px; height:22px; border:3px solid var(--track); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; margin:40px auto; }
 @keyframes spin { to { transform:rotate(360deg); } }
@@ -416,3 +419,11 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .rewind { display:flex; align-items:center; gap:10px; margin:4px 0 6px; }
 .rewind input[type=range] { flex:1; accent-color:var(--text); min-height:44px; }
 .rewind span { font-size:13px; min-width:76px; text-align:right; }
+/* Home-screen install banner (boot.js INSTALL) */
+.install { position:fixed; left:12px; right:12px; bottom:16px; margin:0 auto; max-width:440px; z-index:40; display:flex; align-items:flex-start; gap:12px; padding:14px; background:var(--surface-1); border-radius:var(--r-lg); box-shadow:var(--sh-2); animation:fade .18s ease-out; }
+.install img { width:44px; height:44px; flex:none; border-radius:var(--r-xs); outline:1px solid var(--img-line); outline-offset:-1px; }
+.install .t { flex:1; min-width:0; padding-top:2px; }
+.install b { display:block; font-weight:600; letter-spacing:-.2px; }
+.install .secondary { font-size:13px; margin-top:2px; }
+.install .btn { margin-top:10px; }
+body:has(.install) main, body:has(.install) .auth-wrap { padding-bottom:150px; }
