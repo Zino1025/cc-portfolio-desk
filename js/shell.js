@@ -1,6 +1,6 @@
 /* ===================== SHELL ===================== */
 function routes() {
-  const r = [["overview", "Portfolio"], ["trades", "Trades"], ["rebalance", "Rebalance"], ["exit", "Exit plan"], ["projections", "Projections"], ["updates", "Market updates"], ["feedback", "Feedback from " + CONFIG.REVIEWER_NAME]];
+  const r = [["overview", "Portfolio"], ["updates", "Market updates"], ["feedback", "Feedback from " + CONFIG.REVIEWER_NAME], ["trades", "Trades"], ["exit", "Exit plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]];
   if (isAdmin()) r.push(["sep"], ["members", "Review queue"], ["insights", "Group insights"], ["model", "Model portfolio"]);
   r.push(["profile", "Profile"]);
   return r;
