@@ -22,7 +22,7 @@ function render() {
   const counts = { feedback: unreadCount(), members: openReviewCount(), updates: alertCount() };
   $("#app").innerHTML = `
     <header class="top"><div class="top-inner">
-      <div class="brand"><span class="logo">${esc(CONFIG.GROUP_NAME)}</span><span class="hide-sm">Portfolio Desk</span></div>
+      <div class="brand"><span class="logo" role="img" aria-label="${esc(CONFIG.GROUP_NAME)}"></span><span class="hide-sm">Portfolio Desk</span></div>
       <nav class="tabs">${routes().map(([k, l]) => k === "sep" ? `<span class="sep"></span>` :
         `<a href="#${k}" class="${route === k || (k === "members" && route.startsWith("member-")) ? "active" : ""}">${esc(l)}${badge(counts[k])}</a>`).join("")}</nav>
       <div class="user-chip"><span class="hide-sm secondary">${esc(memberName(S.me))}</span>

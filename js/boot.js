@@ -5,7 +5,7 @@ function renderAuth(mode = "signin", msg = "") {
   const tgBtn = mode === "signin" && !TG, pend = tgPending();
   const nonce = pend?.n || Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join("");
   $("#app").innerHTML = `<div class="auth-wrap"><div class="auth">
-    <div class="brand"><span class="logo">${esc(CONFIG.GROUP_NAME)}</span>Portfolio Desk</div>
+    <div class="brand"><span class="logo" role="img" aria-label="${esc(CONFIG.GROUP_NAME)}"></span>Portfolio Desk</div>
     <div class="card">
       ${mode === "recover" ? `
         <h2>Set a new password</h2>
