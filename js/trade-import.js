@@ -307,7 +307,7 @@ function openImportModal() {
       status("Reading your holdings… (10–20 seconds)");
       result = await api.parseScreenshots(slices, /tx|trade|history/i.test(files[0]?.name || "") ? "trades" : "");
       await prepareRows();
-    } catch (e) { busy = false; stepPick(e.message || "Something went wrong. Try again."); }
+    } catch (e) { busy = false; stepPick(e.message || "Couldn't read those screenshots. Check your connection and try again."); }
   }
 
   function stepConfirm() {

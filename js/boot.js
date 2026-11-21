@@ -45,7 +45,7 @@ function renderAuth(mode = "signin", msg = "") {
         await api.signIn(email, pw);
       }
       boot();
-    } catch (e) { err(e.message || "Something went wrong."); }
+    } catch (e) { err(e.message || "Couldn't reach the Desk. Check your connection and try again."); }
   };
   $("#a-forgot") && ($("#a-forgot").onclick = async () => {
     const email = $("#a-email").value.trim(); if (!email) return err("Type your email above first.");

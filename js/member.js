@@ -58,7 +58,7 @@ async function viewFeedback(v) {
       btn.textContent = "Sending…";
       await api.addMessage({ member_id: S.me.id, kind: "reply", body, ...(attachments ? { attachments } : {}) });
       render();
-    } catch (e) { toast(e.message || "Couldn't send"); btn.disabled = false; btn.textContent = "Send"; }
+    } catch (e) { toast(e.message || "Couldn't send", "error"); btn.disabled = false; btn.textContent = "Send"; }
   };
   bindMsgDelete(v, render);
 }

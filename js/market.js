@@ -146,7 +146,7 @@ async function viewUpdates(v) {
   const withUploads = async (btn, pickId, fn) => {
     const label = btn.textContent; btn.disabled = true;
     try { const attachments = await ATT.upload(pickId, "updates", (i, n) => { btn.textContent = `Uploading ${i}/${n}…`; }); btn.textContent = "Posting…"; await fn(attachments); }
-    catch (e) { toast(e.message); btn.disabled = false; btn.textContent = label; }
+    catch (e) { toast(e.message, "error"); btn.disabled = false; btn.textContent = label; }
   };
   $("#w-post").onclick = async () => {
     const title = $("#w-title").value.trim(), body = $("#w-body").value.trim();

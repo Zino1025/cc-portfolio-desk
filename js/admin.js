@@ -236,7 +236,7 @@ async function viewMemberDetail(v, id) {
     btns.forEach(b => b.disabled = true);
     let attachments = null;
     try { attachments = await ATT.upload("att-msg", `msg/${p.id}`, (i, n) => { btns[mark ? 1 : 0].textContent = `Uploading ${i}/${n}…`; }); }
-    catch (e) { toast(e.message); btns.forEach((b, i) => { b.disabled = false; b.textContent = labels[i]; }); return; }
+    catch (e) { toast(e.message, "error"); btns.forEach((b, i) => { b.disabled = false; b.textContent = labels[i]; }); return; }
     const m = await api.addMessage({ member_id: p.id, kind: $("#kind").value, coin_id: $("#coin").value || null, body, ...(attachments ? { attachments } : {}) });
     S.admin.meta.push({ member_id: p.id, author_id: m.author_id, created_at: m.created_at, kind: m.kind });
     if (mark) await markReviewed();

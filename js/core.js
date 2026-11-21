@@ -71,7 +71,13 @@ async function saveFile(content, filename) {
   a.href = png ? content : URL.createObjectURL(new Blob(["\ufeff" + content], { type: "text/csv" }));
   a.download = filename; a.click();
 }
-function toast(msg) { document.querySelector(".toast")?.remove(); const t = document.createElement("div"); t.className = "toast"; t.setAttribute("role", "status"); t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
+// Errors stay longer (5s), dismiss on tap and buzz as an error; confirmations buzz as success; "…" progress notes stay silent.
+function toast(msg, kind = /^Couldn't|^Max |blocked|isn't supported|Too short|only images|doesn't add up|^Run supabase/.test(msg) ? "error" : /…$/.test(msg) ? "" : "success") {
+  document.querySelector(".toast")?.remove(); const t = document.createElement("div"); t.className = "toast" + (kind === "error" ? " err" : ""); t.setAttribute("role", kind === "error" ? "alert" : "status");
+  t.textContent = msg; t.onclick = () => t.remove(); document.body.appendChild(t); haptic(kind); setTimeout(() => t.remove(), kind === "error" ? 5000 : 2600);
+}
+// Telegram's native haptics (success / warning / error), only inside the Telegram app.
+function haptic(kind) { try { kind && TG?.HapticFeedback?.notificationOccurred(kind); } catch (e) {} }
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const fmtDay = (d) => new Date(d).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
