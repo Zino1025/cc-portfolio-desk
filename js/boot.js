@@ -1,8 +1,5 @@
 /* ===================== AUTH ===================== */
-// First-timers see a welcome screen. Devices that have signed in before, and members sent here from the Telegram Desk
-// (?install=1), go straight to sign-in.
-const knownDevice = () => { try { return !!localStorage.getItem("cc-member") || new URLSearchParams(location.search).has("install"); } catch (e) { return false; } };
-function renderAuth(mode = knownDevice() ? "signin" : "welcome", msg = "") {
+function renderAuth(mode = "signin", msg = "") {
   document.querySelector(".install:not(.pre-signin)")?.remove();
   // Outside Telegram (browser / home-screen app), members sign in through the bot instead of typing a password.
   const tgBtn = mode === "signin" && !TG, pend = tgPending();
@@ -15,9 +12,7 @@ function renderAuth(mode = knownDevice() ? "signin" : "welcome", msg = "") {
         <label class="field"><span>New password</span><input type="password" enterkeyhint="go" id="a-pw" minlength="8" autocomplete="new-password"></label>
         <label class="showpw"><input type="checkbox" data-showpw="a-pw"> Show password</label>
         <div class="err" id="a-err">${esc(msg)}</div>
-        <button class="btn primary" id="a-go" style="width:100%">Save password</button>` : mode === "welcome" ? `
-        <p class="secondary" style="margin:0 0 18px">Log your trades and get ${esc(CONFIG.REVIEWER_NAME)}'s feedback on your portfolio.</p>
-        <div class="stack"><button class="btn primary" data-m="signup">Create account</button><button class="btn" data-m="signin">I already have an account</button></div>` : `
+        <button class="btn primary" id="a-go" style="width:100%">Save password</button>` : `
       <div class="seg" style="width:100%;margin-bottom:16px"><button style="flex:1" class="${mode === "signin" ? "on" : ""}" data-m="signin">Sign in</button><button style="flex:1" class="${mode === "signup" ? "on" : ""}" data-m="signup">Create account</button></div>
       ${mode === "signup" ? `
         <label class="field"><span>Display name</span><input type="text" id="a-name" maxlength="60" autocomplete="nickname"></label>
@@ -34,7 +29,6 @@ function renderAuth(mode = knownDevice() ? "signin" : "welcome", msg = "") {
   document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => renderAuth(b.dataset.m));
   installBanner();   // shows here only for members sent from the Telegram Desk (?install=1)
   const err = (m) => $("#a-err").textContent = m;
-  if (mode === "welcome") return;
   $("#a-go").onclick = async () => {
     const pw = $("#a-pw").value;
     try {
@@ -99,7 +93,6 @@ async function boot() {
     if (s && recFlag()) { recFlag(false); await api.signOut(); return renderAuth("signin", "Password reset wasn't finished. Tap Forgot password to get a new link."); }
     if (!s) return renderAuth();
     await loadMe(s.user);
-    try { localStorage.setItem("cc-member", "1"); } catch (e) {}
     const gated = () => !isAdmin() && S.me.in_group === false;
     if (gated()) return renderGate();
     // Members always open on their portfolio, whatever page they were on last time.
