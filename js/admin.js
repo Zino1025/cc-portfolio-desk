@@ -108,9 +108,9 @@ async function viewMembers(v) {
   v.innerHTML = `
     <div class="page-head"><div><h1>Review Queue</h1></div><div class="row" style="flex:none"><button class="btn" id="reload">Reload</button><button class="btn primary" id="bcast">Broadcast</button></div></div>
     <div class="kpis">
-      <div class="card kpi"><div class="label">Members</div><div class="value num">${all.length}</div><div class="sub muted">${all.filter(r => r.txs.length).length} with trades</div></div>
+      <div class="card kpi"><div class="label">Members</div><div class="value num">${all.length}</div></div>
       <div class="card kpi"><div class="label">Requests</div><div class="value num">${all.filter(r => r.p.review_requested).length}</div></div>
-      <div class="card kpi"><div class="label">Overdue</div><div class="value num">${stale}</div><div class="sub muted">No review in 30d</div></div>
+      <div class="card kpi"><div class="label">Overdue</div><div class="value num">${stale}</div></div>
       <div class="card kpi"><div class="label">Tracked value</div><div class="value num">${fmtUsd(total, { compact: true })}</div></div>
     </div>
     <div class="card">
