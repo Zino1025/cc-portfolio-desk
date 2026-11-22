@@ -17,17 +17,17 @@ async function viewModel(v) {
             ${draft.fixed.map((f, i) => `<tr><td>${esc(symOf(f.coin))}</td><td class="r">${pctIn(f.pct, `data-fx="${i}"`)}</td><td class="r"><button class="btn small danger" data-delfx="${i}">Remove</button></td></tr>`).join("")}
           </tbody></table></div>
           <button class="btn small" id="addfx" style="margin-top:8px">+ Add fixed coin</button>
-          <div class="secondary num" style="margin-top:10px">Fixed: <b>${fixedSum}%</b> → flexible pool: <b>${pool}%</b>${fixedSum > 100 ? ' <span class="bad">Fixed adds up to over 100%.</span>' : ""}</div>
+          ${fixedSum > 100 ? '<div class="bad" style="margin-top:10px">Fixed adds up to over 100%.</div>' : ""}
         </div>
         <div class="card"><h2>Flexible ${pool}%</h2>
           <div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Max %</th><th></th></tr></thead><tbody>
             ${draft.flex.map((f, i) => `<tr><td>${esc(symOf(f.coin))}</td><td class="r">${pctIn(f.max, `data-fmax="${i}"`)}</td><td class="r"><button class="btn small danger" data-delfl="${i}">Remove</button></td></tr>`).join("")}
           </tbody></table></div>
           <button class="btn small" id="addfl" style="margin-top:8px">+ Add flex coin</button>
-          ${draft.flex.reduce((s, f) => s + Math.min(num(f.max) || pool, pool), 0) < pool ? `<div class="bad" style="margin-top:8px;font-size:13px">The max values add up to less than ${pool}%, so the pool can't be filled. Raise a max.</div>` : ""}
+          ${draft.flex.reduce((s, f) => s + Math.min(num(f.max) || pool, pool), 0) < pool ? `<div class="bad" style="margin-top:8px;font-size:13px">Maxes add up to under ${pool}%. Raise one.</div>` : ""}
         </div>
       </div>
-      <div class="card" style="margin-top:16px"><h2>Quick picks members see</h2>
+      <div class="card" style="margin-top:16px"><h2>Quick picks</h2>
         <div class="table-wrap"><table><thead><tr><th>Name</th>${draft.flex.map(f => `<th class="r">${esc(symOf(f.coin))} %</th>`).join("")}<th class="r">Total</th><th></th></tr></thead><tbody>
           ${draft.presets.map((p, i) => { const tot = draft.flex.reduce((s, f) => s + num(p.mix[f.coin]), 0); return `<tr>
             <td><input type="text" value="${esc(p.name)}" data-pname="${i}" style="min-width:120px"></td>
@@ -43,9 +43,9 @@ async function viewModel(v) {
         </tbody></table></div></div>
       <div class="card" style="margin-top:16px"><h2>Rules</h2>
         <div class="row">
-          <label class="field"><span>Suggest a trade when off by (% pts)</span><input type="text" inputmode="decimal" id="drift" value="${draft.drift}"></label>
-          <label class="field"><span>Urgent-bid alert: 24h drop ≥ %</span><input type="text" inputmode="decimal" id="d24" value="${draft.drop24}"></label>
-          <label class="field"><span>…or 7-day drop ≥ %</span><input type="text" inputmode="decimal" id="d7" value="${draft.drop7}"></label>
+          <label class="field"><span>Rebalance drift %</span><input type="text" inputmode="decimal" id="drift" value="${draft.drift}"></label>
+          <label class="field"><span>Alert: 24h drop %</span><input type="text" inputmode="decimal" id="d24" value="${draft.drop24}"></label>
+          <label class="field"><span>Alert: 7d drop %</span><input type="text" inputmode="decimal" id="d7" value="${draft.drop7}"></label>
         </div></div>`;
     const setPct = (sel, fn) => v.querySelectorAll(sel).forEach(inp => inp.onchange = () => { fn(inp, Math.max(0, decOr0(inp.value))); paint(); });
     setPct("[data-fx]", (inp, x) => { draft.fixed[+inp.dataset.fx].pct = x; });
@@ -91,29 +91,29 @@ async function viewUpdates(v) {
   const my7 = pf.holdings.reduce((s, h) => { const c7 = CG.info(h.coin_id)?.change7; return c7 == null ? s : s + (h.value - h.value / (1 + c7 / 100)); }, 0);
   const coinRows = modelCoinIds(m).map(id => ({ id, i: CG.info(id) })).filter(x => x.i);
   const bidCard = (u) => { const s = bidSuggestion(u.coin_id); return `<div class="card urgent">
-      <div class="row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px"><div style="flex:1;min-width:0">${coinCell({ coin_id: u.coin_id, symbol: symOf(u.coin_id).toLowerCase(), name: CG.info(u.coin_id)?.name || u.coin_id, image: CG.info(u.coin_id)?.image })}</div><span class="tag req" style="flex:none">⚡ Urgent bid from ${esc(CONFIG.REVIEWER_NAME)}</span></div>
+      <div class="row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px"><div style="flex:1;min-width:0">${coinCell({ coin_id: u.coin_id, symbol: symOf(u.coin_id).toLowerCase(), name: CG.info(u.coin_id)?.name || u.coin_id, image: CG.info(u.coin_id)?.image })}</div><span class="tag req" style="flex:none">Urgent bid</span></div>
       <h2 style="margin:10px 0 4px">${esc(u.title)}</h2>
       ${u.buy_low || u.buy_high ? `<div class="num" style="margin-bottom:6px">Bid zone: <b>${u.buy_low ? fmtPrice(u.buy_low) : "…"} – ${u.buy_high ? fmtPrice(u.buy_high) : "…"}</b> · now ${fmtPrice(CG.info(u.coin_id)?.price)}</div>` : ""}
       ${u.body ? `<div style="white-space:pre-wrap">${esc(u.body)}</div>` : ""}${ATT.html(u.attachments)}
-      ${isAdmin() ? "" : `<div class="callout" style="margin:10px 0 0">${esc(s.text)}${s.amount ? `\nSuggested bid: <b>${fmtUsd(s.amount)}</b>` : ""}</div>`}
+      ${isAdmin() ? "" : `<div class="callout" style="margin:10px 0 0">${esc(s.text)}${s.amount ? `\nBid up to <b>${fmtUsd(s.amount)}</b>` : ""}</div>`}
       <div class="muted" style="font-size:12px;margin-top:8px">Posted ${ago(u.created_at)}${u.expires_at ? ` · expires ${fmtDate(u.expires_at, false)}` : ""}${isAdmin() ? ` · <button class="link-btn" data-del-up="${esc(u.id)}">Remove</button>` : ""}</div></div>`; };
   v.innerHTML = `
     <div class="page-head"><div><h1>Market updates</h1></div><button class="btn" id="reload">Refresh</button></div>
     ${priceChartCard()}
     <div class="kpis">
       ${g ? groupKpi(g) : ""}
-      <div class="card kpi"><div class="label">Your portfolio, 7 days</div><div class="value num ${signCls(my7)}">${fmtUsd(my7)}</div><div class="sub num ${signCls(my7)}">${pf.totals.value - my7 > 0 ? fmtPct(my7 / (pf.totals.value - my7) * 100) : "—"}</div></div>
-      <div class="card kpi"><div class="label">Active alerts</div><div class="value num ${urgent.length + drops.length ? "bad" : ""}">${urgent.length + drops.length}</div><div class="sub muted">${plural(urgent.length, "urgent bid")} · ${plural(drops.length, "price drop")}</div></div>
+      <div class="card kpi"><div class="label">Your 7d</div><div class="value num ${signCls(my7)}">${fmtUsd(my7)}</div><div class="sub num ${signCls(my7)}">${pf.totals.value - my7 > 0 ? fmtPct(my7 / (pf.totals.value - my7) * 100) : "—"}</div></div>
+      <div class="card kpi"><div class="label">Active alerts</div><div class="value num ${urgent.length + drops.length ? "bad" : ""}">${urgent.length + drops.length}</div></div>
     </div>
-    <h2 class="section-h">⚡ Urgent bids</h2>
-    ${urgent.length || drops.length ? "" : `<div class="card empty" style="padding:20px">No urgent bids right now. You'll see one here (and get a Telegram ping) when ${esc(CONFIG.REVIEWER_NAME)} posts one.</div>`}
+    <h2 class="section-h">Urgent bids</h2>
+    ${urgent.length || drops.length ? "" : `<div class="card empty" style="padding:20px">No urgent bids right now.</div>`}
     <div class="grid">${urgent.map(bidCard).join("")}
       ${drops.map(d => { const s = bidSuggestion(d.id); return `<div class="card drop">
-        <div class="row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px"><div style="flex:1;min-width:0">${coinCell({ coin_id: d.id, symbol: d.symbol.toLowerCase(), name: d.name, image: d.image })}</div><span class="tag flag" style="flex:none">Automatic price alert</span></div>
-        <div class="num" style="margin:8px 0">${esc(d.symbol)} is <b class="bad">${fmtPct(d.change24)}</b> in 24h${d.change7 != null ? `, <b class="${signCls(d.change7)}">${fmtPct(d.change7)}</b> over 7 days` : ""} · now ${fmtPrice(d.price)}</div>
-        ${isAdmin() ? "" : `<div class="secondary">${esc(s.text)}${s.amount ? ` Your plan says up to <b>${fmtUsd(s.amount)}</b> to get back to target.` : ""}</div>`}
-        <div class="muted" style="font-size:12px;margin-top:8px">Not a call from ${esc(CONFIG.REVIEWER_NAME)}: big drops can keep dropping. Wait for his take if unsure.</div></div>`; }).join("")}</div>
-    <h2 class="section-h">📰 Weekly summary</h2>
+        <div class="row" style="align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px"><div style="flex:1;min-width:0">${coinCell({ coin_id: d.id, symbol: d.symbol.toLowerCase(), name: d.name, image: d.image })}</div><span class="tag flag" style="flex:none">Price alert</span></div>
+        <div class="num" style="margin:8px 0"><b class="bad">${fmtPct(d.change24)}</b> 24h${d.change7 != null ? ` · <b class="${signCls(d.change7)}">${fmtPct(d.change7)}</b> 7d` : ""} · now ${fmtPrice(d.price)}</div>
+        ${isAdmin() ? "" : `<div class="secondary">${esc(s.text)}${s.amount ? ` Bid up to <b>${fmtUsd(s.amount)}</b>.` : ""}</div>`}
+        <div class="muted" style="font-size:12px;margin-top:8px">Not a call from ${esc(CONFIG.REVIEWER_NAME)}. Drops can keep dropping.</div></div>`; }).join("")}</div>
+    <h2 class="section-h">Weekly summary</h2>
     <div class="card">${latest ? `<div class="muted" style="font-size:12px">${fmtDate(latest.created_at, false)} · ${esc(CONFIG.REVIEWER_NAME)}${isAdmin() ? ` · <button class="link-btn" data-del-up="${esc(latest.id)}">Remove</button>` : ""}</div><h2 style="margin:6px 0 8px">${esc(latest.title)}</h2><div style="white-space:pre-wrap">${esc(latest.body || "")}</div>${ATT.html(latest.attachments)}`
       : `<div class="empty" style="padding:16px">No weekly summary posted yet.</div>`}</div>
     ${weeklies.length > 1 ? `<div class="card" style="margin-top:16px"><h2>Past summaries</h2>${weeklies.slice(1, 12).map(w => `<details class="past"><summary><b>${esc(w.title)}</b> <span class="muted">· ${fmtDate(w.created_at, false)}</span></summary><div style="white-space:pre-wrap;margin-top:6px">${esc(w.body || "")}</div>${ATT.html(w.attachments)}</details>`).join("")}</div>` : ""}
@@ -122,15 +122,15 @@ async function viewUpdates(v) {
         <label class="field"><span>Coin</span><select id="u-coin">${modelCoinIds(m).map(id => `<option value="${esc(id)}">${esc(symOf(id))}</option>`).join("")}</select></label>
         <label class="field"><span>Headline</span><input type="text" id="u-title" maxlength="140" placeholder="e.g. TET flushed to support, bid here"></label>
         <div class="row"><label class="field"><span>Bid from $</span><input type="text" inputmode="decimal" id="u-lo"></label><label class="field"><span>to $</span><input type="text" inputmode="decimal" id="u-hi"></label></div>
-        <label class="field"><span>Note (optional)</span><textarea id="u-body" rows="3" maxlength="2000"></textarea></label>
+        <label class="field"><span>Note</span><textarea id="u-body" rows="3" maxlength="2000"></textarea></label>
         ${ATT.pickerHtml("att-urgent")}
         <label class="field"><span>Show for</span><select id="u-exp" class="as-seg"><option value="1">1 day</option><option value="3" selected>3 days</option><option value="7">7 days</option></select></label>
         <button class="btn primary" id="u-post">Post urgent bid</button></div>
-      <div class="card"><h2>Post the weekly summary</h2>
+      <div class="card"><h2>Post weekly summary</h2>
         <label class="field"><span>Title</span><input type="text" id="w-title" maxlength="140" value="Weekly update · ${new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" })}"></label>
         <label class="field"><span>Summary</span><textarea id="w-body" rows="10" maxlength="6000" placeholder="Your take on the week…"></textarea></label>
         ${ATT.pickerHtml("att-weekly")}
-        <div class="btn-row"><button class="btn" id="w-draft">Fill with this week's numbers</button><button class="btn primary" id="w-post">Post summary</button></div></div>
+        <div class="btn-row"><button class="btn" id="w-draft">Auto-fill</button><button class="btn primary" id="w-post">Post summary</button></div></div>
     </div>` : ""}`;
   paintPriceChart();
   $("#reload").onclick = async () => { await CG.ensure(["bitcoin", "ethereum", ...modelCoinIds(m)], 0); CG.hist = {}; render(); };

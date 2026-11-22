@@ -268,8 +268,8 @@ function openImportModal() {
     body.innerHTML = `
       <label class="btn primary" style="display:flex;justify-content:center;cursor:pointer">Choose screenshots<input type="file" id="imp-file" accept="image/*" multiple style="display:none"></label>
       <div style="display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:var(--muted);font-size:12px"><span style="flex:1;border-top:1px solid var(--track)"></span>or<span style="flex:1;border-top:1px solid var(--track)"></span></div>
-      <label class="btn" style="display:flex;justify-content:center;cursor:pointer">Upload a CSV file<input type="file" id="imp-csv" accept=".csv,text/csv,.txt,text/plain" style="display:none"></label>
-      <div class="hint">Delta, CoinStats, CoinTracker or Koinly files work. <button class="link-btn" type="button" id="imp-tpl" style="font-size:12px">Download template</button></div>
+      <label class="btn" style="display:flex;justify-content:center;cursor:pointer">Upload CSV<input type="file" id="imp-csv" accept=".csv,text/csv,.txt,text/plain" style="display:none"></label>
+      <div class="hint">Delta, CoinStats, CoinTracker or Koinly. <button class="link-btn" type="button" id="imp-tpl" style="font-size:12px">Download template</button></div>
       <div class="err" id="imp-err">${esc(msg)}</div>`;
     $("#imp-file", ov).onchange = (e) => { const files = [...e.target.files]; if (files.length) run(files); };
     $("#imp-csv", ov).onchange = (e) => { const f = e.target.files[0]; if (f) runCsv(f); };
@@ -341,42 +341,42 @@ function openImportModal() {
       const coin = r.match
         ? `<div class="picked" style="padding:6px 9px">${coinCell({ ...r.match, coin_id: r.match.id })}<button class="link-btn" type="button" data-change="${i}">Change</button></div>`
         : `<button class="btn" type="button" data-change="${i}" style="width:100%">Pick the coin</button>`;
-      const flag = !r.match ? `<div class="hint" style="color:var(--bad)">Couldn't match “${esc(shot)}”. Pick it, or untick to skip.</div>`
+      const flag = !r.match ? `<div class="hint" style="color:var(--bad)">Couldn't match “${esc(shot)}”.</div>`
         : !r.sure ? `<div class="hint" style="color:var(--bad)">Check this coin.</div>`
-        : r.topUp ? `<div class="hint">You have ${fmtQty(r.heldQty)} logged and the screenshot shows ${fmtQty(r.shotQty)}, so only the extra ${fmtQty(r.quantity)} will be added.</div>`
-        : r.alreadyHeld ? `<div class="hint">Already logged (you have ${fmtQty(r.heldQty)}), so it's unticked. Tick it only if this is a new buy on top.</div>` : "";
+        : r.topUp ? `<div class="hint">Adds only the extra ${fmtQty(r.quantity)} (you have ${fmtQty(r.heldQty)}).</div>`
+        : r.alreadyHeld ? `<div class="hint">Already logged. Tick only if it's a new buy.</div>` : "";
       if (mode === "trades") {
         const firstOfCoin = i === 0 || rows[i - 1].key !== r.key;
-        const coinFlag = !r.match ? `<div class="hint" style="color:var(--bad);margin:-4px 0 8px">Couldn't match “${esc(shot)}”. Pick the coin.</div>`
+        const coinFlag = !r.match ? `<div class="hint" style="color:var(--bad);margin:-4px 0 8px">Couldn't match “${esc(shot)}”.</div>`
           : !r.sure ? `<div class="hint" style="color:var(--bad);margin:-4px 0 8px">Check this coin.</div>` : "";
         const tot = num(r.quantity) * num(r.avg_buy_price);
         const paidHint = !r.paid ? "" : r.manualPrice ? `<div class="hint">Paid ${fmtQty(r.paid.amount)} ${esc(r.paid.currency)}</div>`
-          : r.conv?.ok ? `<div class="hint">Paid ${fmtQty(r.paid.amount)} ${esc(r.paid.currency)} ≈ ${fmtUsd(r.paid.amount * r.conv.rate)} (${esc(r.paid.currency)} price that day)</div>`
-          : `<div class="hint" style="color:var(--bad)">Paid ${fmtQty(r.paid.amount)} ${esc(r.paid.currency)}. Couldn't get that day's ${esc(r.paid.currency)} price, so enter the USD price per coin.</div>`;
+          : r.conv?.ok ? `<div class="hint">Paid ${fmtQty(r.paid.amount)} ${esc(r.paid.currency)} ≈ ${fmtUsd(r.paid.amount * r.conv.rate)}</div>`
+          : `<div class="hint" style="color:var(--bad)">Couldn't convert ${fmtQty(r.paid.amount)} ${esc(r.paid.currency)}. Enter the USD price.</div>`;
         return `${firstOfCoin ? `<div style="margin:4px 0 8px">${coin}</div>${coinFlag}` : ""}<div class="card" style="padding:10px 12px;margin-bottom:10px;${r.include ? "" : "opacity:.6"}">
           <div style="display:flex;gap:10px;align-items:flex-start">
             <input type="checkbox" data-inc="${i}" ${r.include ? "checked" : ""} style="width:auto;margin-top:10px" aria-label="Import this trade">
             <div style="flex:1;min-width:0">
               <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><span class="tag" style="color:var(--${r.side === "sell" ? "bad" : "good"})">${r.side === "sell" ? "Sell" : "Buy"}</span><input type="date" data-date="${i}" value="${esc(r.date || "")}" style="flex:1"></div>
-              ${r.dup ? `<div class="hint" style="margin-bottom:6px">Looks already logged (same coin, day and amount), so it's unticked.</div>` : ""}
-              ${r.preCC ? `<div class="hint" style="margin-bottom:6px">Before CC started (June 2023), so it's unticked. Tick it if you still want it.</div>` : ""}
+              ${r.dup ? `<div class="hint" style="margin-bottom:6px">Looks already logged.</div>` : ""}
+              ${r.preCC ? `<div class="hint" style="margin-bottom:6px">Before CC started.</div>` : ""}
               <div class="row">
                 <label class="field" style="margin-bottom:0"><span>Quantity</span><input type="text" inputmode="decimal" autocomplete="off" data-qty="${i}" value="${r.quantity != null ? esc(+Number(r.quantity).toPrecision(10)) : ""}"></label>
-                <label class="field" style="margin-bottom:0"><span>Price per coin (USD)</span><input type="text" inputmode="decimal" autocomplete="off" data-price="${i}" value="${r.avg_buy_price != null ? esc(+Number(r.avg_buy_price).toPrecision(8)) : ""}">${r.paid ? paidHint : tot ? `<div class="hint">Total ${fmtUsd(tot)}</div>` : ""}</label>
+                <label class="field" style="margin-bottom:0"><span>Price (USD)</span><input type="text" inputmode="decimal" autocomplete="off" data-price="${i}" value="${r.avg_buy_price != null ? esc(+Number(r.avg_buy_price).toPrecision(8)) : ""}">${r.paid ? paidHint : tot ? `<div class="hint">Total ${fmtUsd(tot)}</div>` : ""}</label>
               </div>
             </div>
           </div></div>`;
       }
-      const priceHint = r.avg_buy_price == null ? `<div class="hint">Not in ${isCsvR() ? "file" : "screenshot"}. Leave empty to use today's price.</div>` : "";
+      const priceHint = r.avg_buy_price == null ? `<div class="hint">Not in ${isCsvR() ? "file" : "screenshot"}. Empty = today's price.</div>` : "";
       return `<div class="card" style="padding:10px 12px;margin-bottom:10px;${r.include ? "" : "opacity:.6"}">
         <div style="display:flex;gap:10px;align-items:flex-start">
           <input type="checkbox" data-inc="${i}" ${r.include ? "checked" : ""} style="width:auto;margin-top:10px" aria-label="Import this coin">
           <div style="flex:1;min-width:0">
             ${coin}
-            <div class="muted" style="font-size:12px;margin:4px 0 6px">${isCsvR() ? "From CSV" : "From screenshot"}: ${esc(shot)}${r.value ? ` · ${fmtUsd(r.value)}` : ""}</div>
+            <div class="muted" style="font-size:12px;margin:4px 0 6px">${esc(shot)}${r.value ? ` · ${fmtUsd(r.value)}` : ""}</div>
             ${flag}
             <div class="row" style="margin-top:6px">
-              <label class="field" style="margin-bottom:0"><span>Quantity</span><input type="text" inputmode="decimal" autocomplete="off" data-qty="${i}" value="${r.quantity != null ? esc(+Number(r.quantity).toPrecision(10)) : ""}" placeholder="0.00">${r.quantity_estimated ? `<div class="hint">Worked out from value ÷ price. Check it.</div>` : ""}</label>
+              <label class="field" style="margin-bottom:0"><span>Quantity</span><input type="text" inputmode="decimal" autocomplete="off" data-qty="${i}" value="${r.quantity != null ? esc(+Number(r.quantity).toPrecision(10)) : ""}" placeholder="0.00">${r.quantity_estimated ? `<div class="hint">Estimated. Check it.</div>` : ""}</label>
               <label class="field" style="margin-bottom:0"><span>Avg buy price (USD)</span><input type="text" inputmode="decimal" autocomplete="off" data-price="${i}" value="${r.avg_buy_price != null ? esc(+Number(r.avg_buy_price).toPrecision(8)) : ""}" placeholder="${r.match && CG.info(r.match.id)?.price ? "today: " + esc(fmtPrice(CG.info(r.match.id).price)) : "0.00"}">${priceHint}</label>
             </div>
           </div>

@@ -11,7 +11,7 @@ const sigPct = (s, p) => fmtPct((p / sigRef(s) - 1) * 100).replace(/\.\d+%/, "%"
 const sigTps = (s) => [...(s.signal_targets || [])].sort((a, b) => a.n - b.n);
 
 async function viewSignals(v) {
-  if (!seesSignals()) { v.innerHTML = `<div class="card empty"><div class="big">Signals is a separate plan</div>Spot swing calls from ${esc(CONFIG.REVIEWER_NAME)}, Anton and Saad, with a ping for every entry, target and exit. Message ${esc(CONFIG.REVIEWER_NAME)} to add it.</div>`; return; }
+  if (!seesSignals()) { v.innerHTML = `<div class="card empty"><div class="big">Signals is a separate plan</div>Spot swing calls with pings at every entry, target and exit. Message ${esc(CONFIG.REVIEWER_NAME)} to add it.</div>`; return; }
   v.innerHTML = `<div class="spinner"></div>`;
   const [sigs, rules] = await Promise.all([api.signals(), api.splitRules()]);
   S.sigs = sigs; S.splitRules = Object.fromEntries(rules.map(r => [r.targets, r.pcts]));

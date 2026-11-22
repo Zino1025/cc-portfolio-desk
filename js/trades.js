@@ -105,7 +105,7 @@ function exportCsv(tax) {
   saveFile(["Date,Sent Amount,Sent Currency,Received Amount,Received Currency,Fee Amount,Fee Currency,Net Worth Amount,Net Worth Currency,Label,Description,TxHash", ...rows.map(r => r.map(q).join(","))].join("\n"), "cc-tax-koinly.csv");
 }
 function openExport() {
-  confirmModal("Export", "Tax file is in Koinly format. Most crypto tax tools import it.", () => exportCsv(true), { yes: "Tax file", alt: ["Desk backup", () => exportCsv(false)] });
+  confirmModal("Export", "Tax file is Koinly format, which most tax tools import.", () => exportCsv(true), { yes: "Tax file", alt: ["Desk backup", () => exportCsv(false)] });
 }
 
 /* ---------- Money in / out (deposits and withdrawals) ---------- */
@@ -127,7 +127,7 @@ function openFlowModal() {
     <div style="margin-bottom:16px"><div class="seg" id="f-kind"><button data-k="deposit" class="buy on">Deposit</button><button data-k="withdrawal" class="sell">Withdrawal</button></div></div>
     <label class="field"><span>Amount ($)</span><input type="text" inputmode="decimal" id="f-amt" placeholder="0.00"></label>
     <label class="field"><span>Date</span><input type="date" id="f-at" max="${todayISO()}" value="${todayISO()}"></label>
-    <label class="field"><span>Note <span class="muted">(optional)</span></span><input type="text" id="f-note" maxlength="300"></label>
+    <label class="field"><span>Note</span><input type="text" id="f-note" maxlength="300"></label>
     <div class="err" id="f-err"></div><button class="btn primary" id="f-save" style="width:100%">Save</button>`, { title: "Money in / out" });
   let kind = "deposit";
   ov.querySelectorAll("#f-kind button").forEach(b => b.onclick = () => { kind = b.dataset.k; ov.querySelectorAll("#f-kind button").forEach(x => x.classList.toggle("on", x === b)); });
@@ -154,8 +154,8 @@ function openTradeModal(existing, presetCoinId) {
     <label class="field"><span>Date</span><input type="datetime-local" id="when" value="${toLocalInput(t.executed_at)}"></label>
     ${num(t.fee_usd) || t.note ? "" : `<button class="link-btn more-btn" type="button" id="show-extra">+ Add fee or note</button>`}
     <div id="extra" class="${num(t.fee_usd) || t.note ? "" : "hidden"}">
-      <label class="field"><span>Fee <span class="muted">(optional)</span></span><input type="text" inputmode="decimal" autocomplete="off" id="fee" value="${num(t.fee_usd) ? esc(t.fee_usd) : ""}" placeholder="$0.00"></label>
-      <label class="field"><span>Notes <span class="muted">(optional)</span></span><textarea id="note" maxlength="500">${esc(t.note || "")}</textarea></label>
+      <label class="field"><span>Fee</span><input type="text" inputmode="decimal" autocomplete="off" id="fee" value="${num(t.fee_usd) ? esc(t.fee_usd) : ""}" placeholder="$0.00"></label>
+      <label class="field"><span>Note</span><textarea id="note" maxlength="500">${esc(t.note || "")}</textarea></label>
     </div>
     <div class="err" id="trade-err"></div>
     <div class="row" style="justify-content:space-between;align-items:center">${existing ? `<button class="link-btn" id="del-trade" type="button" style="color:var(--bad)">Delete</button>` : "<span></span>"}

@@ -150,7 +150,7 @@ function heroCard(pf, chartId = "hero", flows = null) {
       <div class="periods" data-hero="${chartId}">${HIST_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
     ${pf.holdings.length > 1 ? `<div class="chips row-scroll hero-coins" data-hero-coin="${chartId}">${[["", "All"], ...pf.holdings.map(h => [h.coin_id, (h.symbol || h.coin_id).toUpperCase()])].map(([id, l]) => `<button class="chip ${id === (c?.coin_id || "") ? "on" : ""}" data-c="${esc(id)}">${esc(l)}</button>`).join("")}</div>` : ""}
     <div class="periods hero-modes" data-hero-mode="${chartId}" role="tablist">
-      <button data-m="value" class="${mode === "value" ? "on" : ""}" role="tab">Holdings</button><button data-m="pnl" class="${mode === "pnl" ? "on" : ""}" role="tab">Profit / loss</button></div>
+      <button data-m="value" class="${mode === "value" ? "on" : ""}" role="tab">Value</button><button data-m="pnl" class="${mode === "pnl" ? "on" : ""}" role="tab">P&amp;L</button></div>
     <div class="hero-chart" id="${chartId}-chart"></div>
     <div class="hero-key"><span style="margin-left:auto" class="num" id="${chartId}-period"></span></div>
     <div class="hero-stats">
@@ -160,8 +160,8 @@ function heroCard(pf, chartId = "hero", flows = null) {
     </div>${!c && flows && flows.length ? (() => { const f = flowTotals(flows), ret = t.value + f.wd - f.dep; return `<div class="hero-key" style="margin-top:12px"><span>Net in <b class="num">${fmtUsd(f.net)}</b></span><span>Total return <b class="num ${signCls(ret)}">${signed(ret)}${f.dep ? ` (${fmtPct(ret / f.dep * 100)})` : ""}</b></span></div>`; })() : ""}</div>`;
 }
 /* Portfolio chart, two views (like CoinGecko's portfolio):
-   Holdings = what your coins were actually worth each day (quantity held × that day's price).
-   Profit / loss = realized gains from sells + unrealized gain on what you still hold, at each point in time. */
+   Value = what your coins were actually worth each day (quantity held × that day's price).
+   P&L = realized gains from sells + unrealized gain on what you still hold, at each point in time. */
 async function paintHero(txs, chartId = "hero") {
   const box = document.getElementById(chartId + "-chart"); if (!box) return;
   const days = S.histDays || 30, mode = S.heroMode || "value", tok = (S.heroTok = (S.heroTok || 0) + 1);
@@ -212,7 +212,7 @@ async function paintHero(txs, chartId = "hero") {
     if (!head[1]) return;
     if (i == null) return head.forEach((e, k) => e && (e.innerHTML = live[k]));
     const p = pts[i], d = p.pnl - a.pnl, base = a.value + Math.max(0, p.invested - a.invested);
-    head[0].textContent = pnl ? "Profit / loss" : heroName(pick);
+    head[0].textContent = pnl ? "P&L" : heroName(pick);
     head[1].textContent = pnl ? signed(p.pnl) : fmtUsd(p.value);
     head[2].innerHTML = `${base > 0 ? `<span class="pill ${signCls(d)}">${arrow(d)} ${fmtPct(d / base * 100)}</span>` : ""}<span class="num ${signCls(d)}">${signed(d)}</span><span>${fmtT(p.t)}</span>`;
   };
@@ -433,7 +433,7 @@ async function paintPriceChart() {
   if (tok !== S.pcTok || !document.body.contains(box)) return;
   pcHeader();
   if (S.charts.pc) { S.charts.pc.destroy(); delete S.charts.pc; }
-  if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">Couldn't load ${esc(symOf(id))} price history right now. Tap the period again in a minute.</div>`; return; }
+  if (!pts || pts.length < 2) { box.innerHTML = `<div class="note">Couldn't load the chart. Tap a period to retry.</div>`; return; }
   const data = pts.map(p => [p[0], p[1]]), info = CG.info(id);
   if (info && !info.sample && info.price != null) data.push([Date.now(), info.price]);   // end on the live price
   const first = data[0][1], last = data[data.length - 1][1], chg = (last - first) / first * 100;
@@ -455,7 +455,7 @@ async function paintPriceChart() {
   scrubEnd(S.charts.pc, onScrub);
 }
 function perfCard(id) {
-  return `<div class="card"><div class="card-h"><h2>Performance by coin</h2><span class="sub">P&amp;L vs avg buy</span></div><div class="perf-box" id="${id}-box"><canvas id="${id}" role="img" aria-label="Profit and loss by coin bar chart"></canvas></div></div>`;
+  return `<div class="card"><div class="card-h"><h2>P&amp;L by coin</h2></div><div class="perf-box" id="${id}-box"><canvas id="${id}" role="img" aria-label="Profit and loss by coin bar chart"></canvas></div></div>`;
 }
 function renderPerf(id, holdings) {
   const el = document.getElementById(id); if (!el) return;

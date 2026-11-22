@@ -84,7 +84,7 @@ function renderView(route) {
 
 /* ===================== MEMBER: OVERVIEW ===================== */
 function holdingsTable(pf, editable = false) {
-  if (!pf.holdings.length) return `<div class="empty"><div class="big">No holdings yet</div>Add a buy, or import your whole portfolio.${editable ? `<div style="margin-top:12px"><button class="btn primary" id="empty-import">Import screenshot or CSV</button></div>` : ""}</div>`;
+  if (!pf.holdings.length) return `<div class="empty"><div class="big">No holdings yet</div>${editable ? `<div style="margin-top:12px"><button class="btn primary" id="empty-import">Import</button></div>` : ""}</div>`;
   const list = `<div class="hl-list">${pf.holdings.map(h => `<div class="hl-row" ${editable ? `data-coin="${esc(h.coin_id)}"` : ""}>
       <div class="coin">${coinIcon(h)}</div>
       <div style="min-width:0"><div class="nm">${esc((h.symbol || h.coin_id).toUpperCase())}</div><div class="q num">${h.alloc.toFixed(0)}% · ${fmtPrice(h.price)}${h.priceEstimated ? "*" : ""}</div></div>
@@ -104,7 +104,7 @@ function holdingsTable(pf, editable = false) {
       <td class="r num hide-sm">${h.alloc.toFixed(1)}%</td>
       <td class="hide-sm secondary" style="font-size:13px">${fmtDate(h.firstBuy)}</td>
     </tr>`).join("")}</tbody></table></div>
-    ${pf.estimated ? `<div class="hint">* No live CoinGecko price found; valued at your last trade price.</div>` : ""}`;
+    ${pf.estimated ? `<div class="hint">* Last trade price</div>` : ""}`;
 }
 async function viewOverview(v) {
   // Paint straight away from saved prices when every coin has one; fetch fresh ones behind it and repaint once.
@@ -115,7 +115,7 @@ async function viewOverview(v) {
   const has = pf.holdings.length, ex = exitStatus(S.me).state;
   v.innerHTML = `
     ${alertBanner()}
-    <div class="page-head"><div><h1>My portfolio</h1>${CG.offline ? `<div class="secondary">Sample prices (offline)</div>` : ""}</div>
+    <div class="page-head"><div><h1>My portfolio</h1>${CG.offline ? `<div class="secondary">Offline</div>` : ""}</div>
       <div class="row" style="flex:none;gap:8px">${has ? `<button class="icon-btn" id="share" aria-label="Share a card of my returns">${ICON.share}</button>` : ""}<button class="icon-btn" id="refresh" aria-label="Refresh prices" title="Refresh prices">${ICON.refresh}</button></div></div>
     ${has ? heroCard(pf, "hero", S.flows) : ""}
     <div class="acts">
@@ -125,7 +125,7 @@ async function viewOverview(v) {
       <a class="act" href="#exit"><span class="icon-btn lg">${ICON.target}</span>${ex === "edited" ? "Re-commit" : "Exit Plan"}${ex === "committed" ? `<span class="d">committed</span>` : ""}</a>
     </div>
     ${has ? `<div class="ov-grid">${donutCard("pie-me", "Allocation", true)}${perfCard("perf-me")}</div>` : ""}
-    <div class="section-head"><h2>Holdings</h2>${has ? `<span class="muted">${plural(has, "coin")}</span>` : ""}</div>
+    <div class="section-head"><h2>Holdings</h2></div>
     <div class="card hl-card">${holdingsTable(pf, true)}</div>
     ${reviewNudge()}`;
   if (has) { renderDonut("pie-me", pf.holdings, "Total", pf.totals.value); bindRewind("pie-me", S.txs, pf.holdings, pf.totals.value); renderPerf("perf-me", pf.holdings); paintHero(S.txs); }
@@ -139,7 +139,7 @@ async function viewOverview(v) {
 }
 function reviewNudge() {
   if (!S.txs.length) return "";
-  if (S.me.review_requested) return `<a class="card cta-card" href="#feedback"><div><div class="t">Review requested ${ago(S.me.review_requested_at)}</div><div class="d">${esc(CONFIG.REVIEWER_NAME)}'s notes will show up in Feedback.</div></div><span class="icon-btn sm">${ICON.clock}</span></a>`;
-  return `<button class="card cta-card" id="ask-review" style="width:100%;border:none;font:inherit;letter-spacing:inherit;text-align:left"><div class="t">Get ${esc(CONFIG.REVIEWER_NAME)}'s eyes on this</div><span class="icon-btn sm primary">${ICON.arrow}</span></button>`;
+  if (S.me.review_requested) return `<a class="card cta-card" href="#feedback"><div class="t">Review requested ${ago(S.me.review_requested_at)}</div><span class="icon-btn sm">${ICON.clock}</span></a>`;
+  return `<button class="card cta-card" id="ask-review" style="width:100%;border:none;font:inherit;letter-spacing:inherit;text-align:left"><div class="t">Ask ${esc(CONFIG.REVIEWER_NAME)} for a review</div><span class="icon-btn sm primary">${ICON.arrow}</span></button>`;
 }
 

@@ -25,7 +25,7 @@ function openBroadcast() {
       <div id="bc-list" style="max-height:200px;overflow-y:auto;border-radius:9px;padding:4px 8px"></div></div>
     <label class="field"><span>Type</span><select id="bc-kind" class="as-seg"><option value="note">Note</option><option value="suggestion">Suggestion</option></select></label>
     <label class="field"><span>Message</span><textarea id="bc-body" rows="6" maxlength="4000" placeholder="Hey {name}, quick heads-up…"></textarea></label>
-    <div class="hint" style="margin-top:-6px">Type <b>{name}</b> and each member sees their own name.</div>
+    <div class="hint" style="margin-top:-6px"><b>{name}</b> = member's name</div>
     <div class="callout" id="bc-count" style="margin:12px 0"></div>
     <div class="err" id="bc-err"></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" id="bc-cancel" style="flex:none">Cancel</button><button class="btn primary" id="bc-send" style="flex:none">Send</button></div>`, { title: "Broadcast", style: "max-width:560px" });
@@ -42,7 +42,7 @@ function openBroadcast() {
   };
   const paintCount = () => {
     const t = targets(), tg = t.filter(r => r.p.telegram_chat_id).length;
-    $("#bc-count", ov).innerHTML = t.length ? `<b>${t.length}</b> member${t.length === 1 ? "" : "s"} will get this privately · <b>${tg}</b> on Telegram.${t.length <= 6 ? `\n${t.map(r => esc(memberName(r.p))).join(", ")}` : ""}` : "Nobody matches yet.";
+    $("#bc-count", ov).innerHTML = t.length ? `<b>${t.length}</b> member${t.length === 1 ? "" : "s"} · <b>${tg}</b> on Telegram${t.length <= 6 ? `\n${t.map(r => esc(memberName(r.p))).join(", ")}` : ""}` : "Nobody matches yet.";
     $("#bc-send", ov).textContent = t.length ? `Send to ${t.length}` : "Send";
     $("#bc-send", ov).disabled = !t.length;
   };
@@ -135,7 +135,7 @@ async function viewMembers(v) {
       s === "pnl" ? b.pf.totals.pnlPct - a.pf.totals.pnlPct :
       s === "activity" ? String(b.lastActivity).localeCompare(String(a.lastActivity)) :
       (b.p.review_requested - a.p.review_requested) || (b.newFromMember - a.newFromMember) || String(a.p.review_requested_at).localeCompare(String(b.p.review_requested_at)) || b.pf.totals.value - a.pf.totals.value);
-    $("#mtable").innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>Member</th><th class="r">Value</th><th class="r">P&amp;L</th><th class="hide-sm">Top holding</th><th class="r hide-sm">Coins</th><th class="hide-sm">Last reviewed</th><th class="hide-sm">Activity</th></tr></thead><tbody>
+    $("#mtable").innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>Member</th><th class="r">Value</th><th class="r">P&amp;L</th><th class="hide-sm">Top holding</th><th class="r hide-sm">Coins</th><th class="hide-sm">Reviewed</th><th class="hide-sm">Activity</th></tr></thead><tbody>
       ${rows.map(r => `<tr class="click" data-id="${esc(r.p.id)}">
         <td class="wrap"><div style="font-weight:600">${esc(memberName(r.p))}${r.p.role === "admin" ? ` <span class="tag">${r.p.id === S.me.id ? "you" : "admin"}</span>` : ""}</div><div class="muted" style="font-size:13px">${esc(atHandle(r.p.telegram_handle))}${r.p.risk_level ? " · " + esc(r.p.risk_level) + " risk" : ""}</div><div class="chips" style="margin-top:6px;gap:4px">${r.p.review_requested ? `<span class="tag req">Review requested ${ago(r.p.review_requested_at)}</span>` : ""}${r.newFromMember ? ` <span class="tag">${r.newFromMember} new msg</span>` : ""}${r.concentrated ? ` <span class="tag flag">${r.top.alloc.toFixed(0)}% in ${esc((r.top.symbol || "").toUpperCase())}</span>` : ""}${r.pf.holdings.length && exitStatus(r.p).state !== "committed" ? ` <span class="tag">no exit plan</span>` : ""}</div></td>
         <td class="r num">${fmtUsd(r.pf.totals.value)}</td>
@@ -144,7 +144,7 @@ async function viewMembers(v) {
         <td class="r num hide-sm">${r.pf.holdings.length}</td>
         <td class="hide-sm secondary">${r.p.role === "admin" ? "—" : ago(r.p.last_reviewed_at)}</td>
         <td class="hide-sm secondary">${ago(r.lastActivity)}</td>
-      </tr>`).join("")}</tbody></table></div>` : `<div class="empty"><div class="big">Nobody matches</div>Try a different filter.</div>`;
+      </tr>`).join("")}</tbody></table></div>` : `<div class="empty"><div class="big">Nobody matches</div></div>`;
     $("#mtable").querySelectorAll("tr[data-id]").forEach(tr => tr.onclick = () => { location.hash = "member-" + tr.dataset.id; });
   };
   paint();
@@ -174,11 +174,11 @@ async function viewMemberDetail(v, id) {
   v.innerHTML = `
     <div style="margin-bottom:10px"><a href="#members" style="text-decoration:none">← Review Queue</a></div>
     <div class="page-head"><div><h1>${esc(memberName(p))}</h1>
-      <div class="secondary">${handleLink(p.telegram_handle)}${p.risk_level ? ` · ${esc(p.risk_level)} risk` : ""}${p.cc_joined_on ? ` · in ${esc(CONFIG.GROUP_NAME)} since ${fmtJoined(p.cc_joined_on).split(" (")[0]}` : ""} · last reviewed ${ago(p.last_reviewed_at)}</div>
+      <div class="secondary">${handleLink(p.telegram_handle)}${p.risk_level ? ` · ${esc(p.risk_level)} risk` : ""}${p.cc_joined_on ? ` · in ${esc(CONFIG.GROUP_NAME)} since ${fmtJoined(p.cc_joined_on)}` : ""} · reviewed ${ago(p.last_reviewed_at)}</div>
       ${p.goal ? `<div class="secondary" style="margin-top:4px">Goal: ${esc(p.goal)}</div>` : ""}</div>
       <button class="btn ${p.review_requested ? "primary" : ""}" id="mark">Mark reviewed</button></div>
     ${p.review_requested ? `<div class="callout"><b>Review requested ${ago(p.review_requested_at)}</b>${p.review_question ? `\n“${esc(p.review_question)}”` : ""}</div>` : ""}
-    ${pf.holdings.length ? `${heroCard(pf, "hero-m")}<div class="ov-grid">${donutCard("pie-member", "Allocation")}${perfCard("perf-member")}</div>` : `<div class="card empty" style="margin-bottom:16px"><div class="big">No holdings</div>This member hasn't logged trades yet.</div>`}
+    ${pf.holdings.length ? `${heroCard(pf, "hero-m")}<div class="ov-grid">${donutCard("pie-member", "Allocation")}${perfCard("perf-member")}</div>` : `<div class="card empty" style="margin-bottom:16px"><div class="big">No holdings</div></div>`}
     <div class="card"><div class="card-h"><h2>Holdings</h2></div>${holdingsTable(pf)}</div>
     ${driftCard(p, pf)}
     ${exitCard(p, pf)}
@@ -188,27 +188,25 @@ async function viewMemberDetail(v, id) {
         ${sig ? "" : `<div class="chips" style="margin-bottom:10px">${TEMPLATES.map(([l], i) => `<button class="chip" data-tpl="${i}">${esc(l)}</button>`).join("")}</div>
         <div class="row">
           <label class="field"><span>Type</span><select id="kind" class="as-seg"><option value="suggestion">Suggestion</option><option value="note">Note</option><option value="reply">Reply</option></select></label>
-          <label class="field"><span>About coin (optional)</span><select id="coin"><option value="">—</option>${(() => { const big = modelCoinIds(); const held = Object.fromEntries(pf.holdings.map(h => [h.coin_id, h])); const nm = (id) => held[id]?.name || CG.info(id)?.name || SAMPLE_PRICES[id]?.name || id; const opt = (id) => `<option value="${esc(id)}">${big.includes(id) ? "★ " : ""}${esc(symOf(id))} · ${esc(nm(id))}${held[id] ? "" : " (not held)"}</option>`; const others = pf.holdings.map(h => h.coin_id).filter(id => !big.includes(id)); return big.map(opt).join("") + (others.length ? `<option disabled>──────────</option>` + others.map(opt).join("") : ""); })()}</select></label>
+          <label class="field"><span>Coin</span><select id="coin"><option value="">—</option>${(() => { const big = modelCoinIds(); const held = Object.fromEntries(pf.holdings.map(h => [h.coin_id, h])); const opt = (id) => `<option value="${esc(id)}">${esc(symOf(id))}${held[id] ? "" : " · not held"}</option>`; const others = pf.holdings.map(h => h.coin_id).filter(id => !big.includes(id)); return big.map(opt).join("") + (others.length ? `<option disabled>──────────</option>` + others.map(opt).join("") : ""); })()}</select></label>
         </div>`}
         <label class="field"><span>Message</span><textarea id="body" maxlength="4000" rows="5" placeholder="${sig ? "Reply to" : "Your suggestion for"} ${esc(memberName(p))}…"></textarea></label>
         ${ATT.pickerHtml("att-msg")}
         <div class="row" style="justify-content:flex-end"><button class="btn" id="send" style="flex:none">Send</button><button class="btn primary" id="send-mark" style="flex:none">Send &amp; mark reviewed</button></div>
       </div>
     </div>
-    <div class="card" style="margin-top:16px" id="notes-card"><div class="card-h"><h2>Member profile</h2><span class="muted" style="font-size:12px">Private</span></div>
-      <div class="secondary" style="font-size:13px;margin:-4px 0 10px">${plural(r.txs.length, "trade")} logged${r.txs.length ? ` · first ${ago(r.txs[0].executed_at)} · latest ${ago(r.txs.at(-1).executed_at)}` : ""} · signed up to the desk ${ago(p.created_at)}</div>
-      <div class="row" style="align-items:flex-end;margin-bottom:6px">
-        <label class="field" style="margin-bottom:0"><span>Joined ${esc(CONFIG.GROUP_NAME)} <span class="muted">(optional)</span></span><input type="date" id="cc-joined" max="${todayISO()}" value="${esc(p.cc_joined_on || "")}"></label>
+    <div class="card" style="margin-top:16px" id="notes-card"><div class="card-h"><h2>Member profile</h2></div>
+      <div class="secondary" style="font-size:13px;margin:-4px 0 10px">${plural(r.txs.length, "trade")}${r.txs.length ? ` · latest ${ago(r.txs.at(-1).executed_at)}` : ""} · joined Desk ${ago(p.created_at)}</div>
+      <div class="row" style="align-items:flex-end;margin-bottom:12px">
+        <label class="field" style="margin-bottom:0"><span>Joined ${esc(CONFIG.GROUP_NAME)}</span><input type="date" id="cc-joined" max="${todayISO()}" value="${esc(p.cc_joined_on || "")}"></label>
         <button class="btn" id="cc-joined-save" style="flex:none">Save date</button></div>
-      <div class="secondary" id="cc-joined-label" style="font-size:13px;margin-bottom:12px">${p.cc_joined_on ? "In " + esc(CONFIG.GROUP_NAME) + " since " + fmtJoined(p.cc_joined_on) : "No join date set yet."}</div>
       ${p.role === "admin" ? "" : `<div class="field-div"><span>Plan</span><select id="m-tier" class="as-seg">${[["elite", "Elite"], ["signals", "Signals"], ["both", "Both"]].map(([k, l]) => `<option value="${k}"${(p.tier || "elite") === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
         <div class="field-div"><span>Signals Admin</span><select id="m-sigadmin" class="as-seg"><option value="0">Off</option><option value="1"${p.signals_admin ? " selected" : ""}>On</option></select></div>`}
-      <label class="field"><span>Add a note about ${esc(memberName(p))}</span><textarea id="note-body" rows="3" maxlength="4000" placeholder="e.g. Prefers to DCA weekly. Sold TET in panic last dip, check in when it drops again."></textarea></label>
+      <label class="field"><span>Note</span><textarea id="note-body" rows="3" maxlength="4000" placeholder="e.g. Prefers to DCA weekly"></textarea></label>
       <div class="row" style="justify-content:flex-end;margin-bottom:10px"><button class="btn primary" id="note-add" style="flex:none">Save note</button></div>
       <div id="notes-list"><div class="muted">Loading notes…</div></div></div>
     ${p.role !== "admin" && p.id !== S.me.id ? `<div class="card" style="margin-top:16px;background:color-mix(in srgb, var(--bad) 7%, var(--surface-1))">
       <h2>Remove member</h2>
-      <p class="secondary" style="margin-top:0;font-size:13px">Deletes ${esc(memberName(p))}'s account, trades, exit plan and messages. They lose access to the app. This can't be undone.</p>
       <button class="btn" id="remove-member" style="color:var(--bad)">Remove member</button></div>` : ""}`;
   $("#remove-member") && ($("#remove-member").onclick = () => removeMemberModal(p));
   bindMemberNotes(p, names);
@@ -226,7 +224,6 @@ async function viewMemberDetail(v, id) {
       const up = await api.updateProfile(p.id, { cc_joined_on: val });
       Object.assign(S.admin.profiles.find(x => x.id === p.id), up); Object.assign(p, up);
       if (p.id === S.me.id) S.me = up;
-      $("#cc-joined-label").innerHTML = val ? "In " + esc(CONFIG.GROUP_NAME) + " since " + fmtJoined(val) : "No join date set yet.";
       toast(val ? "Join date saved" : "Join date cleared");
     } catch (e) { toast(/cc_joined_on/.test(e.message || "") ? "Run supabase/cc_joined_on.sql in Supabase first" : "Couldn't save: " + (e.message || e)); }
   };
@@ -290,7 +287,7 @@ async function bindMemberNotes(p, names) {
 function removeMemberModal(p) {
   const name = memberName(p);
   const { ov, close } = openModal(`<h2>Remove ${esc(name)}?</h2>
-    <p class="secondary">Their account, trades, exit plan and messages are deleted for good, and they can't open the app anymore. They could sign up again later as a new member.</p>
+    <p class="secondary">Deletes their account and all their data. Can't be undone.</p>
     <label class="field"><span>Type <b>REMOVE</b> to confirm</span><input type="text" id="rm-confirm" autocomplete="off" autocapitalize="characters"></label>
     <div class="err" id="rm-err"></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" id="rm-no" style="flex:none">Cancel</button><button class="btn danger" id="rm-yes" style="flex:none" disabled>Remove</button></div>`, { style: "max-width:400px" });
@@ -328,19 +325,19 @@ async function viewInsights(v) {
   v.innerHTML = `
     <div class="page-head"><div><h1>Group insights</h1></div></div>
     ${(() => { const t = rows.reduce((a, r) => ({ value: a.value + r.pf.totals.value, cost: a.cost + r.pf.totals.cost, chg: a.chg + r.pf.totals.change24Usd }), { value: 0, cost: 0, chg: 0 }); return `<div class="kpis">
-      <div class="card kpi"><div class="label">All members, total value</div><div class="value num">${fmtUsd(t.value)}</div><div class="sub num ${signCls(t.chg)}">${fmtUsd(t.chg)} 24h</div></div>
+      <div class="card kpi"><div class="label">Group value</div><div class="value num">${fmtUsd(t.value)}</div><div class="sub num ${signCls(t.chg)}">${fmtUsd(t.chg)} 24h</div></div>
       <div class="card kpi"><div class="label">Total invested</div><div class="value num">${fmtUsd(t.cost)}</div></div>
-      <div class="card kpi"><div class="label">Group unrealized P&amp;L</div><div class="value num ${signCls(t.value - t.cost)}">${fmtUsd(t.value - t.cost)}</div><div class="sub num ${signCls(t.value - t.cost)}">${t.cost ? fmtPct((t.value - t.cost) / t.cost * 100) : "—"}</div></div>
-      <div class="card kpi"><div class="label">Avg portfolio</div><div class="value num">${fmtUsd(rows.length ? t.value / rows.length : 0)}</div><div class="sub muted">${plural(rows.length, "member")} with holdings</div></div></div>`; })()}
+      <div class="card kpi"><div class="label">Unrealized P&amp;L</div><div class="value num ${signCls(t.value - t.cost)}">${fmtUsd(t.value - t.cost)}</div><div class="sub num ${signCls(t.value - t.cost)}">${t.cost ? fmtPct((t.value - t.cost) / t.cost * 100) : "—"}</div></div>
+      <div class="card kpi"><div class="label">Avg portfolio</div><div class="value num">${fmtUsd(rows.length ? t.value / rows.length : 0)}</div></div></div>`; })()}
     <div class="two-col">
       ${list.length ? donutCard("pie-group", "Group allocation") : `<div class="card empty">No holdings yet.</div>`}
       <div class="card"><h2>Most-held coins</h2>
         ${list.length ? `<div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Holders</th><th class="r">Avg weight</th><th class="r">Group value</th><th class="r">Group P&amp;L</th><th class="r hide-sm">24h</th></tr></thead><tbody>
-        ${byHolders.slice(0, 25).map(a => `<tr><td><a href="${coinLink(a.coin_id)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${coinCell(a)}</a></td><td class="r num">${a.holders} <span class="muted">(${(a.holders / rows.length * 100).toFixed(0)}%)</span></td><td class="r num">${(a.allocSum / a.holders).toFixed(1)}%</td><td class="r num">${fmtUsd(a.value, { compact: true })}</td><td class="r num ${signCls(a.value - a.cost)}">${a.cost ? fmtPct((a.value - a.cost) / a.cost * 100) : "—"}</td><td class="r num hide-sm ${signCls(a.change24)}">${fmtPct(a.change24)}</td></tr>`).join("")}</tbody></table></div>` : ""}
+        ${byHolders.slice(0, 25).map(a => `<tr><td><a href="${coinLink(a.coin_id)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${coinCell(a)}</a></td><td class="r num">${a.holders}</td><td class="r num">${(a.allocSum / a.holders).toFixed(1)}%</td><td class="r num">${fmtUsd(a.value, { compact: true })}</td><td class="r num ${signCls(a.value - a.cost)}">${a.cost ? fmtPct((a.value - a.cost) / a.cost * 100) : "—"}</td><td class="r num hide-sm ${signCls(a.change24)}">${fmtPct(a.change24)}</td></tr>`).join("")}</tbody></table></div>` : ""}
       </div>
     </div>
     <div class="card" style="margin-top:16px"><h2>Concentration risk</h2>
-      ${conc.length ? `<div class="table-wrap"><table><thead><tr><th>Member</th><th>Coin</th><th class="r">Weight</th><th class="r">Portfolio value</th><th class="hide-sm">Last reviewed</th></tr></thead><tbody>
+      ${conc.length ? `<div class="table-wrap"><table><thead><tr><th>Member</th><th>Coin</th><th class="r">Weight</th><th class="r">Value</th><th class="hide-sm">Reviewed</th></tr></thead><tbody>
       ${conc.map(r => `<tr class="click" data-id="${esc(r.p.id)}"><td>${esc(memberName(r.p))}</td><td>${esc((r.top.symbol || "").toUpperCase())}</td><td class="r num bad">${r.top.alloc.toFixed(1)}%</td><td class="r num">${fmtUsd(r.pf.totals.value)}</td><td class="hide-sm secondary">${ago(r.p.last_reviewed_at)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">No concentrated portfolios right now.</div>`}
     </div>`;
   if (list.length) renderDonut("pie-group", list, "Group total", total);

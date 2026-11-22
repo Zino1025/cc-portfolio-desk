@@ -46,7 +46,7 @@ function fmtDate(d, withTime = true) {
   const dt = new Date(d);
   return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) + (withTime ? " · " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "");
 }
-function fmtJoined(d) { if (!d) return ""; const t = new Date(d + "T12:00:00"); if (isNaN(t)) return ""; const m = Math.floor((Date.now() - t) / (30.44 * 86400000)); return t.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) + (m >= 1 ? ` (${m >= 12 ? Math.floor(m / 12) + "y " + (m % 12 ? (m % 12) + "mo" : "") : m + "mo"} in CC)`.replace(" )", ")") : ""); }
+function fmtJoined(d) { const t = new Date(d + "T12:00:00"); return isNaN(t) ? "" : t.toLocaleDateString(undefined, { month: "short", year: "numeric" }); }
 const todayISO = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 function ago(d) {
   if (!d) return "never";
