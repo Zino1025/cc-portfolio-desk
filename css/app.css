@@ -318,6 +318,8 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .periods { display:inline-flex; gap:2px; background:var(--track); border-radius:999px; padding:3px; }
 .periods button { border:none; background:none; color:var(--muted); font-weight:500; padding:7px 12px; border-radius:999px; cursor:pointer; transition:transform .1s; }
 .hero-modes { margin:14px 0 2px; }
+.hero-coins { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; margin:14px -4px 0; padding:4px; }
+.hero-coins::-webkit-scrollbar { display:none; } .hero-coins .chip { flex:none; }
 .periods button.on { background:var(--surface-1); color:var(--text); font-weight:600; box-shadow:var(--sh-1); }
 .hero-chart { position:relative; height:210px; margin:16px -6px 4px; }
 .hero-chart .note { position:absolute; inset:0; display:grid; place-items:center; color:var(--muted); font-size:13px; text-align:center; padding:0 20px; }

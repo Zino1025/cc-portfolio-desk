@@ -139,12 +139,16 @@ async function portfolioHistory(txs, days) {
   }
   return pts;
 }
+const heroPick = (pf) => pf.holdings.find(h => h.coin_id === S.heroCoin);   // coin picked on the hero chart, if still held
+const heroName = (c) => c ? `${(c.symbol || c.coin_id).toUpperCase()} value` : "Portfolio value";
 function heroCard(pf, chartId = "hero", flows = null) {
-  const t = pf.totals, days = S.histDays || 30, mode = S.heroMode || "value";
-  return `<div class="card hero">
-    <div class="hero-head"><div><div class="label" id="${chartId}-label">Portfolio value</div><div class="big num" id="${chartId}-big">${fmtUsd(t.value)}</div>
+  const c = heroPick(pf), days = S.histDays || 30, mode = S.heroMode || "value";
+  const t = c ? { value: c.value, cost: c.cost, pnl: c.pnl, pnlPct: c.pnlPct, realized: c.realized, change24Pct: c.change24, change24Usd: c.value - c.value / (1 + c.change24 / 100) } : pf.totals;
+  return `<div class="card hero" id="${chartId}-card">
+    <div class="hero-head"><div><div class="label" id="${chartId}-label">${heroName(c)}</div><div class="big num" id="${chartId}-big">${fmtUsd(t.value)}</div>
       <div class="chg" id="${chartId}-chg"><span class="pill ${signCls(t.change24Pct)}">${arrow(t.change24Pct)} ${fmtPct(t.change24Pct)}</span><span class="num ${signCls(t.change24Usd)}">${signed(t.change24Usd)}</span><span>today</span></div></div>
       <div class="periods" data-hero="${chartId}">${HIST_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
+    ${pf.holdings.length > 1 ? `<div class="chips hero-coins" data-hero-coin="${chartId}">${[["", "All"], ...pf.holdings.map(h => [h.coin_id, (h.symbol || h.coin_id).toUpperCase()])].map(([id, l]) => `<button class="chip ${id === (c?.coin_id || "") ? "on" : ""}" data-c="${esc(id)}">${esc(l)}</button>`).join("")}</div>` : ""}
     <div class="periods hero-modes" data-hero-mode="${chartId}" role="tablist">
       <button data-m="value" class="${mode === "value" ? "on" : ""}" role="tab">Holdings</button><button data-m="pnl" class="${mode === "pnl" ? "on" : ""}" role="tab">Profit / loss</button></div>
     <div class="hero-chart" id="${chartId}-chart"></div>
@@ -153,7 +157,7 @@ function heroCard(pf, chartId = "hero", flows = null) {
       <div><div class="l">Invested</div><div class="v num">${fmtUsd(t.cost)}</div></div>
       <div><div class="l">Unrealized P&amp;L</div><div class="v num ${signCls(t.pnl)}">${signed(t.pnl)}</div><div class="s num ${signCls(t.pnl)}">${fmtPct(t.pnlPct)}</div></div>
       <div><div class="l">Realized P&amp;L</div><div class="v num ${signCls(t.realized)}">${signed(t.realized)}</div></div>
-    </div>${flows && flows.length ? (() => { const f = flowTotals(flows), ret = t.value + f.wd - f.dep; return `<div class="hero-key" style="margin-top:12px"><span>Net in <b class="num">${fmtUsd(f.net)}</b></span><span>Total return <b class="num ${signCls(ret)}">${signed(ret)}${f.dep ? ` (${fmtPct(ret / f.dep * 100)})` : ""}</b></span></div>`; })() : ""}</div>`;
+    </div>${!c && flows && flows.length ? (() => { const f = flowTotals(flows), ret = t.value + f.wd - f.dep; return `<div class="hero-key" style="margin-top:12px"><span>Net in <b class="num">${fmtUsd(f.net)}</b></span><span>Total return <b class="num ${signCls(ret)}">${signed(ret)}${f.dep ? ` (${fmtPct(ret / f.dep * 100)})` : ""}</b></span></div>`; })() : ""}</div>`;
 }
 /* Portfolio chart, two views (like CoinGecko's portfolio):
    Holdings = what your coins were actually worth each day (quantity held × that day's price).
@@ -166,6 +170,10 @@ async function paintHero(txs, chartId = "hero") {
   });
   bindSeg(`[data-hero="${chartId}"]`, d => S.histDays = +d.d);
   bindSeg(`[data-hero-mode="${chartId}"]`, d => S.heroMode = d.m);
+  document.querySelectorAll(`[data-hero-coin="${chartId}"] button`).forEach(b => b.onclick = () => {
+    S.heroCoin = b.dataset.c; document.getElementById(chartId + "-card").outerHTML = heroCard(computePortfolio(txs), chartId, chartId === "hero" ? S.flows : null); paintHero(txs, chartId);
+  });
+  const pick = heroPick(computePortfolio(txs)); if (pick) txs = txs.filter(t => t.coin_id === pick.coin_id);
   if (!S.charts[chartId]) box.innerHTML = `<div class="note">Loading chart…</div>`;
   const pts = await portfolioHistory(txs, days).catch(() => null);
   if (pts && pts.length) {   // end on the live numbers shown above
@@ -203,7 +211,7 @@ async function paintHero(txs, chartId = "hero") {
     if (!head[1]) return;
     if (i == null) return head.forEach((e, k) => e && (e.innerHTML = live[k]));
     const p = pts[i], d = p.pnl - a.pnl, base = a.value + Math.max(0, p.invested - a.invested);
-    head[0].textContent = pnl ? "Profit / loss" : "Portfolio value";
+    head[0].textContent = pnl ? "Profit / loss" : heroName(pick);
     head[1].textContent = pnl ? signed(p.pnl) : fmtUsd(p.value);
     head[2].innerHTML = `${base > 0 ? `<span class="pill ${signCls(d)}">${arrow(d)} ${fmtPct(d / base * 100)}</span>` : ""}<span class="num ${signCls(d)}">${signed(d)}</span><span>${fmtT(p.t)}</span>`;
   };
