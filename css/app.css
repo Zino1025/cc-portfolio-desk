@@ -259,8 +259,10 @@ table.exit-steps td.sell { white-space:normal; }
 table.exit-steps .ex-price { display:block; width:100%; max-width:150px; margin-top:4px; }
 .ex-strat { margin:14px 0 6px; } .ex-strat button { padding-left:6px; padding-right:6px; }
 table.exit-steps [data-del] { color:var(--muted); }
-.ex-foot { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-top:12px; }
-.ex-sum { text-align:right; font-size:13px; line-height:1.45; min-width:0; }
+.ex-sum { margin-top:14px; padding-top:14px; border-top:1px solid var(--track); font-size:13px; line-height:1.45; }
+.ex-split { display:flex; height:8px; border-radius:4px; background:var(--track); overflow:hidden; margin:12px 0 6px; }   /* filled = sold, empty = kept */
+.ex-split i { background:var(--good); } .ex-split.over i { background:var(--bad); }
+.ex-split-l { display:flex; justify-content:space-between; gap:12px; color:var(--muted); }
 .ex-total { font-size:22px; line-height:28px; font-weight:600; letter-spacing:-0.7px; color:var(--text); }
 table.exit-steps td.drag { width:28px; padding-left:2px; padding-right:2px; }
 .drag-h { cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none; color:var(--muted); font-size:18px; line-height:1; padding:8px 6px; display:inline-block; border-radius:6px; }

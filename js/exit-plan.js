@@ -144,8 +144,11 @@ async function viewExit(v) {
           <td class="r num hide-sm">${r.cum != null && c.h ? fmtUsd(r.cum) : "—"}${r.cum != null && calc.initialsAt != null && calc.rows[calc.initialsAt] === r ? `<div class="good" style="font-size:12px">✓ initials back</div>` : ""}</td>
           <td class="r"><button class="link-btn" data-del="${i}" aria-label="Remove step">✕</button></td></tr>`; }).join("")}
       </tbody></table></div>
-      <div class="ex-foot"><button class="btn small" data-add="1">+ Add step</button>
-        <div class="ex-sum num">${c.h ? `<div class="ex-total">$${Math.round(calc.total).toLocaleString("en-US")}</div>` : ""}<div class="${calc.over ? "bad" : "secondary"}">Sells ${calc.sold}% · ${calc.keep}% moonbag${calc.over ? " · over 100%" : ""}</div>${c.h?.cost && calc.initialsAt == null && !calc.over ? `<div class="bad">Doesn't get your ${fmtUsd(c.h.cost)} back</div>` : ""}</div>
+      <button class="btn small" data-add="1" style="margin-top:10px">+ Add step</button>
+      <div class="ex-sum">${c.h ? `<div class="ex-total num">$${Math.round(calc.total).toLocaleString("en-US")}</div><div class="secondary">cash out if every step hits</div>` : ""}
+        <div class="ex-split${calc.over ? " over" : ""}"><i style="width:${Math.min(calc.sold, 100)}%"></i></div>
+        <div class="ex-split-l num"><span>Sell ${calc.sold}%</span><span>${calc.over ? `<span class="bad">Over 100%, lower a step</span>` : `Keep ${calc.keep}%${c.h && calc.keep ? ` · ${fmtQty(c.h.qty * calc.keep / 100)} ${esc((info?.symbol || tp?.sym || "").toUpperCase())}` : ""}`}</span></div>
+        ${c.h?.cost && calc.initialsAt == null && !calc.over ? `<div class="bad">Doesn't get your ${fmtUsd(c.h.cost)} back</div>` : ""}</div>
       </div></div>`;
   };
   v.innerHTML = `
