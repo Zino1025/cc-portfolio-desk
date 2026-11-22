@@ -456,8 +456,9 @@ const api = (() => {
     async notes(memberId) { return ok(await sb.from("member_notes").select("*").eq("member_id", memberId).order("created_at", { ascending: false })); },
     async addNote(n) { const s = await this.session(); return ok(await sb.from("member_notes").insert({ ...n, author_id: s.user.id }).select().single()); },
     async deleteNote(id) { ok(await sb.from("member_notes").delete().eq("id", id)); },
-    async addMessage(m) { return ok(await sb.from("messages").insert(m).select().single()); },
-    async addMessages(rows) { return ok(await sb.from("messages").insert(rows).select("id,member_id,author_id,created_at,kind")); },
+    // Any send from staff can answer a waiting member, so recount the Inbox bell (inboxData is in signals.js).
+    async addMessage(m) { const r = ok(await sb.from("messages").insert(m).select().single()); if (canPostSignals()) inboxData().catch(() => {}); return r; },
+    async addMessages(rows) { const r = ok(await sb.from("messages").insert(rows).select("id,member_id,author_id,created_at,kind")); if (canPostSignals()) inboxData().catch(() => {}); return r; },
     async deleteMessage(id) { ok(await sb.from("messages").delete().eq("id", id)); },
     async allProfiles() { return fetchAll(() => sb.from("profiles").select("*").order("created_at")); },
     async allTransactions() { return fetchAll(() => sb.from("transactions").select("id,user_id,coin_id,symbol,name,side,quantity,price_usd,fee_usd,executed_at").order("executed_at")); },
