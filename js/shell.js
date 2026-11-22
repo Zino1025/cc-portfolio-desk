@@ -20,7 +20,7 @@ function unreadCount() {
 function openReviewCount() { return S.admin.profiles.filter(p => p.review_requested && p.role !== "admin").length; }
 
 // Bottom tab bar (Apple HIG: 5 tabs max, icon + label). Plan, Market and Admin hold several pages behind a segmented control; Profile opens from the avatar.
-const GROUPS = { updates: [["updates", "Updates"], ["signals", "Signals"], ["inbox", "Inbox"]], plan: [["exit", "Exit Plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]], admin: [["members", "Review"], ["insights", "Group"], ["model", "Model"]] };
+const GROUPS = { updates: [["updates", "Updates"], ["signals", "Signals"]], plan: [["exit", "Exit Plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]], admin: [["members", "Review"], ["insights", "Group"], ["model", "Model"]] };
 const TAB_ICON = {
   pie: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15.5 3.7A9 9 0 0 1 20.3 8.5h-4.8z"/></svg>',
   list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>',
@@ -35,7 +35,7 @@ function tabs() {
   const t = [["overview", "Portfolio", TAB_ICON.pie], ["trades", "Trades", TAB_ICON.list], ["plan", "Plan", ICON.target], ["updates", "Market", TAB_ICON.chart]];
   return isAdmin() ? [["admin", "Admin", TAB_ICON.shield], ...t] : [...t, ["feedback", "Feedback", TAB_ICON.chat]];
 }
-const groupOf = (route) => signalsOnly() ? route : route.startsWith("member-") ? "admin" : route.startsWith("inbox-") ? "updates" : Object.keys(GROUPS).find(g => GROUPS[g].some(([k]) => k === route)) || route;
+const groupOf = (route) => signalsOnly() ? route : route.startsWith("member-") ? "admin" : route.startsWith("inbox-") ? "inbox" : Object.keys(GROUPS).find(g => GROUPS[g].some(([k]) => k === route)) || route;
 async function signOut() { LIVE.stop(); await api.signOut(); location.hash = ""; boot(); }
 
 function render() {
@@ -47,6 +47,7 @@ function render() {
       <div class="brand"><span class="logo" role="img" aria-label="${esc(CONFIG.GROUP_NAME)}"></span>Portfolio Desk</div>
       <div class="user-chip">
         ${canFullscreen() ? `<button class="icon-btn sm" id="fs-btn"></button>` : ""}
+        ${canPostSignals() ? `<a href="#inbox" class="icon-btn sm bell${tab === "inbox" ? " on" : ""}" aria-label="Inbox">${ICON.bell}${badge(S.inboxN)}</a>` : ""}
         <button class="icon-btn sm" id="theme-btn" title="Toggle light/dark" aria-label="Toggle theme">${ICON.moon}</button>
         <a href="#profile" class="avatar${route === "profile" ? " on" : ""}" aria-label="Profile">${esc((me.match(/[A-Za-z0-9]/) || ["?"])[0].toUpperCase())}</a></div>
     </div></header>

@@ -152,6 +152,7 @@ const ICON = {
   shrink: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>',
   copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',
   play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>',
+  bell: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>',
   x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
 };
 function coinIcon(c) {
@@ -460,8 +461,9 @@ const api = (() => {
     async deleteMessage(id) { ok(await sb.from("messages").delete().eq("id", id)); },
     async allProfiles() { return fetchAll(() => sb.from("profiles").select("*").order("created_at")); },
     async allTransactions() { return fetchAll(() => sb.from("transactions").select("id,user_id,coin_id,symbol,name,side,quantity,price_usd,fee_usd,executed_at").order("executed_at")); },
-    async signalsMembers() { return ok(await sb.from("profiles").select("id,display_name,telegram_handle").eq("tier", "signals").eq("role", "member").eq("signals_admin", false)); },
-    async messageMeta(ids) { return fetchAll(() => sb.from("messages").select("member_id,author_id,created_at,body").in("member_id", ids).order("created_at")); },
+    // Inbox: RLS returns every member to admins and only Signals-only members to Signals Admins.
+    async inboxPeople() { return (ok(await sb.from("profiles").select("id,display_name,telegram_handle,tier,role,signals_admin").eq("role", "member").eq("signals_admin", false)) || []); },
+    async inboxMeta() { return fetchAll(() => sb.from("messages").select("member_id,author_id,created_at,body").order("created_at")); },
     async allMessageMeta() { return fetchAll(() => sb.from("messages").select("member_id,author_id,created_at,kind").order("created_at")); },
     async addTicket(t) { return ok(await sb.from("tickets").insert(t).select().single()); },
     async tickets() { return ok(await sb.from("tickets").select("*").eq("status", "open").order("created_at", { ascending: false }).limit(50)); },

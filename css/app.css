@@ -454,3 +454,5 @@ body:has(.install) main, body:has(.install) .auth-wrap { padding-bottom:150px; }
 .sig-up { padding:10px 0; border-top:1px solid var(--track); font-size:14px; }
 .sig-up p { margin:4px 0 0; white-space:pre-wrap; }
 .sig-pct { font-weight:500; margin-left:4px; }
+
+.bell { position:relative; } .bell .badge { position:absolute; top:-4px; right:-4px; margin:0; }

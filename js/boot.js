@@ -78,6 +78,7 @@ async function loadMe(user) {
     api.flows(user.id).catch(() => []), api.getSetting("model").catch(() => null), api.updates().catch(() => [])]);
   S.model = st?.value?.version === 2 ? { ...DEFAULT_MODEL, ...st.value } : null; S.modelUpdatedAt = st?.updated_at || null;
   CG.ensure(modelCoinIds()).then(() => paintBadge("updates", alertCount())).catch(() => {});
+  if (canPostSignals()) inboxData().catch(() => {});
   if (isAdmin()) loadAdmin(true).then(() => paintBadge("members", openReviewCount())).catch(() => {});
 }
 // A reset link signs you in (that's how Supabase lets you set the new password). Until the new password is saved,

@@ -171,34 +171,64 @@ function viewElite(v) {
     <div class="page-head"><div><h1>Elite</h1></div></div>
     <div class="card hero"><h2>Signals members get 20% off Elite</h2>
       <div class="sig-rows" style="margin-top:12px">${[["Portfolio review", `${esc(CONFIG.REVIEWER_NAME)} reviews your whole portfolio`], ["Market updates", "Weekly summary and urgent bids"], ["Exit plan", "Know when to take profit, with pings"], ["Model portfolio", `${esc(CONFIG.REVIEWER_NAME)}'s target mix`], ["Signals", "Keep every signal and ping"]].map(([k, d]) => `<div class="sig-k">${k}</div><div class="sig-v" style="font-weight:400">${d}</div>`).join("")}</div>
-      <div class="btn-row" style="margin-top:16px"><button class="btn primary" id="el-ask"${asked ? " disabled" : ""}>${asked ? "Requested" : "I'm interested"}</button></div></div>`;
-  $("#el-ask").onclick = async () => {
+      <div class="btn-row" style="margin-top:16px">${asked ? `<button class="btn" disabled>Requested</button><button class="btn primary" onclick="location.hash='feedback'">Open Messages</button>` : `<button class="btn primary" id="el-ask">Ask ${esc(CONFIG.REVIEWER_NAME)} to join</button>`}</div></div>`;
+  $("#el-ask") && ($("#el-ask").onclick = async () => {
     const b = $("#el-ask"); b.disabled = true;
-    try { S.msgs.push(await api.addMessage({ member_id: S.me.id, kind: "question", body: "Upgrade to Elite: I'd like the 20% Signals member discount." })); b.textContent = "Requested"; toast(`Sent. ${CONFIG.REVIEWER_NAME} will message you.`); }
+    try { S.msgs.push(await api.addMessage({ member_id: S.me.id, kind: "question", body: "Upgrade to Elite: I'd like the 20% Signals member discount." })); toast(`Sent. ${CONFIG.REVIEWER_NAME} will reply in Messages.`); render(); }
     catch (e) { b.disabled = false; toast("Couldn't send. Try again."); }
-  };
+  });
 }
 
-/* ===================== SIGNALS INBOX (Signals-only members' threads; Signals Admins and admins reply here) ===================== */
+/* ===================== INBOX (bell in the header: admins see every member's thread, Signals Admins only Signals-only members'; RLS decides) ===================== */
+// Members whose last message is theirs need a reply: that count is the bell badge.
+async function inboxData() {
+  const [people, meta] = await Promise.all([api.inboxPeople(), api.inboxMeta()]), last = {};
+  for (const m of meta) last[m.member_id] = m;
+  S.inboxN = people.filter(p => last[p.id]?.author_id === p.id).length;
+  const b = $(".bell"); if (b) { b.querySelector(".badge")?.remove(); if (S.inboxN) b.insertAdjacentHTML("beforeend", `<span class="badge">${S.inboxN}</span>`); }
+  return { people, last };
+}
 async function viewInbox(v, id) {
   v.innerHTML = `<div class="spinner"></div>`;
-  const people = await api.signalsMembers(), p = id && people.find(x => x.id === id);
+  const { people, last } = await inboxData(), p = id && people.find(x => x.id === id);
   if (p) {
     v.innerHTML = `<div style="margin-bottom:10px"><a href="#inbox" style="text-decoration:none">← Inbox</a></div>
-      <div class="page-head"><div><h1>${esc(memberName(p))}</h1>${p.telegram_handle ? `<div class="secondary">${handleLink(p.telegram_handle)}</div>` : ""}</div></div>
+      <div class="page-head"><div><h1>${esc(memberName(p))}</h1><div class="secondary">${[p.telegram_handle && handleLink(p.telegram_handle), p.tier === "signals" ? "Signals" : "", isAdmin() ? `<a href="#member-${esc(p.id)}">Portfolio</a>` : ""].filter(Boolean).join(" · ")}</div></div></div>
       <div class="card"><div class="thread" id="thread">${threadHtml(await api.messages(id), S.me.id, id, { [id]: memberName(p) })}</div>
         <div class="composer"><textarea id="reply" maxlength="4000" placeholder="Reply to ${esc(memberName(p))}…"></textarea>${ATT.pickerHtml("att-reply")}<div style="text-align:right"><button class="btn primary" id="send">Send</button></div></div></div>`;
     const again = () => viewInbox(v, id);
     pinThreadBottom($("#thread")); bindComposer(id, again); bindMsgDelete(v, again);
     return;
   }
-  const last = {};
-  if (people.length) for (const m of await api.messageMeta(people.map(x => x.id))) last[m.member_id] = m;
-  people.sort((a, b) => (last[b.id]?.created_at || "").localeCompare(last[a.id]?.created_at || "") || memberName(a).localeCompare(memberName(b)));
-  v.innerHTML = `<div class="page-head"><div><h1>Inbox</h1></div></div>
-    ${people.length ? `<div class="card hl-card">${people.map(x => { const m = last[x.id], name = memberName(x); return `<a class="hl-row" href="#inbox-${esc(x.id)}" style="color:inherit;text-decoration:none">
+  const rows = people.filter(x => last[x.id]).sort((a, b) => last[b.id].created_at.localeCompare(last[a.id].created_at));
+  v.innerHTML = `<div class="page-head"><div><h1>Inbox</h1></div><button class="btn primary" id="new-msg">New message</button></div>
+    ${rows.length ? `<div class="card hl-card">${rows.map(x => { const m = last[x.id], name = memberName(x); return `<a class="hl-row" href="#inbox-${esc(x.id)}" style="color:inherit;text-decoration:none">
       <div class="coin"><span class="ph">${esc((name.match(/[A-Za-z0-9]/) || ["?"])[0].toUpperCase())}</span></div>
-      <div style="min-width:0"><div class="nm">${esc(name)}</div><div class="q" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m ? esc(m.body || "Attachment") : "No messages yet"}</div></div>
-      <div class="rt">${m && m.author_id === x.id ? `<span class="tag req">New</span>` : m ? `<span class="muted" style="font-size:13px">${ago(m.created_at)}</span>` : ""}</div></a>`; }).join("")}</div>`
-      : `<div class="card empty">No Signals members yet.</div>`}`;
+      <div style="min-width:0"><div class="nm">${esc(name)}</div><div class="q" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.body || "Attachment")}</div></div>
+      <div class="rt">${m.author_id === x.id ? `<span class="tag req">Reply</span>` : `<span class="muted" style="font-size:13px">${ago(m.created_at)}</span>`}</div></a>`; }).join("")}</div>`
+      : `<div class="card empty">No messages yet.</div>`}`;
+  $("#new-msg").onclick = () => newMessage(people);
+}
+// Message every Signals member (each gets it privately in their own thread) or just one member.
+function newMessage(people) {
+  const sig = people.filter(p => p.tier === "signals");
+  const { ov, close } = openModal(`
+    <label class="field"><span>To</span><select id="nm-to" class="as-seg"><option value="all">All Signals</option><option value="one">One member</option></select></label>
+    <label class="field hidden" id="nm-one"><span>Member</span><select id="nm-who">${people.map(p => `<option value="${esc(p.id)}">${esc(memberName(p))}</option>`).join("")}</select></label>
+    <label class="field"><span>Message</span><textarea id="nm-body" rows="5" maxlength="4000" placeholder="Hey {name}…"></textarea></label>
+    <div class="err" id="nm-err"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn primary" id="nm-send" style="flex:none">Send</button></div>`, { title: "New message" });
+  const to = () => $("#nm-to", ov).value === "all" ? sig : people.filter(p => p.id === $("#nm-who", ov).value);
+  const paint = () => { const n = to().length, b = $("#nm-send", ov); $("#nm-one", ov).classList.toggle("hidden", $("#nm-to", ov).value !== "one"); b.textContent = n > 1 ? `Send to ${plural(n, "member")}` : "Send"; b.disabled = !n; };
+  $("#nm-to", ov).onchange = $("#nm-who", ov).onchange = paint; paint();
+  $("#nm-send", ov).onclick = async () => {
+    const body = $("#nm-body", ov).value.trim(), t = to(), b = $("#nm-send", ov);
+    if (!body) return $("#nm-body", ov).focus();
+    b.disabled = true; b.textContent = "Sending…";
+    try {
+      const out = t.map(p => ({ member_id: p.id, kind: "note", body: body.replace(/\{name\}/gi, p.display_name || atHandle(p.telegram_handle) || "there") }));
+      for (let i = 0; i < out.length; i += 100) await api.addMessages(out.slice(i, i + 100));
+      close(); toast(`Sent to ${plural(t.length, "member")}`); render();
+    } catch (e) { $("#nm-err", ov).textContent = e.message || String(e); paint(); }
+  };
 }
