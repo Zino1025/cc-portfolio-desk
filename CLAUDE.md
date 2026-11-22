@@ -22,6 +22,7 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 8. No test suites. Verification is `node --check` on the changed files plus checking the changed screen on the live site. Keep every check under a minute.
 9. Keep this file short. It should only hold what the code doesn't already make obvious. Update the map when sections move, and cut stale notes.
 10. When you deploy or change an Edge Function, copy the code into `supabase/functions/<name>/index.ts` and update that README.
+11. Rollback: `git revert <sha>` and push (Pages redeploys in ~1 min). Edge Function: redeploy its copy from `supabase/functions/`. Never force-push main (blocked in `.claude/settings.json`).
 
 ## JS map (load order = order in index.html; numbers are approximate starting lines)
 | File | Sections |
