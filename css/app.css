@@ -10,7 +10,7 @@
   color-scheme: light;
   --page: #f6f4f9; --surface-1: #ffffff; --surface-2: #f3f0f7;
   --text: #120d1c; --muted: #67607a; --strong: #2a2433; --track: #ebe7f0;
-  --accent: #facc15; --accent-ink: #0a0a0a; --surface-elev: #ffffff; --link: #a16a00; --brand: #7c22e8; --brand-text: #7c22e8; --brand-ink: #ffffff;
+  --accent: #facc15; --accent-ink: #0a0a0a; --surface-elev: #ffffff; --seg-on: #ffffff; --link: #a16a00; --brand: #7c22e8; --brand-text: #7c22e8; --brand-ink: #ffffff;
   --good: #08804a; --bad: #c92a44; --warn-bg: #fff1e0; --warn-ink: #8a4b00;
   --s1:#7c22e8; --s2:#c4a3f5; --s3:#e0a800; --s4:#12b06a; --s5:#e0559f; --s6:#1aa6d6; --s7:#4a1a8c; --s8:#f0652f;
   --other: #d6d1de; --img-line: rgba(0,0,0,.1);
@@ -28,7 +28,7 @@
     color-scheme: dark;
     --page:#000000; --surface-1:#15121b; --surface-2:#1d1925;
     --text:#faf8fd; --muted:#a39cb3; --strong:#e6e1ee; --track:#2a2433;
-    --accent:#facc15; --accent-ink:#0a0a0a; --surface-elev:#221d2b; --link:#facc15; --brand:#902afe; --brand-text:#b98aff; --brand-ink:#ffffff; --good:#3ce38a; --bad:#ff5d7d; --warn-bg:#33200f; --warn-ink:#ffa24a;
+    --accent:#facc15; --accent-ink:#0a0a0a; --surface-elev:#221d2b; --seg-on:#433a50; --link:#facc15; --brand:#902afe; --brand-text:#b98aff; --brand-ink:#ffffff; --good:#3ce38a; --bad:#ff5d7d; --warn-bg:#33200f; --warn-ink:#ffa24a;
     --s1:#9d4bff; --s2:#d9c2ff; --s3:#fef0a4; --s4:#3ce38a; --s5:#ff8fc8; --s6:#3cc9f5; --s7:#5b2a9e; --s8:#ff7a45;
     --other:#3d3648; --img-line: rgba(255,255,255,.1);
     --sh-1: 0 0 0 .5px rgba(255,255,255,.05), 0 1px 2px rgba(0,0,0,.35), 0 8px 20px -8px rgba(0,0,0,.45);
@@ -42,7 +42,7 @@
     color-scheme: dark;
     --page:#000000; --surface-1:#15121b; --surface-2:#1d1925;
     --text:#faf8fd; --muted:#a39cb3; --strong:#e6e1ee; --track:#2a2433;
-    --accent:#facc15; --accent-ink:#0a0a0a; --surface-elev:#221d2b; --link:#facc15; --brand:#902afe; --brand-text:#b98aff; --brand-ink:#ffffff; --good:#3ce38a; --bad:#ff5d7d; --warn-bg:#33200f; --warn-ink:#ffa24a;
+    --accent:#facc15; --accent-ink:#0a0a0a; --surface-elev:#221d2b; --seg-on:#433a50; --link:#facc15; --brand:#902afe; --brand-text:#b98aff; --brand-ink:#ffffff; --good:#3ce38a; --bad:#ff5d7d; --warn-bg:#33200f; --warn-ink:#ffa24a;
     --s1:#9d4bff; --s2:#d9c2ff; --s3:#fef0a4; --s4:#3ce38a; --s5:#ff8fc8; --s6:#3cc9f5; --s7:#5b2a9e; --s8:#ff7a45;
     --other:#3d3648; --img-line: rgba(255,255,255,.1);
     --sh-1: 0 0 0 .5px rgba(255,255,255,.05), 0 1px 2px rgba(0,0,0,.35), 0 8px 20px -8px rgba(0,0,0,.45);
@@ -134,7 +134,7 @@ textarea { resize:vertical; min-height:70px; }
 .row > * { flex:1; min-width:0; }
 .seg { display:inline-flex; background:var(--track); border-radius:999px; padding:3px; }
 .seg button { border:none; background:none; padding:7px 14px; border-radius:999px; cursor:pointer; font-weight:500; color:var(--muted); transition:transform .1s; }
-.seg button.on { background:var(--surface-1); color:var(--text); font-weight:600; box-shadow:var(--sh-1); }
+.seg button.on { background:var(--seg-on); color:var(--text); font-weight:600; box-shadow:var(--sh-1); }
 .seg button.on.buy { color:var(--good); } .seg button.on.sell { color:var(--bad); }
 .chips { display:flex; gap:6px; flex-wrap:wrap; }
 .chip { border:none; background:var(--btn-bg); box-shadow:var(--btn-sh); border-radius:999px; padding:7px 13px; font-size:13.5px; cursor:pointer; color:var(--muted); transition:transform .1s; }
@@ -328,7 +328,7 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .hero-modes { margin:14px 0 2px; }
 .hero-coins { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; margin:14px -4px 0; padding:4px; }
 .hero-coins::-webkit-scrollbar { display:none; } .hero-coins .chip { flex:none; }
-.periods button.on { background:var(--surface-1); color:var(--text); font-weight:600; box-shadow:var(--sh-1); }
+.periods button.on { background:var(--seg-on); color:var(--text); font-weight:600; box-shadow:var(--sh-1); }
 .hero-chart { position:relative; height:210px; margin:16px -6px 4px; }
 .hero-chart .note { position:absolute; inset:0; display:grid; place-items:center; color:var(--muted); font-size:13px; text-align:center; padding:0 20px; }
 .hero-key { display:flex; flex-wrap:wrap; gap:4px 16px; font-size:13px; color:var(--muted); margin:2px 0 0; }
