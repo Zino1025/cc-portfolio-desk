@@ -20,9 +20,9 @@ const EXIT_PLEDGES = [
   ["risk", "My risk goes into buying before and during the moves, not into waiting for higher at the end."],
 ];
 const EXIT_STRATEGIES = [
-  ["initials", "Initials first", "Get your money back at the first target, then ladder out and keep a moonbag."],
-  ["even", "Even ladder", "Sell about the same amount at every level, keep 20%."],
-  ["ride", "Ride to the top", "Sell lightly early and more near the ideal range and extension, keep 10%."],
+  ["initials", "Initials", "Get your money back at the first target, then ladder out and keep a moonbag."],
+  ["even", "Even", "Sell about the same amount at every level, keep 20%."],
+  ["ride", "Ride", "Sell lightly early and more near the ideal range and extension, keep 10%."],
   ["custom", "Custom", "Set your own levels and amounts."],
 ];
 function getTps() { return (S.model && Array.isArray(S.model.tps) && S.model.tps.length ? S.model.tps : DEFAULT_TPS); }
@@ -96,14 +96,14 @@ function exitStatus(p) {
 }
 const exitTag = (st, style) => `<span class="tag ${{ committed: "buy", edited: "req" }[st.state] || "flag"}" style="${style}">${st.state === "committed" ? "✓ " : ""}${esc(st.label)}</span>`;
 const fp = (v) => { const n = num(v); return n >= 1 ? "$" + (+n.toPrecision(4)).toLocaleString("en-US") : fmtPrice(n).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1"); };
-function tpLadderBar(tp, price, avg) {
+function tpLadderBar(tp, price, avg, planned) {
   const L = tpLevels(tp); if (!L.length) return "";
   const lo = Math.min(...L.map(l => l.price), price || Infinity, avg || Infinity) * 0.7, hi = Math.max(...L.map(l => l.price)) * 1.15;
   const x = (v) => clamp((Math.log(v) - Math.log(lo)) / (Math.log(hi) - Math.log(lo)) * 100, 0, 100);
   const zone = num(tp.lo) && num(tp.hi) ? `<div class="tpz" style="left:${x(tp.lo)}%;width:${x(tp.hi) - x(tp.lo)}%" title="Ideal TP range"></div>` : "";
   const mark = (v, cls, t) => v > 0 ? `<div class="tpm ${cls}" style="left:${x(v)}%" title="${esc(t)}"></div>` : "";
   return `<div class="tpbar">${zone}${mark(num(tp.min), "min", "Bare minimum " + fmtPrice(tp.min))}${mark(num(tp.ext), "ext", "Extension " + fmtPrice(tp.ext))}${mark(avg, "avg", "Your average buy " + fmtPrice(avg))}${mark(price, "now", "Price now " + fmtPrice(price))}</div>
-    <div class="tplegend"><span><i class="now"></i>Now ${fp(price)}</span>${avg ? `<span><i class="avg"></i>Avg ${fp(avg)}</span>` : ""}${num(tp.min) ? `<span><i class="min"></i>Min ${fp(tp.min)}</span>` : ""}${num(tp.lo) ? `<span><i class="zone"></i>Ideal ${fp(tp.lo)}–${fp(tp.hi).replace("$", "")}</span>` : ""}${num(tp.ext) ? `<span><i class="ext"></i>Ext ${fp(tp.ext)}</span>` : ""}</div>`;
+    <div class="tplegend"><span><i class="now"></i>Now ${fp(price)}</span>${avg ? `<span><i class="avg"></i>Avg ${fp(avg)}</span>` : ""}${planned ? "" : `${num(tp.min) ? `<span><i class="min"></i>Min ${fp(tp.min)}</span>` : ""}${num(tp.lo) ? `<span><i class="zone"></i>Ideal ${fp(tp.lo)}–${fp(tp.hi).replace("$", "")}</span>` : ""}${num(tp.ext) ? `<span><i class="ext"></i>Ext ${fp(tp.ext)}</span>` : ""}`}</div>`;
 }
 async function viewExit(v) {
   v.innerHTML = `<div class="spinner"></div>`;
@@ -126,14 +126,14 @@ async function viewExit(v) {
     const L = tp ? tpLevels(tp) : [];
     const head = `<div class="row" style="align-items:center;justify-content:space-between;flex-wrap:wrap">
         <div style="flex:1;min-width:180px">${coinCell({ coin_id: c.id, symbol: (info?.symbol || tp?.sym || c.h?.symbol || "").toLowerCase(), name: info?.name || c.h?.name || tp?.label || c.id, image: info?.image })}</div>
-        <div class="secondary num" style="flex:none;font-size:13px">${c.h ? `${fmtQty(c.h.qty)} held · avg ${fmtPrice(c.h.avg)} · worth ${fmtUsd(c.h.value)}` : `Not held yet · <button class="link-btn" data-rm-coin="${esc(c.id)}">Remove</button>`}</div></div>`;
+        <div class="secondary num" style="flex:none;font-size:13px">${c.h ? `${fmtQty(c.h.qty)} held${tp ? "" : ` · avg ${fmtPrice(c.h.avg)}`} · worth ${fmtUsd(c.h.value)}` : `Not held yet · <button class="link-btn" data-rm-coin="${esc(c.id)}">Remove</button>`}</div></div>`;
     if (!cp) return `<div class="card exit-card">${head}${tp ? tpLadderBar(tp, price, 0) : ""}<button class="btn small" data-plan="${esc(c.id)}" style="margin-top:10px">Plan an exit for this coin</button></div>`;
     const calc = exitCalc(tp, cp, c.h);
     const narrow = window.matchMedia && matchMedia("(max-width: 640px)").matches, SHORT = { min: "Min", lo: "Low", mid: "Mid", hi: "High", ext: "Ext" };
     const lvlOpts = (st) => [...L.map(l => `<option value="${l.k}" ${st.k === l.k ? "selected" : ""}>${narrow ? SHORT[l.k] + " " + fmtPrice(l.price).replace(/(\.\d*?[1-9])0+$|\.0+$/, "$1") : l.label + " · " + fmtPrice(l.price)}</option>`), `<option value="custom" ${st.k === "custom" ? "selected" : ""}>${narrow ? "Custom" : "Custom price…"}</option>`].join("");
     return `<div class="card exit-card" data-coin="${esc(c.id)}">${head}
-      ${tp ? tpLadderBar(tp, price, c.h?.avg) : `<div class="hint">${esc(CONFIG.REVIEWER_NAME)} hasn't set targets for this coin, so use custom prices.</div>`}
-      <div class="chips" style="margin:12px 0 8px">${EXIT_STRATEGIES.map(([k, l, d]) => `<button class="chip ${cp.strategy === k ? "on" : ""}" data-strat="${k}" title="${esc(d)}">${l}</button>`).join("")}</div>
+      ${tp ? tpLadderBar(tp, price, c.h?.avg, true) : `<div class="hint">${esc(CONFIG.REVIEWER_NAME)} hasn't set targets for this coin, so use custom prices.</div>`}
+      <div class="seg seg-fill ex-strat" role="radiogroup" aria-label="Strategy">${EXIT_STRATEGIES.map(([k, l, d]) => `<button type="button" role="radio" aria-checked="${cp.strategy === k}" class="${cp.strategy === k ? "on" : ""}" data-strat="${k}" title="${esc(d)}">${l}</button>`).join("")}</div>
       <div class="table-wrap"><table class="exit-steps"><thead><tr><th class="drag" aria-label="Order"></th><th>Sell at</th><th class="r">${narrow ? "%" : "% of bag"}</th><th class="r hide-sm">Price</th><th class="r">${narrow ? "≈ $" : "≈ Cash out"}</th><th class="r hide-sm">Total so far</th><th></th></tr></thead><tbody>
         ${cp.steps.map((st, i) => { const r = calc.rows.find(x => x.idx === i) || {}; return `<tr data-row="${i}">
           <td class="drag"><span class="drag-h" data-drag="${i}" tabindex="0" role="button" aria-label="Drag to reorder (or use arrow keys)" title="Drag to reorder">⠿</span></td>
@@ -144,9 +144,8 @@ async function viewExit(v) {
           <td class="r num hide-sm">${r.cum != null && c.h ? fmtUsd(r.cum) : "—"}${r.cum != null && calc.initialsAt != null && calc.rows[calc.initialsAt] === r ? `<div class="good" style="font-size:12px">✓ initials back</div>` : ""}</td>
           <td class="r"><button class="link-btn" data-del="${i}" aria-label="Remove step">✕</button></td></tr>`; }).join("")}
       </tbody></table></div>
-      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;margin-top:8px">
-        <div class="row" style="flex:none;align-items:center;gap:8px"><button class="btn small" data-add="1" style="flex:none">+ Add a step</button>${cp.steps.length > 1 ? `<span class="muted" style="flex:none;font-size:12px">drag ⠿ to reorder</span>` : ""}</div>
-        <div class="num ${calc.over ? "bad" : "secondary"}" style="flex:1 1 240px;min-width:0;font-size:13px;line-height:1.5">Sells <b>${calc.sold}%</b> · keeps <b>${calc.keep}%</b> as a moonbag${c.h ? ` · ≈ <b>${fmtUsd(calc.total)}</b> out` : ""}${calc.over ? " · over 100%, lower a step" : ""}${c.h?.cost && calc.initialsAt == null && !calc.over ? ` · <span class="bad">doesn't get your initial ${fmtUsd(c.h.cost)} back</span>` : ""}</div>
+      <div class="ex-foot"><button class="btn small" data-add="1">+ Add step</button>
+        <div class="ex-sum num">${c.h ? `<div class="ex-total">$${Math.round(calc.total).toLocaleString("en-US")}</div>` : ""}<div class="${calc.over ? "bad" : "secondary"}">Sells ${calc.sold}% · ${calc.keep}% moonbag${calc.over ? " · over 100%" : ""}</div>${c.h?.cost && calc.initialsAt == null && !calc.over ? `<div class="bad">Doesn't get your ${fmtUsd(c.h.cost)} back</div>` : ""}</div>
       </div></div>`;
   };
   v.innerHTML = `
