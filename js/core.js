@@ -91,9 +91,9 @@ function openModal(inner, { title, style = "", backdrop = true } = {}) {
   if (title) ov.querySelector(".x").onclick = close;
   return { ov, close };
 }
-function confirmModal(title, body, onYes, { yes = "Confirm", alt } = {}) {
-  const { ov, close } = openModal(`<h2>${esc(title)}</h2><p class="secondary">${esc(body)}</p><div class="row" style="justify-content:flex-end"><button class="btn" style="flex:none" id="no">${alt ? esc(alt[0]) : "Cancel"}</button><button class="btn primary" style="flex:none" id="yes">${esc(yes)}</button></div>`, { style: "max-width:380px" });
-  $("#no", ov).onclick = () => { close(); alt && alt[1](); };
+function confirmModal(title, body, onYes, { yes = "Confirm", alt, onNo } = {}) {
+  const { ov, close } = openModal(`<h2>${esc(title)}</h2><p class="secondary">${esc(body)}</p><div class="row" style="justify-content:flex-end"><button class="btn" style="flex:none" id="no">${alt ? esc(alt[0]) : "Cancel"}</button><button class="btn primary" style="flex:none" id="yes">${esc(yes)}</button></div>`, { style: "max-width:380px", backdrop: !onNo });
+  $("#no", ov).onclick = () => { close(); alt && alt[1](); onNo && onNo(); };
   $("#yes", ov).onclick = async () => { close(); await onYes(); };
 }
 /** CoinGecko search box: input + .dropdown. Accepts a ticker, name or CoinGecko page link. tag(c) = right-hand label. */

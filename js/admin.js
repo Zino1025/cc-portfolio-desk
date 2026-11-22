@@ -216,8 +216,12 @@ async function viewMemberDetail(v, id) {
       try { Object.assign(p, await api.updateProfile(p.id, patch)); toast(msg); }
       catch (e) { toast("Couldn't save: " + (e.message || e)); render(); }
     };
-    $("#m-tier").onchange = () => save({ tier: $("#m-tier").value }, "Plan saved");
-    $("#m-sigadmin").onchange = () => save({ signals_admin: $("#m-sigadmin").value === "1" }, $("#m-sigadmin").value === "1" ? "Can post signals now" : "Signals Admin removed");
+    const ask = (sel, was, title, body, patch, msg) => confirmModal(title, body, () => save(patch, msg), { yes: "Switch", onNo: () => {
+      sel.value = was; sel.nextElementSibling.querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.v === was));
+    } });
+    const name = memberName(p), TIER = { elite: ["Elite", "Full Desk, no Signals."], signals: ["Signals", "Signals only. They lose the rest of the Desk."], both: ["Both", "Full Desk plus Signals."] };
+    $("#m-tier").onchange = (e) => { const t = e.target.value; ask(e.target, p.tier || "elite", `Switch ${name} to ${TIER[t][0]}?`, TIER[t][1], { tier: t }, "Plan saved"); };
+    $("#m-sigadmin").onchange = (e) => { const on = e.target.value === "1"; ask(e.target, p.signals_admin ? "1" : "0", on ? `Make ${name} a Signals Admin?` : `Remove ${name} as Signals Admin?`, on ? "They can post signals and ping every Signals member." : "They can't post signals anymore.", { signals_admin: on }, on ? "Can post signals now" : "Signals Admin removed"); };
   }
   $("#cc-joined-save").onclick = async () => {
     const val = $("#cc-joined").value || null;
