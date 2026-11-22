@@ -84,17 +84,17 @@ function holdingsTable(pf, editable = false) {
   if (!pf.holdings.length) return `<div class="empty"><div class="big">No holdings yet</div>Add a buy, or import your whole portfolio.${editable ? `<div style="margin-top:12px"><button class="btn primary" id="empty-import">Import screenshot or CSV</button></div>` : ""}</div>`;
   const list = `<div class="hl-list">${pf.holdings.map(h => `<div class="hl-row" ${editable ? `data-coin="${esc(h.coin_id)}"` : ""}>
       <div class="coin">${coinIcon(h)}</div>
-      <div style="min-width:0"><div class="nm">${esc((h.symbol || h.coin_id).toUpperCase())}</div><div class="q num">${fmtPrice(h.price)}${h.priceEstimated ? "*" : ` · <span class="${signCls(h.change24)}">${fmtPct(h.change24)}</span>`}</div></div>
-      <div class="rt"><div class="val num">${fmtUsd(h.value)}</div><div class="num ${signCls(h.change24Usd)}">${signed(h.change24Usd)} <span class="muted">today</span></div></div>
+      <div style="min-width:0"><div class="nm">${esc((h.symbol || h.coin_id).toUpperCase())}</div><div class="q num">${h.alloc.toFixed(0)}% · ${fmtPrice(h.price)}${h.priceEstimated ? "*" : ""}</div></div>
+      <div class="rt"><div class="val num">${fmtUsd(h.value)}</div><div class="num ${signCls(h.pnl)}">${fmtPct(h.pnlPct)}</div></div>
     </div>`).join("")}</div>`;
-  return `${list}<div class="table-wrap hl-table"><table><thead><tr><th></th><th>Coin</th><th class="r">Holdings</th><th class="r">Avg buy</th><th class="r">Price</th><th class="r">Today</th><th class="r">Invested</th><th class="r">Value</th><th class="r">P&amp;L</th><th class="r hide-sm">Alloc</th><th class="hide-sm">First buy</th></tr></thead><tbody>
+  return `${list}<div class="table-wrap hl-table"><table><thead><tr><th></th><th>Coin</th><th class="r">Holdings</th><th class="r">Avg buy</th><th class="r">Price</th><th class="r hide-sm">24h</th><th class="r">Invested</th><th class="r">Value</th><th class="r">P&amp;L</th><th class="r hide-sm">Alloc</th><th class="hide-sm">First buy</th></tr></thead><tbody>
     ${pf.holdings.map((h, i) => `<tr ${editable ? `class="click" data-coin="${esc(h.coin_id)}" title="Tap to see and edit these trades"` : ""}>
       <td style="width:14px"><span class="swatch" style="background:${i < 7 ? `var(${SERIES[i]})` : "var(--other)"}"></span></td>
       <td>${editable ? coinCell(h) : `<a href="${coinLink(h.coin_id)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${coinCell(h)}</a>`}</td>
       <td class="r num">${fmtQty(h.qty)}</td>
       <td class="r num">${fmtPrice(h.avg)}</td>
       <td class="r num">${fmtPrice(h.price)}${h.priceEstimated ? ` <span class="muted" title="No live price; using last trade price">*</span>` : ""}</td>
-      <td class="r num ${signCls(h.change24Usd)}">${signed(h.change24Usd)}<div><span class="pill sm ${signCls(h.change24)}">${fmtPct(h.change24)}</span></div></td>
+      <td class="r num hide-sm"><span class="pill sm ${signCls(h.change24)}">${fmtPct(h.change24)}</span></td>
       <td class="r num secondary">${fmtUsd(h.cost)}</td>
       <td class="r num">${fmtUsd(h.value)}</td>
       <td class="r num ${signCls(h.pnl)}" style="font-weight:600">${signed(h.pnl)}<div style="font-size:12px;font-weight:500">${fmtPct(h.pnlPct)}</div></td>
