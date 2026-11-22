@@ -148,7 +148,7 @@ function heroCard(pf, chartId = "hero", flows = null) {
     <div class="hero-head"><div><div class="label" id="${chartId}-label">${heroName(c)}</div><div class="big num" id="${chartId}-big">${fmtUsd(t.value)}</div>
       <div class="chg" id="${chartId}-chg"><span class="pill ${signCls(t.change24Pct)}">${arrow(t.change24Pct)} ${fmtPct(t.change24Pct)}</span><span class="num ${signCls(t.change24Usd)}">${signed(t.change24Usd)}</span><span>today</span></div></div>
       <div class="periods" data-hero="${chartId}">${HIST_PERIODS.map(([d, l]) => `<button data-d="${d}" class="${d === days ? "on" : ""}">${l}</button>`).join("")}</div></div>
-    ${pf.holdings.length > 1 ? `<div class="chips hero-coins" data-hero-coin="${chartId}">${[["", "All"], ...pf.holdings.map(h => [h.coin_id, (h.symbol || h.coin_id).toUpperCase()])].map(([id, l]) => `<button class="chip ${id === (c?.coin_id || "") ? "on" : ""}" data-c="${esc(id)}">${esc(l)}</button>`).join("")}</div>` : ""}
+    ${pf.holdings.length > 1 ? `<div class="chips row-scroll hero-coins" data-hero-coin="${chartId}">${[["", "All"], ...pf.holdings.map(h => [h.coin_id, (h.symbol || h.coin_id).toUpperCase()])].map(([id, l]) => `<button class="chip ${id === (c?.coin_id || "") ? "on" : ""}" data-c="${esc(id)}">${esc(l)}</button>`).join("")}</div>` : ""}
     <div class="periods hero-modes" data-hero-mode="${chartId}" role="tablist">
       <button data-m="value" class="${mode === "value" ? "on" : ""}" role="tab">Holdings</button><button data-m="pnl" class="${mode === "pnl" ? "on" : ""}" role="tab">Profit / loss</button></div>
     <div class="hero-chart" id="${chartId}-chart"></div>

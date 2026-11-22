@@ -108,15 +108,15 @@ async function viewMembers(v) {
   v.innerHTML = `
     <div class="page-head"><div><h1>Review Queue</h1></div><div class="row" style="flex:none"><button class="btn" id="reload">Reload</button><button class="btn primary" id="bcast">Broadcast</button></div></div>
     <div class="kpis">
-      <div class="card kpi"><div class="label">Members</div><div class="value num">${all.length}</div><div class="sub muted">${all.filter(r => r.txs.length).length} with trades logged</div></div>
-      <div class="card kpi"><div class="label">Open review requests</div><div class="value num">${all.filter(r => r.p.review_requested).length}</div></div>
-      <div class="card kpi"><div class="label">Not reviewed in 30d</div><div class="value num">${stale}</div></div>
-      <div class="card kpi"><div class="label">Total tracked value</div><div class="value num">${fmtUsd(total, { compact: true })}</div></div>
+      <div class="card kpi"><div class="label">Members</div><div class="value num">${all.length}</div><div class="sub muted">${all.filter(r => r.txs.length).length} with trades</div></div>
+      <div class="card kpi"><div class="label">Requests</div><div class="value num">${all.filter(r => r.p.review_requested).length}</div></div>
+      <div class="card kpi"><div class="label">Overdue</div><div class="value num">${stale}</div><div class="sub muted">No review in 30d</div></div>
+      <div class="card kpi"><div class="label">Tracked value</div><div class="value num">${fmtUsd(total, { compact: true })}</div></div>
     </div>
     <div class="card">
       <div class="toolbar">
         <input type="search" id="mq" placeholder="Search name or @handle…" value="${esc(S.memberQuery)}">
-        <div class="chips" id="mf">${[["all","All"],["requested","Requested"],["unanswered","Unanswered"],["stale","Not reviewed 30d"],["concentrated","Concentrated 50%+"]].map(([k,l]) => `<button class="chip ${S.memberFilter === k ? "on" : ""}" data-f="${k}">${l}</button>`).join("")}</div>
+        <div class="chips row-scroll" id="mf">${[["all","All"],["requested","Requested"],["unanswered","Unanswered"],["stale","Overdue"],["concentrated","50%+ in one"]].map(([k,l]) => `<button class="chip ${S.memberFilter === k ? "on" : ""}" data-f="${k}">${l}</button>`).join("")}</div>
         <select id="ms">${[["review","Sort: requests first"],["value","Sort: value"],["pnl","Sort: P&L %"],["activity","Sort: recent activity"]].map(([k,l]) => `<option value="${k}" ${S.memberSort === k ? "selected" : ""}>${l}</option>`).join("")}</select>
       </div>
       <div id="mtable"></div>
