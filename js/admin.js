@@ -178,8 +178,9 @@ async function viewMemberDetail(v, id) {
       ${p.goal ? `<div class="secondary" style="margin-top:4px">Goal: ${esc(p.goal)}</div>` : ""}</div>
       <button class="btn ${p.review_requested ? "primary" : ""}" id="mark">Mark reviewed</button></div>
     ${p.review_requested ? `<div class="callout"><b>Review requested ${ago(p.review_requested_at)}</b>${p.review_question ? `\n“${esc(p.review_question)}”` : ""}</div>` : ""}
-    ${pf.holdings.length ? `${heroCard(pf, "hero-m")}<div class="ov-grid">${donutCard("pie-member", "Allocation")}${perfCard("perf-member")}</div>` : `<div class="card empty" style="margin-bottom:16px"><div class="big">No holdings</div></div>`}
+    ${pf.holdings.length ? `${heroCard(pf, "hero-m")}` : `<div class="card empty" style="margin-bottom:16px"><div class="big">No holdings</div></div>`}
     <div class="card"><div class="card-h"><h2>Holdings</h2></div>${holdingsTable(pf)}</div>
+    ${pf.holdings.length ? `<div class="ov-grid">${donutCard("pie-member", "Allocation")}</div>` : ""}
     ${driftCard(p, pf)}
     ${exitCard(p, pf)}
     <div class="two-col" style="margin-top:16px">
@@ -227,7 +228,7 @@ async function viewMemberDetail(v, id) {
       toast(val ? "Join date saved" : "Join date cleared");
     } catch (e) { toast(/cc_joined_on/.test(e.message || "") ? "Run supabase/cc_joined_on.sql in Supabase first" : "Couldn't save: " + (e.message || e)); }
   };
-  if (pf.holdings.length) { renderDonut("pie-member", pf.holdings, "Total", pf.totals.value); renderPerf("perf-member", pf.holdings); paintHero(r.txs, "hero-m"); }
+  if (pf.holdings.length) { renderDonut("pie-member", pf.holdings, "Total", pf.totals.value); paintHero(r.txs, "hero-m"); }
   pinThreadBottom($("#thread"));
   v.querySelectorAll("[data-tpl]").forEach(b => b.onclick = () => { const ta = $("#body"); ta.value = (ta.value ? ta.value + "\n\n" : "") + TEMPLATES[+b.dataset.tpl][1]; ta.focus(); });
   const markReviewed = async () => {

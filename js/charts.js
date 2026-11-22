@@ -454,27 +454,4 @@ async function paintPriceChart() {
   });
   scrubEnd(S.charts.pc, onScrub);
 }
-function perfCard(id) {
-  return `<div class="card"><div class="card-h"><h2>P&amp;L by coin</h2></div><div class="perf-box" id="${id}-box"><canvas id="${id}" role="img" aria-label="Profit and loss by coin bar chart"></canvas></div></div>`;
-}
-function renderPerf(id, holdings) {
-  const el = document.getElementById(id); if (!el) return;
-  if (S.charts[id]) { S.charts[id].destroy(); delete S.charts[id]; }
-  const hs = holdings.filter(h => h.cost > 0).slice(0, 10).sort((a, b) => b.pnlPct - a.pnlPct);
-  document.getElementById(id + "-box").style.height = Math.max(150, hs.length * 40 + 30) + "px";
-  const good = cssVar("--good"), bad = cssVar("--bad");
-  S.charts[id] = new Chart(el, {
-    type: "bar",
-    data: { labels: hs.map(h => (h.symbol || h.coin_id).toUpperCase()), datasets: [{ data: hs.map(h => h.pnlPct), backgroundColor: hs.map(h => rgba(h.pnlPct < 0 ? bad : good, 0.85)), borderRadius: 6, borderSkipped: false, barThickness: 16 }] },
-    options: {
-      indexAxis: "y", maintainAspectRatio: false, animation: { duration: 300 },
-      scales: {
-        x: { grid: { color: cssVar("--track") }, border: { display: false }, ticks: { color: cssVar("--muted"), callback: (v) => v + "%" } },
-        y: { grid: { display: false }, border: { display: false }, ticks: { color: cssVar("--text"), font: { weight: 600 } } },
-      },
-      plugins: { legend: { display: false }, tooltip: { ...tipStyle(),
-        callbacks: { title: (it) => (hs[it[0].dataIndex].symbol || hs[it[0].dataIndex].coin_id).toUpperCase(), label: (it) => `${fmtPct(hs[it.dataIndex].pnlPct)} · ${signed(hs[it.dataIndex].pnl)}` } } },
-    },
-  });
-}
 

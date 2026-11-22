@@ -339,9 +339,7 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .hero-stats .l { color:var(--muted); }
 .hero-stats .v { overflow-wrap:anywhere; font-size:17px; line-height:22px; font-weight:600; letter-spacing:-0.4px; margin-top:4px; }
 .hero-stats .s { font-size:13px; margin-top:2px; }
-.ov-grid { display:grid; grid-template-columns:minmax(280px,380px) 1fr; gap:16px; margin-bottom:16px; align-items:stretch; }
-.ov-grid > * { min-width:0; }
-.perf-box { position:relative; }
+.ov-grid { margin:16px 0; }
 .card-h { display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom:16px; }
 .card-h h2 { margin:0; }
 .card-h .sub { font-size:13px; color:var(--muted); }
@@ -354,7 +352,7 @@ tr.dragging { opacity:.9; box-shadow:0 4px 14px rgba(0,0,0,.18); }
 .hl-row .q { color:var(--muted); margin-top:2px; }
 .hl-row .rt { text-align:right; }
 .hl-row .val { font-weight:600; margin-bottom:2px; }
-@media (max-width: 860px) { .two-col, .ov-grid { grid-template-columns:1fr; } }
+@media (max-width: 860px) { .two-col { grid-template-columns:1fr; } }
 @media (max-width: 640px) {
   .hero { padding:20px 18px 14px; }
   .hero .big { font-size:clamp(26px, 9vw, 36px); line-height:42px; }

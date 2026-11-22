@@ -124,11 +124,11 @@ async function viewOverview(v) {
       <a class="act" href="#rebalance"><span class="icon-btn lg">${ICON.scale}</span>Rebalance</a>
       <a class="act" href="#exit"><span class="icon-btn lg">${ICON.target}</span>${ex === "edited" ? "Re-commit" : "Exit Plan"}${ex === "committed" ? `<span class="d">committed</span>` : ""}</a>
     </div>
-    ${has ? `<div class="ov-grid">${donutCard("pie-me", "Allocation", true)}${perfCard("perf-me")}</div>` : ""}
     <div class="section-head"><h2>Holdings</h2></div>
     <div class="card hl-card">${holdingsTable(pf, true)}</div>
+    ${has ? `<div class="ov-grid">${donutCard("pie-me", "Allocation", true)}</div>` : ""}
     ${reviewNudge()}`;
-  if (has) { renderDonut("pie-me", pf.holdings, "Total", pf.totals.value); bindRewind("pie-me", S.txs, pf.holdings, pf.totals.value); renderPerf("perf-me", pf.holdings); paintHero(S.txs); }
+  if (has) { renderDonut("pie-me", pf.holdings, "Total", pf.totals.value); bindRewind("pie-me", S.txs, pf.holdings, pf.totals.value); paintHero(S.txs); }
   $("#share") && ($("#share").onclick = () => shareCard(pf));
   $("#add").onclick = () => openTradeModal();
   $("#import-shot").onclick = openImportModal;
