@@ -147,9 +147,9 @@ async function viewExit(v) {
       <button class="btn small" data-add="1" style="margin-top:10px">+ Add step</button>
       <div class="ex-sum">${c.h ? `<div class="ex-total num">$${Math.round(calc.total).toLocaleString("en-US")}</div><div class="secondary">cash out if every step hits</div>` : ""}
         <div class="ex-split${calc.over ? " over" : ""}"><i style="width:${Math.min(calc.sold, 100)}%"></i></div>
-        <div class="ex-split-l num"><span>Sell ${calc.sold}%</span><span>${calc.over ? `<span class="bad">Over 100%, lower a step</span>` : `Keep ${calc.keep}%${c.h && calc.keep ? ` · ${fmtQty(c.h.qty * calc.keep / 100)} ${esc((info?.symbol || tp?.sym || "").toUpperCase())}` : ""}`}</span></div>
+        <div class="ex-split-l num"><span>Sell ${calc.sold}%</span><span>${calc.over ? `<span class="bad">Over 100%, lower a step</span>` : `Keep ${calc.keep}%${c.h && calc.keep ? ` · ${(c.h.qty * calc.keep / 100).toLocaleString("en-US", { maximumFractionDigits: c.h.qty * calc.keep < 1000 ? 2 : 0 })} ${esc((info?.symbol || tp?.sym || "").toUpperCase())}` : ""}`}</span></div>
         ${c.h?.cost && calc.initialsAt == null && !calc.over ? `<div class="bad">Doesn't get your ${fmtUsd(c.h.cost)} back</div>` : ""}</div>
-      </div></div>`;
+      </div>`;
   };
   v.innerHTML = `
     <div class="page-head"><div><h1>Exit Plan</h1></div><div id="ex-status"></div></div>
