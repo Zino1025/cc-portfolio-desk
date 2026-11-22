@@ -404,9 +404,9 @@ function computePortfolio(txs) {
     const price = info?.price ?? h.lastPrice;
     if (!info) estimated = true;
     const v = h.qty * price;
-    const c24 = info?.change24 ?? 0;
-    holdings.push({ ...h, image: info?.image, price, value: v, avg: h.cost / h.qty, pnl: v - h.cost, pnlPct: h.cost > 0 ? (v - h.cost) / h.cost * 100 : 0, change24: c24, priceEstimated: !info });
-    value += v; cost += h.cost; chg += v - v / (1 + c24 / 100);
+    const c24 = info?.change24 ?? 0, d24 = v - v / (1 + c24 / 100);
+    holdings.push({ ...h, image: info?.image, price, value: v, avg: h.cost / h.qty, pnl: v - h.cost, pnlPct: h.cost > 0 ? (v - h.cost) / h.cost * 100 : 0, change24: c24, change24Usd: d24, priceEstimated: !info });
+    value += v; cost += h.cost; chg += d24;
   }
   holdings.sort((a, b) => b.value - a.value);
   for (const h of holdings) h.alloc = value > 0 ? h.value / value * 100 : 0;
