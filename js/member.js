@@ -473,7 +473,7 @@ async function viewRebalance(v) {
       </div>
       <div>
         <div class="card" style="margin-bottom:16px">
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;flex-wrap:wrap"><b>New money</b> <span>$<input type="text" inputmode="decimal" id="newm" value="${S.reb.newMoney || ""}" placeholder="0" style="width:130px"></span></label>
+          <label class="field" style="margin-bottom:0"><span>New money</span><input type="text" inputmode="decimal" id="newm" value="${S.reb.newMoney || ""}" placeholder="$0"></label>
         </div>
         <div id="reb-body"></div>
       </div>
