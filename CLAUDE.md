@@ -8,6 +8,7 @@ Portfolio tracker for the ~250-member CC Telegram group. Members log trades; Dka
 - `js/*.js`: app logic, split into 11 plain `<script>` files (not modules), each under ~37 KB. See the map below. Open only the file you need.
 - `supabase/functions/*`: backups of the deployed Edge Functions (see their README).
 - `supabase/*.sql`: migrations that have already been applied.
+- `.claude/skills/`: official Supabase skills (`supabase`, `supabase-postgres-best-practices`), pinned in `skills-lock.json`. Load them for any Supabase, SQL or RLS work.
 - `sw.js`: network-first pages, cache-first for `?v=` files and pinned CDN libs. If you ever add an unversioned file it must not match those rules, or bump `C`.
 
 ## How to work efficiently (read this first)
