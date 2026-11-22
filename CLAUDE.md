@@ -68,7 +68,7 @@ Build first, then check the new screen fits the rest of the app:
 - Members always open on the Portfolio tab. Profile opens from the header avatar. Exception: Signals-only members (`signalsOnly()`) get just Signals + Elite (upsell, sends an "Upgrade to Elite" thread message) and skip the CC group gate.
 - Charts show the live price and must be readable and tappable straight away.
 - Model portfolio: TET 40% and ACN 30% are fixed. The other 30% is split however the member likes across PAAL/VELO/OTK. No stablecoin slice.
-- Signals: tier `elite` (default) / `signals` / `both`; Signals Admins (`profiles.signals_admin`) post. Pings only for new signal and analyst updates (tg-notify). Profit split = `split_rules` rows, empty until Dkay decides (cards show "TBD"). Auto TP/stop pings are phase 3.
+- Signals: tier `elite` (default) / `signals` / `both`; Signals Admins (`profiles.signals_admin`) post. Pings only for new signal and analyst updates (tg-notify). Profit split = `split_rules` rows, empty until Dkay decides (cards show "TBD"). Auto TP/stop pings are phase 3. Signals Admins (Anton, Saad) are signals-only for now: they post signals and reply to Signals-only members (Inbox) but can't see CC members' portfolios or threads. Saad may later post CC TA updates (not member-specific access).
 - Don't add new Telegram price-drop alert messages. (TP-hit pings are opt-in, per member, from their own exit plan.)
 - CC group gate: an admin sends `/setgroup` in the CC group once. Until then nobody is gated. `profiles.in_group` is set only by tg-link / tg-notify.
 - Secrets live in Supabase → Edge Functions → Secrets, never in this repo. The publishable key in CONFIG is safe to keep (RLS protects the data).

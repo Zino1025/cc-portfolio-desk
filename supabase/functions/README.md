@@ -10,4 +10,4 @@
 | `tg-login` | off (no session yet; the nonce is the secret) | Home-screen app polls with its nonce; once approved in the bot, returns a one-time magic-link `token_hash` for `verifyOtp` (no email sent) | none |
 
 Secret values live in Supabase → Edge Functions → Secrets, never in this repo.
-Backed up 2026-11-18 from the live versions (prices v2, import-screenshot v6, tg-link v6, tg-notify v14 (2026-11-19), tg-bot v1). 2026-11-20: tg-bot v6, tg-login v1 (Sign in with Telegram). 2026-11-21: tg-bot v7 (/home), tg-notify v17 (Signals; the poster gets a copy; edit pings).
+Backed up 2026-11-18 from the live versions (prices v2, import-screenshot v6, tg-link v6, tg-notify v14 (2026-11-19), tg-bot v1). 2026-11-20: tg-bot v6, tg-login v1 (Sign in with Telegram). 2026-11-21: tg-bot v7 (/home), tg-notify v17 (Signals; the poster gets a copy; edit pings), tg-notify v18 (Signals-only members' messages also ping Signals Admins; replies signed with `author_name`).
