@@ -460,6 +460,8 @@ const api = (() => {
     async deleteMessage(id) { ok(await sb.from("messages").delete().eq("id", id)); },
     async allProfiles() { return fetchAll(() => sb.from("profiles").select("*").order("created_at")); },
     async allTransactions() { return fetchAll(() => sb.from("transactions").select("id,user_id,coin_id,symbol,name,side,quantity,price_usd,fee_usd,executed_at").order("executed_at")); },
+    async signalsMembers() { return ok(await sb.from("profiles").select("id,display_name,telegram_handle").eq("tier", "signals").eq("role", "member").eq("signals_admin", false)); },
+    async messageMeta(ids) { return fetchAll(() => sb.from("messages").select("member_id,author_id,created_at,body").in("member_id", ids).order("created_at")); },
     async allMessageMeta() { return fetchAll(() => sb.from("messages").select("member_id,author_id,created_at,kind").order("created_at")); },
     async addTicket(t) { return ok(await sb.from("tickets").insert(t).select().single()); },
     async tickets() { return ok(await sb.from("tickets").select("*").eq("status", "open").order("created_at", { ascending: false }).limit(50)); },

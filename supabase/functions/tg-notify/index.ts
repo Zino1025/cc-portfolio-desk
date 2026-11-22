@@ -79,8 +79,8 @@ async function signalPeople() {
   return data ?? [];
 }
 
-async function admins(exceptId?: string) {
-  const { data } = await db.from("profiles").select("id, telegram_chat_id").eq("role", "admin").not("telegram_chat_id", "is", null);
+async function admins(exceptId?: string, signalsToo = false) {   // signalsToo: Signals Admins also handle Signals-only members' threads
+  const { data } = await db.from("profiles").select("id, telegram_chat_id").or(signalsToo ? "role.eq.admin,signals_admin.eq.true" : "role.eq.admin").not("telegram_chat_id", "is", null);
   return (data ?? []).filter((a) => a.id !== exceptId);
 }
 
@@ -99,13 +99,14 @@ Deno.serve(async (req) => {
       const body = m.body ? `\n\n“${esc(cut(m.body))}”` : "";
       if (m.author_id === m.member_id) {
         // Member wrote in their thread -> tell the admins.
-        for (const a of await admins(m.author_id)) {
-          await send(a.telegram_chat_id, `💬 <b>${esc(nameOf(member))}</b> sent a message:${body}${attNote(m.attachments)}`, `member-${m.member_id}`);
+        const sigOnly = member?.tier === "signals" && member.role !== "admin" && !member.signals_admin;
+        for (const a of await admins(m.author_id, sigOnly)) {
+          await send(a.telegram_chat_id, `💬 <b>${esc(nameOf(member))}</b> sent a message:${body}${attNote(m.attachments)}`, sigOnly ? `inbox-${m.member_id}` : `member-${m.member_id}`);
         }
       } else if (member?.telegram_chat_id) {
         // Admin wrote to the member -> tell the member.
         const kind = m.kind === "suggestion" ? "left you a suggestion" : m.kind === "note" ? "sent you a note" : "replied to you";
-        await send(member.telegram_chat_id, `📝 <b>${REVIEWER}</b> ${kind}:${body}${attNote(m.attachments)}`, "feedback");
+        await send(member.telegram_chat_id, `📝 <b>${esc(m.author_name || REVIEWER)}</b> ${kind}:${body}${attNote(m.attachments)}`, "feedback");
       }
       return Response.json({ ok: true });
     }

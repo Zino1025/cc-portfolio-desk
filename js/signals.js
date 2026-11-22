@@ -178,3 +178,27 @@ function viewElite(v) {
     catch (e) { b.disabled = false; toast("Couldn't send. Try again."); }
   };
 }
+
+/* ===================== SIGNALS INBOX (Signals-only members' threads; Signals Admins and admins reply here) ===================== */
+async function viewInbox(v, id) {
+  v.innerHTML = `<div class="spinner"></div>`;
+  const people = await api.signalsMembers(), p = id && people.find(x => x.id === id);
+  if (p) {
+    v.innerHTML = `<div style="margin-bottom:10px"><a href="#inbox" style="text-decoration:none">← Inbox</a></div>
+      <div class="page-head"><div><h1>${esc(memberName(p))}</h1>${p.telegram_handle ? `<div class="secondary">${handleLink(p.telegram_handle)}</div>` : ""}</div></div>
+      <div class="card"><div class="thread" id="thread">${threadHtml(await api.messages(id), S.me.id, id, { [id]: memberName(p) })}</div>
+        <div class="composer"><textarea id="reply" maxlength="4000" placeholder="Reply to ${esc(memberName(p))}…"></textarea>${ATT.pickerHtml("att-reply")}<div style="text-align:right"><button class="btn primary" id="send">Send</button></div></div></div>`;
+    const again = () => viewInbox(v, id);
+    pinThreadBottom($("#thread")); bindComposer(id, again); bindMsgDelete(v, again);
+    return;
+  }
+  const last = {};
+  if (people.length) for (const m of await api.messageMeta(people.map(x => x.id))) last[m.member_id] = m;
+  people.sort((a, b) => (last[b.id]?.created_at || "").localeCompare(last[a.id]?.created_at || "") || memberName(a).localeCompare(memberName(b)));
+  v.innerHTML = `<div class="page-head"><div><h1>Inbox</h1></div></div>
+    ${people.length ? `<div class="card hl-card">${people.map(x => { const m = last[x.id], name = memberName(x); return `<a class="hl-row" href="#inbox-${esc(x.id)}" style="color:inherit;text-decoration:none">
+      <div class="coin"><span class="ph">${esc((name.match(/[A-Za-z0-9]/) || ["?"])[0].toUpperCase())}</span></div>
+      <div style="min-width:0"><div class="nm">${esc(name)}</div><div class="q" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m ? esc(m.body || "Attachment") : "No messages yet"}</div></div>
+      <div class="rt">${m && m.author_id === x.id ? `<span class="tag req">New</span>` : m ? `<span class="muted" style="font-size:13px">${ago(m.created_at)}</span>` : ""}</div></a>`; }).join("")}</div>`
+      : `<div class="card empty">No Signals members yet.</div>`}`;
+}

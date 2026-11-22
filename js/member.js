@@ -14,7 +14,7 @@ function threadHtml(msgs, viewerId, memberId, names) {
   return msgs.map(m => {
     const fromReviewer = m.author_id !== memberId;
     const mine = m.author_id === viewerId;
-    const who = fromReviewer ? (names?.[m.author_id] || CONFIG.REVIEWER_NAME) : (mine ? "You" : names?.[m.author_id] || "Member");
+    const who = fromReviewer ? (names?.[m.author_id] || m.author_name || CONFIG.REVIEWER_NAME) : (mine ? "You" : names?.[m.author_id] || "Member");
     const kindTag = m.kind && m.kind !== "note" && m.kind !== "reply" ? `<span class="tag">${esc(m.kind)}</span>` : "";
     const coinTag = m.coin_id ? `<a class="tag" href="${coinLink(m.coin_id)}" target="_blank" rel="noopener">${esc((CG.info(m.coin_id)?.symbol || m.coin_id).toUpperCase())}</a>` : "";
     return `<div class="msg ${mine ? "mine" : ""} ${fromReviewer ? "reviewer" : ""}"><div class="meta"><b>${esc(who)}</b>${kindTag}${coinTag}<span>${ago(m.created_at)}</span>${mine ? `<button class="link-btn" data-delmsg="${esc(m.id)}" style="font-size:12px;color:var(--muted)">delete</button>` : ""}</div>${esc(m.body)}${ATT.html(m.attachments)}</div>`;
@@ -22,21 +22,21 @@ function threadHtml(msgs, viewerId, memberId, names) {
 }
 async function viewFeedback(v) {
   S.msgs = await api.messages(S.me.id);
-  const req = S.me.review_requested;
+  const req = S.me.review_requested, sig = signalsOnly();
   v.innerHTML = `
-    <div class="page-head"><div><h1>Feedback from ${esc(CONFIG.REVIEWER_NAME)}</h1></div></div>
-    <div class="two-col">
-      <div class="card">
+    <div class="page-head"><div><h1>${sig ? "Messages" : `Feedback from ${esc(CONFIG.REVIEWER_NAME)}`}</h1></div></div>
+    <div class="${sig ? "" : "two-col"}">
+      ${sig ? "" : `<div class="card">
         <h2>Portfolio review</h2>
         ${req ? `<div class="callout">Review requested ${ago(S.me.review_requested_at)}${S.me.review_question ? `:\n“${esc(S.me.review_question)}”` : ""}</div>
                  <button class="btn" id="cancel-req">Cancel request</button>`
               : `<p class="secondary" style="margin-top:0">${S.me.last_reviewed_at ? `Last reviewed ${ago(S.me.last_reviewed_at)}.` : "Not reviewed yet."}</p>
                  <label class="field"><span>What do you want feedback on?</span><textarea id="req-q" maxlength="1000" placeholder="e.g. Am I too heavy on one coin? Should I take profit on X?"></textarea></label>
                  <button class="btn primary" id="req">Request a review</button>`}
-      </div>
-      <div class="card"><h2>Messages</h2>
+      </div>`}
+      <div class="card">${sig ? "" : "<h2>Messages</h2>"}
         <div class="thread" id="thread">${threadHtml(S.msgs, S.me.id, S.me.id)}</div>
-        <div class="composer"><textarea id="reply" maxlength="4000" placeholder="Reply or ask a follow-up…"></textarea>${ATT.pickerHtml("att-reply")}<div style="text-align:right"><button class="btn primary" id="send">Send</button></div></div>
+        <div class="composer"><textarea id="reply" maxlength="4000" placeholder="${sig ? `Message ${esc(CONFIG.REVIEWER_NAME)}, Anton and Saad…` : "Reply or ask a follow-up…"}"></textarea>${ATT.pickerHtml("att-reply")}<div style="text-align:right"><button class="btn primary" id="send">Send</button></div></div>
       </div>
     </div>`;
   pinThreadBottom($("#thread"));
@@ -48,19 +48,23 @@ async function viewFeedback(v) {
     toast("Review requested"); render();
   });
   $("#cancel-req") && ($("#cancel-req").onclick = async () => { S.me = await api.updateProfile(S.me.id, { review_requested: false }); render(); });
+  bindComposer(S.me.id, render);
+  bindMsgDelete(v, render);
+}
+/** Composer under a thread (#reply, #send, attachments "att-reply"): posts a reply in memberId's thread, then calls after(). */
+function bindComposer(memberId, after) {
   ATT.bind("att-reply");
   $("#send").onclick = async () => {
     const body = $("#reply").value.trim(), btn = $("#send");
     if (!body && !ATT.files("att-reply").length) return $("#reply").focus();
     btn.disabled = true;
     try {
-      const attachments = await ATT.upload("att-reply", `msg/${S.me.id}`, (i, n) => { btn.textContent = `Uploading ${i}/${n}…`; });
+      const attachments = await ATT.upload("att-reply", `msg/${memberId}`, (i, n) => { btn.textContent = `Uploading ${i}/${n}…`; });
       btn.textContent = "Sending…";
-      await api.addMessage({ member_id: S.me.id, kind: "reply", body, ...(attachments ? { attachments } : {}) });
-      render();
+      await api.addMessage({ member_id: memberId, kind: "reply", body, ...(attachments ? { attachments } : {}) });
+      after();
     } catch (e) { toast(e.message || "Couldn't send", "error"); btn.disabled = false; btn.textContent = "Send"; }
   };
-  bindMsgDelete(v, render);
 }
 function bindMsgDelete(v, after) {
   v.querySelectorAll("[data-delmsg]").forEach(b => b.onclick = () => confirmModal("Delete message?", "It will be removed for both of you.", async () => { await api.deleteMessage(b.dataset.delmsg); after(); }));

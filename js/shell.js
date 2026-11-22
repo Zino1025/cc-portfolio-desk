@@ -1,14 +1,15 @@
 /* ===================== SHELL ===================== */
 function routes() {
-  if (signalsOnly()) return [["signals", "Signals"], ["elite", "Elite"], ["profile", "Profile"]];
+  if (signalsOnly()) return [["signals", "Signals"], ["feedback", "Messages"], ["elite", "Elite"], ["profile", "Profile"]];
   const r = [["overview", "Portfolio"], ["updates", "Market"], ["signals", "Signals"], ["feedback", "Feedback"], ["trades", "Trades"], ["exit", "Exit Plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]];
+  if (canPostSignals()) r.push(["inbox", "Inbox"]);
   if (isAdmin()) r.push(["sep"], ["members", "Review Queue"], ["insights", "Group"], ["model", "Model portfolio"]);
   r.push(["profile", "Profile"]);
   return r;
 }
 function currentRoute() {
   const h = location.hash.replace("#", "");
-  if (h.startsWith("member-") && isAdmin()) return h;
+  if (h.startsWith("member-") && isAdmin() || h.startsWith("inbox-") && canPostSignals()) return h;
   const valid = routes().map(r => r[0]);
   return valid.includes(h) ? h : valid[0] === "signals" ? "signals" : isAdmin() ? "members" : "overview";
 }
@@ -19,7 +20,7 @@ function unreadCount() {
 function openReviewCount() { return S.admin.profiles.filter(p => p.review_requested && p.role !== "admin").length; }
 
 // Bottom tab bar (Apple HIG: 5 tabs max, icon + label). Plan, Market and Admin hold several pages behind a segmented control; Profile opens from the avatar.
-const GROUPS = { updates: [["updates", "Updates"], ["signals", "Signals"]], plan: [["exit", "Exit Plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]], admin: [["members", "Review"], ["insights", "Group"], ["model", "Model"]] };
+const GROUPS = { updates: [["updates", "Updates"], ["signals", "Signals"], ["inbox", "Inbox"]], plan: [["exit", "Exit Plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]], admin: [["members", "Review"], ["insights", "Group"], ["model", "Model"]] };
 const TAB_ICON = {
   pie: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15.5 3.7A9 9 0 0 1 20.3 8.5h-4.8z"/></svg>',
   list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>',
@@ -30,11 +31,11 @@ const TAB_ICON = {
 };
 const SUB = { plan: "exit", admin: "members", updates: "updates" };   // last page opened in each group
 function tabs() {
-  if (signalsOnly()) return [["signals", "Signals", TAB_ICON.chart], ["elite", "Elite", TAB_ICON.star]];
+  if (signalsOnly()) return [["signals", "Signals", TAB_ICON.chart], ["feedback", "Messages", TAB_ICON.chat], ["elite", "Elite", TAB_ICON.star]];
   const t = [["overview", "Portfolio", TAB_ICON.pie], ["trades", "Trades", TAB_ICON.list], ["plan", "Plan", ICON.target], ["updates", "Market", TAB_ICON.chart]];
   return isAdmin() ? [["admin", "Admin", TAB_ICON.shield], ...t] : [...t, ["feedback", "Feedback", TAB_ICON.chat]];
 }
-const groupOf = (route) => signalsOnly() ? route : route.startsWith("member-") ? "admin" : Object.keys(GROUPS).find(g => GROUPS[g].some(([k]) => k === route)) || route;
+const groupOf = (route) => signalsOnly() ? route : route.startsWith("member-") ? "admin" : route.startsWith("inbox-") ? "updates" : Object.keys(GROUPS).find(g => GROUPS[g].some(([k]) => k === route)) || route;
 async function signOut() { LIVE.stop(); await api.signOut(); location.hash = ""; boot(); }
 
 function render() {
@@ -74,8 +75,9 @@ function renderView(route) {
   let v = $("#view");
   if (route.startsWith("member-")) return viewMemberDetail(v, route.slice(7));
   const g = GROUPS[groupOf(route)];
-  if (g) { v.innerHTML = `<nav class="seg seg-fill subnav">${g.map(([k, l]) => `<a href="#${k}"${k === route ? ' class="on" aria-current="page"' : ""}>${l}</a>`).join("")}</nav><div id="subview"></div>`; v = $("#subview"); }
-  ({ overview: viewOverview, trades: viewTrades, projections: viewProjections, rebalance: viewRebalance, exit: viewExit, updates: viewUpdates, signals: viewSignals, elite: viewElite, model: viewModel,
+  if (g) { const ok = routes().map(r => r[0]), on = route.split("-")[0]; v.innerHTML = `<nav class="seg seg-fill subnav">${g.filter(([k]) => ok.includes(k)).map(([k, l]) => `<a href="#${k}"${k === on ? ' class="on" aria-current="page"' : ""}>${l}</a>`).join("")}</nav><div id="subview"></div>`; v = $("#subview"); }
+  if (route.startsWith("inbox-")) return viewInbox(v, route.slice(6));
+  ({ overview: viewOverview, trades: viewTrades, projections: viewProjections, rebalance: viewRebalance, exit: viewExit, updates: viewUpdates, signals: viewSignals, elite: viewElite, inbox: viewInbox, model: viewModel,
      feedback: viewFeedback, profile: viewProfile, members: viewMembers, insights: viewInsights })[route](v);
 }
 
