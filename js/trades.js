@@ -115,12 +115,12 @@ function flowTotals(flows = S.flows) {
 }
 function flowsHtml() {
   const t = flowTotals(), rows = [...S.flows].sort((a, b) => new Date(b.at) - new Date(a.at));
+  if (!rows.length) return `<div class="card empty"><div class="big">No deposits or withdrawals</div>Add them so new money isn't counted as profit.<div><button class="btn primary" id="flow-add" style="margin-top:16px">Add</button></div></div>`;
   return `<div class="card">
     <div class="hero-stats" style="border:none;margin:0;padding:0 0 12px"><div><div class="l">Deposited</div><div class="v num">${fmtUsd(t.dep)}</div></div><div><div class="l">Withdrawn</div><div class="v num">${fmtUsd(t.wd)}</div></div><div><div class="l">Net in</div><div class="v num">${fmtUsd(t.net)}</div></div></div>
-    ${rows.length ? `<div class="tc-tx">${rows.map(f => `<div class="tc-row"><div class="main"><div style="font-weight:550">${f.kind === "deposit" ? "Deposit" : "Withdrawal"}</div><div class="meta">${fmtDay(f.at)}${f.note ? " · " + esc(f.note) : ""}</div></div>
-      <div class="r num" style="flex:none;display:flex;align-items:center;gap:10px"><span class="${f.kind === "deposit" ? "good" : "bad"}">${f.kind === "deposit" ? "+" : "−"} ${fmtUsd(f.amount_usd)}</span><button class="link-btn" data-fdel="${esc(f.id)}" aria-label="Delete">✕</button></div></div>`).join("")}</div>`
-      : `<div class="empty"><div class="big">Nothing logged yet</div>Log the money you put in and take out, so new money isn't counted as profit.</div>`}
-    <button class="btn primary" id="flow-add" style="margin-top:12px">Log deposit or withdrawal</button></div>`;
+    <div class="tc-tx">${rows.map(f => `<div class="tc-row"><div class="main"><div style="font-weight:550">${f.kind === "deposit" ? "Deposit" : "Withdrawal"}</div><div class="meta">${fmtDay(f.at)}${f.note ? " · " + esc(f.note) : ""}</div></div>
+      <div class="r num" style="flex:none;display:flex;align-items:center;gap:10px"><span class="${f.kind === "deposit" ? "good" : "bad"}">${f.kind === "deposit" ? "+" : "−"} ${fmtUsd(f.amount_usd)}</span><button class="link-btn" data-fdel="${esc(f.id)}" aria-label="Delete">✕</button></div></div>`).join("")}</div>
+    <button class="btn primary" id="flow-add" style="margin-top:12px">Add</button></div>`;
 }
 function openFlowModal() {
   const { ov, close } = openModal(`
