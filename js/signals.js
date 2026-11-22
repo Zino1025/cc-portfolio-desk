@@ -194,7 +194,7 @@ async function viewInbox(v, id) {
   if (p) {
     v.innerHTML = `<div style="margin-bottom:10px"><a href="#inbox" style="text-decoration:none">← Inbox</a></div>
       <div class="page-head"><div><h1>${esc(memberName(p))}</h1><div class="secondary">${[p.telegram_handle && handleLink(p.telegram_handle), p.tier === "signals" ? "Signals" : "", isAdmin() ? `<a href="#member-${esc(p.id)}">Portfolio</a>` : ""].filter(Boolean).join(" · ")}</div></div></div>
-      <div class="card"><div class="thread" id="thread">${threadHtml(await api.messages(id), S.me.id, id, { [id]: memberName(p) })}</div>
+      <div class="card"><div class="thread flow" id="thread">${threadHtml(await api.messages(id), S.me.id, id, { [id]: memberName(p) })}</div>
         <div class="composer"><textarea id="reply" maxlength="4000" placeholder="Reply to ${esc(memberName(p))}…"></textarea>${ATT.pickerHtml("att-reply")}<div style="text-align:right"><button class="btn primary" id="send">Send</button></div></div></div>`;
     const again = () => viewInbox(v, id);
     pinThreadBottom($("#thread")); bindComposer(id, again); bindMsgDelete(v, again);

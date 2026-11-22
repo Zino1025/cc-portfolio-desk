@@ -1,12 +1,15 @@
 /* ===================== FEEDBACK THREAD ===================== */
 // Open the thread at its newest message and stay pinned there while photos/videos load in
 // (they load after the first scroll and would otherwise leave it short of the bottom). Stops once the user scrolls up.
+// A `.flow` thread has no scroll box of its own (the page scrolls), so pin the page instead.
 function pinThreadBottom(th) {
   if (!th) return;
+  const page = th.classList.contains("flow"), sc = page ? document.scrollingElement : th, on = page ? window : th;
   let stick = true;
-  const toEnd = () => { if (stick) th.scrollTop = th.scrollHeight; };
+  const toEnd = () => { if (stick && th.isConnected) sc.scrollTop = sc.scrollHeight; };
+  const onScroll = () => { if (!th.isConnected) return on.removeEventListener("scroll", onScroll); stick = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 40; };
   toEnd(); requestAnimationFrame(toEnd);
-  th.addEventListener("scroll", () => { stick = th.scrollHeight - th.scrollTop - th.clientHeight < 40; }, { passive: true });
+  on.addEventListener("scroll", onScroll, { passive: true });
   th.addEventListener("load", toEnd, true); th.addEventListener("loadedmetadata", toEnd, true);
 }
 function threadHtml(msgs, viewerId, memberId, names) {
@@ -35,7 +38,7 @@ async function viewFeedback(v) {
                  <button class="btn primary" id="req">Request a review</button>`}
       </div>`}
       <div class="card">${sig ? "" : "<h2>Messages</h2>"}
-        <div class="thread" id="thread">${threadHtml(S.msgs, S.me.id, S.me.id)}</div>
+        <div class="thread flow" id="thread">${threadHtml(S.msgs, S.me.id, S.me.id)}</div>
         <div class="composer"><textarea id="reply" maxlength="4000" placeholder="${sig ? `Message ${esc(CONFIG.REVIEWER_NAME)}, Anton and Saad…` : "Reply or ask a follow-up…"}"></textarea>${ATT.pickerHtml("att-reply")}<div style="text-align:right"><button class="btn primary" id="send">Send</button></div></div>
       </div>
     </div>`;

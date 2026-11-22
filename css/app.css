@@ -180,6 +180,7 @@ tr.click:active td { background:var(--surface-2); }
 
 /* ================= THREAD ================= */
 .thread { display:flex; flex-direction:column; gap:10px; max-height:520px; overflow-y:auto; padding:4px 2px; }
+.thread.flow { max-height:none; overflow:visible; }   /* full-screen chats (Inbox, Messages): one page scroll, no box inside a box */
 .msg { max-width:85%; padding:10px 13px; border-radius:12px; background:var(--surface-2); border:1px solid transparent; white-space:pre-wrap; word-wrap:break-word; }
 .msg.mine { align-self:flex-end; }
 .atts { display:flex; flex-direction:column; gap:8px; margin-top:8px; white-space:normal; min-width:0; max-width:100%; }
