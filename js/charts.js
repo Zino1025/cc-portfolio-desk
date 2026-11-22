@@ -173,11 +173,12 @@ async function paintHero(txs, chartId = "hero") {
   document.querySelectorAll(`[data-hero-coin="${chartId}"] button`).forEach(b => b.onclick = () => {
     S.heroCoin = b.dataset.c; document.getElementById(chartId + "-card").outerHTML = heroCard(computePortfolio(txs), chartId, chartId === "hero" ? S.flows : null); paintHero(txs, chartId);
   });
-  const pick = heroPick(computePortfolio(txs)); if (pick) txs = txs.filter(t => t.coin_id === pick.coin_id);
+  // Keep `txs` (all coins) intact: the chip handlers above reuse it, so filtering it in place hid the other chips after one tap.
+  const pick = heroPick(computePortfolio(txs)), mine = pick ? txs.filter(t => t.coin_id === pick.coin_id) : txs;
   if (!S.charts[chartId]) box.innerHTML = `<div class="note">Loading chart…</div>`;
-  const pts = await portfolioHistory(txs, days).catch(() => null);
+  const pts = await portfolioHistory(mine, days).catch(() => null);
   if (pts && pts.length) {   // end on the live numbers shown above
-    const tot = computePortfolio(txs).totals, z = pts[pts.length - 1];
+    const tot = computePortfolio(mine).totals, z = pts[pts.length - 1];
     if (tot.value > 0) pts[pts.length - 1] = { ...z, t: Date.now(), value: tot.value, invested: tot.cost, realized: tot.realized, pnl: tot.value - tot.cost + tot.realized };
   }
   if (tok !== S.heroTok || !document.body.contains(box)) return;

@@ -95,7 +95,9 @@ function openCoinPicker(onPick) {
 }
 async function viewProjections(v) {
   const hasPf = computePortfolio(S.txs).holdings.length > 0;
-  if (!S.proj) S.proj = { src: hasPf ? "pf" : "blank", rows: hasPf ? projFromPortfolio() : [] };
+  if (!S.proj || (S.proj.src === "blank" && !S.proj.rows.length)) S.proj = { ...S.proj, src: hasPf ? "pf" : "blank", rows: [] };
+  // My portfolio follows the latest trades (new coins show up, sold-out ones go), keeping targets typed on coins still held.
+  if (S.proj.src === "pf") { const old = S.proj.rows; S.proj.rows = [...projFromPortfolio().map(r => { const o = old.find(x => x.own && x.coin_id === r.coin_id); return o ? { ...r, id: o.id, target: o.target, mult: o.mult } : r; }), ...old.filter(x => !x.own)]; }
   await CG.ensure([...S.txs.map(t => t.coin_id), ...S.proj.rows.map(r => r.coin_id)]);
   v.innerHTML = `
     <div class="page-head"><div><h1>Projections</h1></div><button class="icon-btn primary" id="pj-add" aria-label="Add coin">${ICON.plus}</button></div>
