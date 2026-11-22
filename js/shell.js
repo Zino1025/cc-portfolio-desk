@@ -139,6 +139,6 @@ async function viewOverview(v) {
 function reviewNudge() {
   if (!S.txs.length) return "";
   if (S.me.review_requested) return `<a class="card cta-card" href="#feedback"><div><div class="t">Review requested ${ago(S.me.review_requested_at)}</div><div class="d">${esc(CONFIG.REVIEWER_NAME)}'s notes will show up in Feedback.</div></div><span class="icon-btn sm">${ICON.clock}</span></a>`;
-  return `<button class="card cta-card" id="ask-review" style="width:100%;border:none;font:inherit;letter-spacing:inherit;text-align:left"><div><div class="t">Get ${esc(CONFIG.REVIEWER_NAME)}'s eyes on this</div><div class="d">He sees your full portfolio and replies in Feedback. No DMs needed.</div></div><span class="icon-btn sm primary">${ICON.arrow}</span></button>`;
+  return `<button class="card cta-card" id="ask-review" style="width:100%;border:none;font:inherit;letter-spacing:inherit;text-align:left"><div class="t">Get ${esc(CONFIG.REVIEWER_NAME)}'s eyes on this</div><span class="icon-btn sm primary">${ICON.arrow}</span></button>`;
 }
 
