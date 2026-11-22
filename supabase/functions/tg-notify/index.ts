@@ -2,7 +2,7 @@
 // market updates, and Signals (new signal + analyst updates -> Signals/Both members, Signals Admins and admins, incl. the poster as a receipt).
 // "tp-check" (hourly cron): exit-plan step pings for members who opted in + CC group membership re-check.
 // Called by a database trigger with {table, id}. It re-reads the row and marks it
-// notified, so calling it again (or by anyone else) never sends duplicates.
+// notified, so calling it again never sends duplicates. Requests without the x-notify-secret header are refused.
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
 
 const TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
@@ -84,9 +84,20 @@ async function admins(exceptId?: string, signalsToo = false) {   // signalsToo: 
   return (data ?? []).filter((a) => a.id !== exceptId);
 }
 
+// Only our DB triggers and cron jobs know this secret (Vault "tg_notify_secret", read via notify_secret()).
+let SECRET = "";
+async function authorized(got: string) {
+  SECRET ||= (await db.rpc("notify_secret")).data ?? "";
+  if (!SECRET || got.length !== SECRET.length) return false;
+  let diff = 0;
+  for (let i = 0; i < got.length; i++) diff |= got.charCodeAt(i) ^ SECRET.charCodeAt(i);
+  return diff === 0;
+}
+
 Deno.serve(async (req) => {
   try {
     if (req.method !== "POST") return new Response("ok");
+    if (!(await authorized(req.headers.get("x-notify-secret") ?? ""))) return new Response("forbidden", { status: 403 });
     const { table, id } = await req.json();
     if (!TOKEN || (!id && table !== "price-check" && table !== "tp-check")) return Response.json({ skipped: true });
 
