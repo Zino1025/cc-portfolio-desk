@@ -170,7 +170,7 @@ async function viewMemberDetail(v, id) {
   if (!r) { v.innerHTML = `<div class="empty"><div class="big">Member not found</div><a href="#members">Back to queue</a></div>`; return; }
   const msgs = await api.messages(id);
   const names = Object.fromEntries(S.admin.profiles.map(p => [p.id, p.role === "admin" ? (p.display_name || CONFIG.REVIEWER_NAME) : memberName(p)]));
-  const { p, pf } = r;
+  const { p, pf } = r, sig = p.tier === "signals";   // Signals-only member: replying is the main action
   v.innerHTML = `
     <div style="margin-bottom:10px"><a href="#members" style="text-decoration:none">← Review Queue</a></div>
     <div class="page-head"><div><h1>${esc(memberName(p))}</h1>
@@ -183,17 +183,17 @@ async function viewMemberDetail(v, id) {
     ${driftCard(p, pf)}
     ${exitCard(p, pf)}
     <div class="two-col" style="margin-top:16px">
-      <div class="card"><h2>Send a suggestion</h2>
-        <div class="chips" style="margin-bottom:10px">${TEMPLATES.map(([l], i) => `<button class="chip" data-tpl="${i}">${esc(l)}</button>`).join("")}</div>
+      <div class="card"><h2>Thread</h2><div class="thread" id="thread">${threadHtml(msgs, S.me.id, p.id, names)}</div></div>
+      <div class="card"><h2>${sig ? "Reply" : "Send a suggestion"}</h2>
+        ${sig ? "" : `<div class="chips" style="margin-bottom:10px">${TEMPLATES.map(([l], i) => `<button class="chip" data-tpl="${i}">${esc(l)}</button>`).join("")}</div>
         <div class="row">
           <label class="field"><span>Type</span><select id="kind" class="as-seg"><option value="suggestion">Suggestion</option><option value="note">Note</option><option value="reply">Reply</option></select></label>
           <label class="field"><span>About coin (optional)</span><select id="coin"><option value="">—</option>${(() => { const big = modelCoinIds(); const held = Object.fromEntries(pf.holdings.map(h => [h.coin_id, h])); const nm = (id) => held[id]?.name || CG.info(id)?.name || SAMPLE_PRICES[id]?.name || id; const opt = (id) => `<option value="${esc(id)}">${big.includes(id) ? "★ " : ""}${esc(symOf(id))} · ${esc(nm(id))}${held[id] ? "" : " (not held)"}</option>`; const others = pf.holdings.map(h => h.coin_id).filter(id => !big.includes(id)); return big.map(opt).join("") + (others.length ? `<option disabled>──────────</option>` + others.map(opt).join("") : ""); })()}</select></label>
-        </div>
-        <label class="field"><span>Message</span><textarea id="body" maxlength="4000" rows="5" placeholder="Your suggestion for ${esc(memberName(p))}…"></textarea></label>
+        </div>`}
+        <label class="field"><span>Message</span><textarea id="body" maxlength="4000" rows="5" placeholder="${sig ? "Reply to" : "Your suggestion for"} ${esc(memberName(p))}…"></textarea></label>
         ${ATT.pickerHtml("att-msg")}
         <div class="row" style="justify-content:flex-end"><button class="btn" id="send" style="flex:none">Send</button><button class="btn primary" id="send-mark" style="flex:none">Send &amp; mark reviewed</button></div>
       </div>
-      <div class="card"><h2>Thread</h2><div class="thread" id="thread">${threadHtml(msgs, S.me.id, p.id, names)}</div></div>
     </div>
     <div class="card" style="margin-top:16px" id="notes-card"><div class="card-h"><h2>Member profile</h2><span class="muted" style="font-size:12px">Private</span></div>
       <div class="secondary" style="font-size:13px;margin:-4px 0 10px">${plural(r.txs.length, "trade")} logged${r.txs.length ? ` · first ${ago(r.txs[0].executed_at)} · latest ${ago(r.txs.at(-1).executed_at)}` : ""} · signed up to the desk ${ago(p.created_at)}</div>
@@ -247,7 +247,7 @@ async function viewMemberDetail(v, id) {
     let attachments = null;
     try { attachments = await ATT.upload("att-msg", `msg/${p.id}`, (i, n) => { btns[mark ? 1 : 0].textContent = `Uploading ${i}/${n}…`; }); }
     catch (e) { toast(e.message, "error"); btns.forEach((b, i) => { b.disabled = false; b.textContent = labels[i]; }); return; }
-    const m = await api.addMessage({ member_id: p.id, kind: $("#kind").value, coin_id: $("#coin").value || null, body, ...(attachments ? { attachments } : {}) });
+    const m = await api.addMessage({ member_id: p.id, kind: $("#kind")?.value || "reply", coin_id: $("#coin")?.value || null, body, ...(attachments ? { attachments } : {}) });
     S.admin.meta.push({ member_id: p.id, author_id: m.author_id, created_at: m.created_at, kind: m.kind });
     if (mark) await markReviewed();
     toast(mark ? "Sent and marked reviewed" : "Sent"); render();
