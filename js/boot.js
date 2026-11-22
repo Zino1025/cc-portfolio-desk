@@ -157,9 +157,11 @@ const isStandalone = () => matchMedia("(display-mode: standalone)").matches || !
 // The installed app has no browser reload: pull down from the top of the page and let go to reload (also picks up new versions).
 if (isStandalone()) {
   let y0 = null, ind = null;
-  addEventListener("touchstart", (e) => { y0 = scrollY <= 0 && !e.target.closest("canvas, .overlay, .install") ? e.touches[0].clientY : null; }, { passive: true });
+  // Never inside a box that scrolls on its own (message thread, tables): a fast swipe up through it would otherwise reload.
+  const inScroller = (el) => { for (; el && el !== document.body; el = el.parentElement) if (el.scrollHeight > el.clientHeight && /auto|scroll/.test(getComputedStyle(el).overflowY)) return true; };
+  addEventListener("touchstart", (e) => { y0 = scrollY <= 0 && !e.target.closest("canvas, .overlay, .install") && !inScroller(e.target) ? e.touches[0].clientY : null; }, { passive: true });
   addEventListener("touchmove", (e) => {
-    const d = y0 == null ? 0 : e.touches[0].clientY - y0;
+    const d = y0 == null || scrollY > 0 ? 0 : e.touches[0].clientY - y0;
     if (d <= 10) return;
     ind ||= document.body.appendChild(Object.assign(document.createElement("div"), { className: "ptr icon-btn", innerHTML: ICON.refresh }));
     ind.style.transform = `translate(-50%, ${Math.min(d, 140) * .5}px) rotate(${d * 2}deg)`; ind.classList.toggle("on", d > 90);
