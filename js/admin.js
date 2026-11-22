@@ -333,13 +333,13 @@ async function viewInsights(v) {
       <div class="card kpi"><div class="label">Group unrealized P&amp;L</div><div class="value num ${signCls(t.value - t.cost)}">${fmtUsd(t.value - t.cost)}</div><div class="sub num ${signCls(t.value - t.cost)}">${t.cost ? fmtPct((t.value - t.cost) / t.cost * 100) : "—"}</div></div>
       <div class="card kpi"><div class="label">Avg portfolio</div><div class="value num">${fmtUsd(rows.length ? t.value / rows.length : 0)}</div><div class="sub muted">${plural(rows.length, "member")} with holdings</div></div></div>`; })()}
     <div class="two-col">
-      ${list.length ? donutCard("pie-group", "Group allocation (by value)") : `<div class="card empty">No holdings yet.</div>`}
+      ${list.length ? donutCard("pie-group", "Group allocation") : `<div class="card empty">No holdings yet.</div>`}
       <div class="card"><h2>Most-held coins</h2>
         ${list.length ? `<div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Holders</th><th class="r">Avg weight</th><th class="r">Group value</th><th class="r">Group P&amp;L</th><th class="r hide-sm">24h</th></tr></thead><tbody>
         ${byHolders.slice(0, 25).map(a => `<tr><td><a href="${coinLink(a.coin_id)}" target="_blank" rel="noopener" style="color:inherit;text-decoration:none">${coinCell(a)}</a></td><td class="r num">${a.holders} <span class="muted">(${(a.holders / rows.length * 100).toFixed(0)}%)</span></td><td class="r num">${(a.allocSum / a.holders).toFixed(1)}%</td><td class="r num">${fmtUsd(a.value, { compact: true })}</td><td class="r num ${signCls(a.value - a.cost)}">${a.cost ? fmtPct((a.value - a.cost) / a.cost * 100) : "—"}</td><td class="r num hide-sm ${signCls(a.change24)}">${fmtPct(a.change24)}</td></tr>`).join("")}</tbody></table></div>` : ""}
       </div>
     </div>
-    <div class="card" style="margin-top:16px"><h2>Concentration risk (one coin ≥ 50% of portfolio)</h2>
+    <div class="card" style="margin-top:16px"><h2>Concentration risk</h2>
       ${conc.length ? `<div class="table-wrap"><table><thead><tr><th>Member</th><th>Coin</th><th class="r">Weight</th><th class="r">Portfolio value</th><th class="hide-sm">Last reviewed</th></tr></thead><tbody>
       ${conc.map(r => `<tr class="click" data-id="${esc(r.p.id)}"><td>${esc(memberName(r.p))}</td><td>${esc((r.top.symbol || "").toUpperCase())}</td><td class="r num bad">${r.top.alloc.toFixed(1)}%</td><td class="r num">${fmtUsd(r.pf.totals.value)}</td><td class="hide-sm secondary">${ago(r.p.last_reviewed_at)}</td></tr>`).join("")}</tbody></table></div>` : `<div class="empty">No concentrated portfolios right now.</div>`}
     </div>`;

@@ -37,7 +37,7 @@ async function viewModel(v) {
         </tbody></table></div>
         <button class="btn small" id="addp" style="margin-top:8px">+ Add quick pick</button>
       </div>
-      <div class="card" style="margin-top:16px"><h2>Take-profit targets (supercycle)</h2>
+      <div class="card" style="margin-top:16px"><h2>Take-profit targets</h2>
         <div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Bare minimum</th><th class="r">Ideal low</th><th class="r">Ideal high</th><th class="r">Extension</th></tr></thead><tbody>
           ${draft.tps.map((t, i) => `<tr><td><b>${esc(t.sym)}</b>${t.main ? "" : ' <span class="muted" style="font-size:12px">other</span>'}</td>${["min", "lo", "hi", "ext"].map(k => `<td class="r"><input type="text" inputmode="decimal" value="${t[k] ?? ""}" data-tp="${i}" data-tk="${k}" style="width:90px;text-align:right"></td>`).join("")}</tr>`).join("")}
         </tbody></table></div></div>
