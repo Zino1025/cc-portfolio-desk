@@ -46,7 +46,7 @@ async function push(subs: any[], text: string, go: string) {
   const [title, ...rest] = plain.split("\n");
   const payload = JSON.stringify({ title, body: cut(rest.join("\n").trim().replace(/\n{2,}/g, "\n"), 180), go });
   await Promise.all(subs.map(async (s) => {
-    try { await webpush.sendNotification(s.sub, payload, { TTL: 86400 }); }
+    try { await webpush.sendNotification(s.sub, payload, { TTL: 86400, urgency: "high" }); }
     catch (e: any) { if (e?.statusCode === 404 || e?.statusCode === 410) await db.from("push_subs").delete().eq("id", s.id); else console.log("push error", e?.statusCode, e?.body); }
   }));
 }
