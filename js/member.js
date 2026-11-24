@@ -201,7 +201,6 @@ async function viewProfile(v) {
     <div class="card" style="max-width:560px">
       <label class="field"><span>Display name</span><input type="text" id="p-name" maxlength="60" value="${esc(p.display_name || "")}"></label>
       <label class="field"><span>Telegram handle</span><input type="text" id="p-tg" maxlength="40" autocapitalize="off" spellcheck="false" value="${esc(p.telegram_handle || "")}" placeholder="@yourhandle"></label>
-      ${p.telegram_chat_id ? "" : `<div class="secondary" style="font-size:13px;margin:-4px 0 12px">Telegram pings off. Open the Desk from the CC bot to turn them on.</div>`}
       <label class="field"><span>Risk appetite</span><select id="p-risk" class="as-seg">${["", "low", "medium", "high", "degen"].map(r => `<option value="${r}" ${p.risk_level === r || (!p.risk_level && !r) ? "selected" : ""}>${r ? r[0].toUpperCase() + r.slice(1) : "Choose…"}</option>`).join("")}</select></label>
       <label class="field"><span>Joined ${esc(CONFIG.GROUP_NAME)}</span><input type="date" id="p-joined" max="${todayISO()}" value="${esc(p.cc_joined_on || "")}"></label>
       <label class="field"><span>Goal &amp; time horizon</span><textarea id="p-goal" maxlength="500" placeholder="e.g. Long-term hold, 2 years, want to 3x">${esc(p.goal || "")}</textarea></label>
@@ -214,6 +213,10 @@ async function viewProfile(v) {
       <button class="btn" id="p-pw-save">Change password</button>
       <button class="btn" id="p-signout" style="margin-left:8px">Sign out</button>
     </div>
+    <div class="card" style="max-width:560px;margin-top:16px"><h2>Notifications</h2>
+      <label class="toggle-row"><span><b>App</b>${canPush() ? "" : `<span class="d">Add the Desk to your Home Screen from Safari first</span>`}</span><input type="checkbox" class="switch" id="n-app" ${canPush() ? "" : "disabled"}></label>
+      <label class="toggle-row"><span><b>Telegram</b>${p.telegram_chat_id ? "" : `<span class="d">Open the Desk from the CC bot once first</span>`}</span><input type="checkbox" class="switch" id="n-tg" ${p.telegram_chat_id ? (p.tg_mute ? "" : "checked") : "disabled"}></label>
+    </div>
     <div class="card" style="max-width:560px;margin-top:16px"><h2>Report a bug</h2>
       <label class="field"><span>Type</span><select id="tk-kind" class="as-seg"><option value="bug">Bug</option><option value="idea">Idea</option></select></label>
       <label class="field"><span>Details</span><textarea id="tk-body" maxlength="2000" placeholder="Describe it…"></textarea></label>
@@ -221,6 +224,12 @@ async function viewProfile(v) {
       <button class="btn primary" id="tk-send">Send</button>
     </div>
     ${p.gets_tickets ? `<div class="card" style="max-width:560px;margin-top:16px"><h2>Open tickets</h2><div id="tk-list"><div class="spinner"></div></div></div>` : ""}`;
+  if (canPush()) pushSub().then(s => { $("#n-app").checked = !!s; });
+  $("#n-app").onchange = async (e) => { e.target.checked = await setPush(e.target.checked); };
+  $("#n-tg").onchange = async (e) => {
+    try { S.me = await api.updateProfile(p.id, { tg_mute: !e.target.checked }); }
+    catch (err) { e.target.checked = !e.target.checked; toast("Couldn't save: " + (err.message || err)); }
+  };
   $("#tk-send").onclick = async () => {
     const body = $("#tk-body").value.trim(); $("#tk-err").textContent = "";
     if (body.length < 3) return $("#tk-err").textContent = "Describe it in a few words first.";
@@ -383,6 +392,7 @@ function paintBadge(route, n) {
   const a = document.querySelector(`nav.tabbar [data-tab="${groupOf(route)}"]`); if (!a) return;
   a.querySelector(".badge")?.remove();
   if (n) a.insertAdjacentHTML("beforeend", `<span class="badge">${n}</span>`);
+  syncAppBadge();
 }
 /** Suggested $ for an urgent bid: fill the member's gap on that coin, paid from dry powder if they have it. */
 function bidSuggestion(coinId) {

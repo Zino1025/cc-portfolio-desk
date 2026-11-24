@@ -185,7 +185,7 @@ async function inboxData() {
   const [people, meta] = await Promise.all([api.inboxPeople(), api.inboxMeta()]), last = {};
   for (const m of meta) last[m.member_id] = m;
   S.inboxN = people.filter(p => last[p.id]?.author_id === p.id).length;
-  const b = $(".bell"); if (b) { b.querySelector(".badge")?.remove(); if (S.inboxN) b.insertAdjacentHTML("beforeend", `<span class="badge">${S.inboxN}</span>`); }
+  const b = $(".bell"); if (b) { b.querySelector(".badge")?.remove(); if (S.inboxN) b.insertAdjacentHTML("beforeend", `<span class="badge">${S.inboxN}</span>`); syncAppBadge(); }
   return { people, last };
 }
 async function viewInbox(v, id) {

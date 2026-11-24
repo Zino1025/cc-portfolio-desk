@@ -174,7 +174,7 @@ async function viewExit(v) {
         <div class="err" id="ex-err"></div>
       </div>
     </div>
-    <div class="card" style="margin-top:16px"><label class="toggle-row"><span><b>Telegram pings</b><span class="d">When a sell step hits</span></span><input type="checkbox" class="switch" id="ex-ping" ${S.me.tp_alerts ? "checked" : ""}></label></div>
+    <div class="card" style="margin-top:16px"><label class="toggle-row"><span><b>Sell pings</b><span class="d">When a sell step hits</span></span><input type="checkbox" class="switch" id="ex-ping" ${S.me.tp_alerts ? "checked" : ""}></label></div>
     <h2 class="section-h">Your coins</h2>
     <div class="grid" id="ex-coins">${coins.map(coinCard).join("")}</div>
     <div class="card" style="margin-top:16px"><h2>Add a coin</h2>

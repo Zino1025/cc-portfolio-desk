@@ -5,6 +5,7 @@ const CONFIG = {
   REVIEWER_NAME: "Dkay",
   GROUP_NAME: "CC",
   BOT: "CCPortfolioManagerBot",
+  VAPID_PUBLIC: "BHo2b77LHnbBLsvk-yPenB38gtjb8bdW9XqV46evxka2FQqOB4e2rNyRxNaaoAO53_Sdh-gRlUNQ8W8mCKs7VO4",   // app notifications (public half; private is an Edge Function secret)
 };
 
 /* ===================== UTILITIES ===================== */
@@ -466,6 +467,8 @@ const api = (() => {
     async inboxPeople() { return (ok(await sb.from("profiles").select("id,display_name,telegram_handle,tier,role,signals_admin").eq("role", "member").eq("signals_admin", false)) || []); },
     async inboxMeta() { return fetchAll(() => sb.from("messages").select("member_id,author_id,created_at,body").order("created_at")); },
     async allMessageMeta() { return fetchAll(() => sb.from("messages").select("member_id,author_id,created_at,kind").order("created_at")); },
+    async addPushSub(s) { ok(await sb.from("push_subs").upsert({ user_id: S.me.id, endpoint: s.endpoint, sub: s }, { onConflict: "endpoint", ignoreDuplicates: true })); },
+    async removePushSub(endpoint) { ok(await sb.from("push_subs").delete().eq("endpoint", endpoint)); },
     async addTicket(t) { return ok(await sb.from("tickets").insert(t).select().single()); },
     async tickets() { return ok(await sb.from("tickets").select("*").eq("status", "open").order("created_at", { ascending: false }).limit(50)); },
     async closeTicket(id) { ok(await sb.from("tickets").update({ status: "done" }).eq("id", id)); },

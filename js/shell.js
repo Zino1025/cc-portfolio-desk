@@ -54,6 +54,7 @@ function render() {
     <main id="view"></main>
     <nav class="tabbar" aria-label="Sections">${tabs().map(([k, l, ic]) => `<a data-tab="${k}" href="#${SUB[k] || k}"${tab === k ? ' class="active" aria-current="page"' : ""}>${ic}<span>${l}</span>${badge(counts[k])}</a>`).join("")}</nav>`;
   $("#theme-btn").onclick = toggleTheme;
+  syncAppBadge();
   $("#fs-btn") && ($("#fs-btn").onclick = () => TG.isFullscreen ? TG.exitFullscreen() : TG.requestFullscreen()) && paintFsBtn();
   renderView(route);
 }

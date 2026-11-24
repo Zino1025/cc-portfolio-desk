@@ -154,6 +154,29 @@ const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.maxTouchP
 addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; installBanner(); });
 addEventListener("appinstalled", () => $(".install")?.remove());
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+/* ===================== APP NOTIFICATIONS ===================== */
+// Web Push works in the installed (Safari Home Screen) app on iPhone, and in normal browsers. Not inside Telegram.
+const canPush = () => "PushManager" in window && "Notification" in window && "serviceWorker" in navigator;
+const pushSub = async () => (await navigator.serviceWorker.ready).pushManager.getSubscription();
+async function setPush(on) {
+  try {
+    const old = await pushSub();
+    if (!on) { if (old) { await api.removePushSub(old.endpoint); await old.unsubscribe(); } return false; }
+    if (await Notification.requestPermission() !== "granted") { toast("Couldn't turn on notifications. Allow them in Settings."); return false; }
+    const key = Uint8Array.from(atob(CONFIG.VAPID_PUBLIC.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+    const sub = old || await (await navigator.serviceWorker.ready).pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+    await api.addPushSub(sub.toJSON());
+    return true;
+  } catch (e) { toast("Couldn't change notifications: " + (e.message || e)); return !on; }
+}
+// Icon badge = every red badge on screen (tabs + inbox bell). The service worker counts up from here as pings arrive.
+function syncAppBadge() {
+  if (!navigator.setAppBadge) return;
+  const n = [...document.querySelectorAll(".tabbar .badge, .bell .badge")].reduce((s, b) => s + (+b.textContent || 0), 0);
+  (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
+  navigator.serviceWorker?.controller?.postMessage({ badge: n });
+}
 const isStandalone = () => matchMedia("(display-mode: standalone)").matches || !!navigator.standalone;
 // The installed app has no browser reload: pull down from the top of the page and let go to reload (also picks up new versions).
 if (isStandalone()) {

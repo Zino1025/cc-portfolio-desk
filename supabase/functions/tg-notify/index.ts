@@ -3,7 +3,9 @@
 // "tp-check" (hourly cron): exit-plan step pings for members who opted in + CC group membership re-check.
 // Called by a database trigger with {table, id}. It re-reads the row and marks it
 // notified, so calling it again never sends duplicates. Requests without the x-notify-secret header are refused.
+// Every ping also goes out as an app notification (Web Push) to the member's installed Desk; members can mute Telegram (profiles.tg_mute).
 import { createClient } from "npm:@supabase/supabase-js@2.49.4";
+import webpush from "npm:web-push@3.6.7";
 
 const TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 function serviceKey() {
@@ -35,7 +37,24 @@ const attNote = (a: unknown) => {
 };
 const nameOf = (p: any) => p?.display_name || (p?.telegram_handle ? "@" + p.telegram_handle : "A member");
 
+const VAPID = Deno.env.get("VAPID_PRIVATE_KEY") ?? "";
+if (VAPID) webpush.setVapidDetails(APP, "BHo2b77LHnbBLsvk-yPenB38gtjb8bdW9XqV46evxka2FQqOB4e2rNyRxNaaoAO53_Sdh-gRlUNQ8W8mCKs7VO4", VAPID);
+// App notification: first line = title, the rest = body (HTML stripped). Dead subscriptions are removed.
+async function push(subs: any[], text: string, go: string) {
+  if (!VAPID || !subs.length) return;
+  const plain = text.replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+  const [title, ...rest] = plain.split("\n");
+  const payload = JSON.stringify({ title, body: cut(rest.join("\n").trim().replace(/\n{2,}/g, "\n"), 180), go });
+  await Promise.all(subs.map(async (s) => {
+    try { await webpush.sendNotification(s.sub, payload, { TTL: 86400 }); }
+    catch (e: any) { if (e?.statusCode === 404 || e?.statusCode === 410) await db.from("push_subs").delete().eq("id", s.id); else console.log("push error", e?.statusCode, e?.body); }
+  }));
+}
+
 async function send(chatId: number | string, text: string, go: string) {
+  const { data: p } = await db.from("profiles").select("tg_mute, push_subs(id, sub)").eq("telegram_chat_id", chatId).maybeSingle();
+  await push(p?.push_subs ?? [], text, go);
+  if (p?.tg_mute) return true;
   const r = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
