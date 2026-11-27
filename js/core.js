@@ -248,11 +248,12 @@ const ATT = {
   html(list) {
     if (!Array.isArray(list) || !list.length) return "";
     return `<div class="atts">${list.map(a => {
-      const src = a.url ? `src="${esc(a.url)}"` : `data-att-path="${esc(a.path)}"`, nm = esc(a.name || "file");
-      if (/^image/.test(a.type)) return `<a ${a.url ? `href="${esc(a.url)}"` : `data-att-href="${esc(a.path)}"`} target="_blank" rel="noopener"><img ${src} alt="${nm}" loading="lazy"></a>`;
+      // Only storage paths (signed on hydrate): a stored URL could be a javascript: link planted by a member.
+      const src = `data-att-path="${esc(a.path)}"`, href = `data-att-href="${esc(a.path)}"`, nm = esc(a.name || "file");
+      if (/^image/.test(a.type)) return `<a ${href} target="_blank" rel="noopener"><img ${src} alt="${nm}" loading="lazy"></a>`;
       if (/^audio/.test(a.type)) return `<audio controls preload="none" ${src}></audio><div class="att-cap">🎙️ ${nm}${/ogg|opus/i.test(a.type + a.name) ? " · if it won't play on iPhone, tap to download" : ""}</div>`;
       if (/^video/.test(a.type)) return `<video controls playsinline preload="metadata" ${src}></video>`;
-      return `<a class="att-file" ${a.url ? `href="${esc(a.url)}"` : `data-att-href="${esc(a.path)}"`} target="_blank" rel="noopener">📄 ${nm}</a>`;
+      return `<a class="att-file" ${href} target="_blank" rel="noopener">📄 ${nm}</a>`;
     }).join("")}</div>`;
   },
   /** Fill in signed links for any attachment elements on the page. */

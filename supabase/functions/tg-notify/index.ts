@@ -58,7 +58,7 @@ async function send(chatId: number | string, text: string, go: string) {
   const { data: ps } = await db.from("profiles").select("tg_mute, push_subs(id, sub)").eq("telegram_chat_id", chatId);
   await push((ps ?? []).flatMap((p) => p.push_subs), text, go);
   if (ps?.length && ps.every((p) => p.tg_mute)) return true;
-  const r = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+  const post = () => fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -69,18 +69,25 @@ async function send(chatId: number | string, text: string, go: string) {
       reply_markup: { inline_keyboard: [[{ text: "Open Desk", web_app: { url: `${APP}?go=${go}` } }]] },
     }),
   });
+  let r = await post();
+  for (let i = 0; r.status === 429 && i < 3; i++) {   // Telegram rate limit (e.g. an admin broadcast to everyone): wait and retry
+    const wait = Number((await r.json())?.parameters?.retry_after ?? 2);
+    await new Promise((res) => setTimeout(res, (wait + Math.random()) * 1000));
+    r = await post();
+  }
   if (!r.ok) console.log("telegram error", r.status, await r.text());
   return r.ok;
 }
 
-// Send one text to many people, staying under Telegram's rate limit.
+// Send one text to many people: 25 at a time, about 1 batch per second (Telegram allows ~30 msgs/s),
+// so 1,000 members take ~40s, well inside the function time limit. One message per Telegram account.
 async function broadcast(people: any[], text: string, go: string, exceptId?: string) {
-  let sent = 0; const seen = new Set();
-  for (const p of people) {
-    if (p.id === exceptId || seen.has(p.telegram_chat_id)) continue;
-    seen.add(p.telegram_chat_id);
-    if (await send(p.telegram_chat_id, text, go)) sent++;
-    await new Promise((r) => setTimeout(r, 40));
+  const chats = [...new Set(people.filter((p) => p.id !== exceptId).map((p) => p.telegram_chat_id))];
+  let sent = 0;
+  for (let i = 0; i < chats.length; i += 25) {
+    const t = Date.now();
+    sent += (await Promise.all(chats.slice(i, i + 25).map((c) => send(c, text, go)))).filter(Boolean).length;
+    if (i + 25 < chats.length) await new Promise((r) => setTimeout(r, Math.max(0, 1000 - (Date.now() - t))));
   }
   return sent;
 }
@@ -308,12 +315,15 @@ Deno.serve(async (req) => {
       let changed = 0;
       if (grp?.value?.id) {
         const { data: mem } = await db.from("profiles").select("id, telegram_chat_id, in_group").eq("role", "member").not("telegram_chat_id", "is", null);
-        for (const m of mem ?? []) {
+        const check = async (m: any) => {
           const r = await (await fetch(`https://api.telegram.org/bot${TOKEN}/getChatMember?chat_id=${grp.value.id}&user_id=${m.telegram_chat_id}`)).json();
-          if (!r.ok) continue;
+          if (!r.ok) return;
           const inG = ["creator", "administrator", "member"].includes(r.result.status) || !!r.result.is_member;
           if (inG !== m.in_group) { await db.from("profiles").update({ in_group: inG, group_checked_at: new Date().toISOString() }).eq("id", m.id); changed++; }
-          await new Promise((res) => setTimeout(res, 40));
+        };
+        for (let i = 0; i < (mem ?? []).length; i += 20) {   // 20 at a time, ~1 batch per second
+          await Promise.all(mem!.slice(i, i + 20).map(check));
+          await new Promise((res) => setTimeout(res, 1000));
         }
       }
       return Response.json({ ok: true, changed });
