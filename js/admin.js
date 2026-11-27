@@ -106,7 +106,8 @@ async function viewMembers(v) {
   const total = all.reduce((s, r) => s + r.pf.totals.value, 0);
   const stale = all.filter(isStale).length;
   v.innerHTML = `
-    <div class="page-head"><div><h1>Review Queue</h1></div><div class="row" style="flex:none;align-items:center"><button class="icon-btn sm" id="reload" aria-label="Reload">${ICON.refresh}</button><button class="btn primary" id="bcast">Broadcast</button></div></div>
+    <div class="page-head" style="align-items:center;margin-bottom:14px"><h1>Review Queue</h1><button class="icon-btn sm" id="reload" aria-label="Reload">${ICON.refresh}</button></div>
+    <button class="btn primary" id="bcast" style="width:100%;margin-bottom:22px">Broadcast</button>
     <div class="kpis">
       <div class="card kpi"><div class="label">Members</div><div class="value num">${all.length}</div></div>
       <div class="card kpi"><div class="label">Requests</div><div class="value num">${all.filter(r => r.p.review_requested).length}</div></div>
