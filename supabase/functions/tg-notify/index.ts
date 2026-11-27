@@ -53,9 +53,10 @@ async function push(subs: any[], text: string, go: string) {
 }
 
 async function send(chatId: number | string, text: string, go: string) {
-  const { data: p } = await db.from("profiles").select("tg_mute, push_subs(id, sub)").eq("telegram_chat_id", chatId).maybeSingle();
-  await push(p?.push_subs ?? [], text, go);
-  if (p?.tg_mute) return true;
+  // One Telegram account can be linked to several Desk accounts (e.g. an admin + a test member): push to all of them.
+  const { data: ps } = await db.from("profiles").select("tg_mute, push_subs(id, sub)").eq("telegram_chat_id", chatId);
+  await push((ps ?? []).flatMap((p) => p.push_subs), text, go);
+  if (ps?.length && ps.every((p) => p.tg_mute)) return true;
   const r = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -73,9 +74,10 @@ async function send(chatId: number | string, text: string, go: string) {
 
 // Send one text to many people, staying under Telegram's rate limit.
 async function broadcast(people: any[], text: string, go: string, exceptId?: string) {
-  let sent = 0;
+  let sent = 0; const seen = new Set();
   for (const p of people) {
-    if (p.id === exceptId) continue;
+    if (p.id === exceptId || seen.has(p.telegram_chat_id)) continue;
+    seen.add(p.telegram_chat_id);
     if (await send(p.telegram_chat_id, text, go)) sent++;
     await new Promise((r) => setTimeout(r, 40));
   }
