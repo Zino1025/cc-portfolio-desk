@@ -1,15 +1,15 @@
 /* ===================== SHELL ===================== */
 function routes() {
-  if (signalsOnly()) return [["signals", "Signals"], ["feedback", "Messages"], ["elite", "Elite"], ["profile", "Profile"]];
+  if (signalsOnly()) return [["signals", "Signals"], ["feedback", "Messages"], ["elite", "Elite"], ["help", "Help"], ["profile", "Profile"]];
   const r = [["overview", "Portfolio"], ["updates", "Market"], ["signals", "Signals"], ["feedback", "Feedback"], ["trades", "Trades"], ["exit", "Exit Plan"], ["rebalance", "Rebalance"], ["projections", "Projections"]];
   if (canPostSignals()) r.push(["inbox", "Inbox"]);
   if (isAdmin()) r.push(["sep"], ["members", "Review Queue"], ["insights", "Group"], ["model", "Model portfolio"]);
-  r.push(["profile", "Profile"]);
+  r.push(["help", "Help"], ["profile", "Profile"]);
   return r;
 }
 function currentRoute() {
   const h = location.hash.replace("#", "");
-  if (h.startsWith("member-") && isAdmin() || h.startsWith("inbox-") && canPostSignals()) return h;
+  if (h.startsWith("member-") && isAdmin() || h.startsWith("inbox-") && canPostSignals() || h.startsWith("help-")) return h;
   const valid = routes().map(r => r[0]);
   return valid.includes(h) ? h : valid[0] === "signals" ? "signals" : isAdmin() ? "members" : "overview";
 }
@@ -49,7 +49,7 @@ function render() {
         ${canFullscreen() ? `<button class="icon-btn sm" id="fs-btn"></button>` : ""}
         ${canPostSignals() ? `<a href="#inbox" class="icon-btn sm bell${tab === "inbox" ? " on" : ""}" aria-label="Inbox">${ICON.bell}${badge(S.inboxN)}</a>` : ""}
         <button class="icon-btn sm" id="theme-btn" title="Toggle light/dark" aria-label="Toggle theme">${ICON.moon}</button>
-        <a href="#profile" class="avatar${route === "profile" ? " on" : ""}" aria-label="Profile">${esc((me.match(/[A-Za-z0-9]/) || ["?"])[0].toUpperCase())}</a></div>
+        <a href="#profile" class="avatar${/^(profile|help)/.test(route) ? " on" : ""}" aria-label="Profile">${esc((me.match(/[A-Za-z0-9]/) || ["?"])[0].toUpperCase())}</a></div>
     </div></header>
     <main id="view"></main>
     <nav class="tabbar" aria-label="Sections">${tabs().map(([k, l, ic]) => `<a data-tab="${k}" href="#${SUB[k] || k}"${tab === k ? ' class="active" aria-current="page"' : ""}>${ic}<span>${l}</span>${badge(counts[k])}</a>`).join("")}</nav>`;
@@ -79,8 +79,9 @@ function renderView(route) {
   const g = GROUPS[groupOf(route)];
   if (g) { const ok = routes().map(r => r[0]), on = route.split("-")[0]; v.innerHTML = `<nav class="seg seg-fill subnav">${g.filter(([k]) => ok.includes(k)).map(([k, l]) => `<a href="#${k}"${k === on ? ' class="on" aria-current="page"' : ""}>${l}</a>`).join("")}</nav><div id="subview"></div>`; v = $("#subview"); }
   if (route.startsWith("inbox-")) return viewInbox(v, route.slice(6));
+  if (route.startsWith("help-")) return viewHelp(v, route.slice(5));
   ({ overview: viewOverview, trades: viewTrades, projections: viewProjections, rebalance: viewRebalance, exit: viewExit, updates: viewUpdates, signals: viewSignals, elite: viewElite, inbox: viewInbox, model: viewModel,
-     feedback: viewFeedback, profile: viewProfile, members: viewMembers, insights: viewInsights })[route](v);
+     feedback: viewFeedback, profile: viewProfile, help: viewHelp, members: viewMembers, insights: viewInsights })[route](v);
 }
 
 /* ===================== MEMBER: OVERVIEW ===================== */

@@ -128,8 +128,9 @@ async function tgLink() {
 }
 function renderGate() {
   const out = S.me.in_group === false;   // checked and not in the group (vs. not checked yet)
-  $("#app").innerHTML = `<div class="auth-wrap"><div class="card" style="max-width:440px"><h2>Waiting for approval</h2><p class="secondary">${out ? `This Telegram account isn't in the ${esc(CONFIG.GROUP_NAME)} group. Join it, or wait for an admin to approve you.` : `Open the Desk from the ${esc(CONFIG.GROUP_NAME)} bot in Telegram to get in right away, or wait for an admin to approve you.`}</p><div class="row" style="justify-content:flex-end"><button class="btn" id="g-out" style="flex:none">Sign out</button><button class="btn primary" style="flex:none" onclick="location.reload()">Check again</button></div></div></div>`;
+  $("#app").innerHTML = `<div class="auth-wrap"><div class="card" style="max-width:440px"><h2>Waiting for approval</h2><p class="secondary">${out ? `This Telegram account isn't in the ${esc(CONFIG.GROUP_NAME)} group. Join it, or wait for an admin to approve you.` : `Open the Desk from the ${esc(CONFIG.GROUP_NAME)} bot in Telegram to get in right away, or wait for an admin to approve you.`}</p><p><button class="link-btn" id="g-help">Why am I waiting?</button></p><div class="row" style="justify-content:flex-end"><button class="btn" id="g-out" style="flex:none">Sign out</button><button class="btn primary" style="flex:none" onclick="location.reload()">Check again</button></div></div></div>`;
   $("#g-out").onclick = async () => { await api.signOut(); location.reload(); };
+  $("#g-help").onclick = () => helpModal("waiting");
 }
 /* ===================== MOBILE KEYBOARD ===================== */
 // "Done"/Enter closes the keyboard (and commits the value) on every input; tapping outside does too.

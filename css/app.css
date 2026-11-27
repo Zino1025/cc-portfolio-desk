@@ -467,3 +467,22 @@ body:has(.install) main, body:has(.install) .auth-wrap { padding-bottom:150px; }
 .sig-pct { font-weight:500; margin-left:4px; }
 
 .bell { position:relative; } .bell .badge { position:absolute; top:-4px; right:-4px; margin:0; }
+/* Help (help.js) */
+.help { max-width:640px; }
+.help #help-q { margin-bottom:22px; }
+.help-cat { margin-top:22px; } #help-list > .help-cat:first-child { margin-top:0; }
+.help-row { grid-template-columns:minmax(0,1fr) auto; text-decoration:none; color:var(--text); }
+.hl-card .help-row + .help-row::before { left:2px; }
+.help-row .nm { font-weight:500; }
+.help-row .chev svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.help-row .chev { color:var(--muted); display:grid; }
+.help-head { flex-wrap:nowrap; align-items:flex-start; justify-content:flex-start; }
+.help-head h1 { min-width:0; } .help-head .back svg { transform:scaleX(-1); }
+.help-art h3 { font-size:15px; line-height:20px; font-weight:600; letter-spacing:-0.3px; margin:20px 0 8px; }
+.help-art > :first-child { margin-top:0; } .help-art > :last-child { margin-bottom:0; }
+.help-art p, .help-art li { line-height:1.45; }
+.help-art ol, .help-art ul { margin:0; padding-left:22px; }
+.help-art li + li { margin-top:8px; } .help-art ul.fixes li + li { margin-top:12px; }
+.help-art ol li::marker { color:var(--muted); font-weight:600; }
+.help-art ul.fixes { list-style:none; padding:0; }
+.help-vote { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:22px; min-height:76px; }

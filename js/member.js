@@ -195,7 +195,7 @@ function paintProjKeepFocus() {
 
 /* ===================== MEMBER: PROFILE ===================== */
 async function viewProfile(v) {
-  const p = S.me;
+  const p = S.me, draft = S.ticketDraft; S.ticketDraft = null;
   v.innerHTML = `
     <div class="page-head"><div><h1>Profile</h1></div></div>
     <div class="card" style="max-width:560px">
@@ -217,13 +217,15 @@ async function viewProfile(v) {
       <label class="toggle-row"><span><b>App</b>${canPush() ? "" : `<span class="d">Add the Desk to your Home Screen from Safari first</span>`}</span><input type="checkbox" class="switch" id="n-app" ${canPush() ? "" : "disabled"}></label>
       <label class="toggle-row"><span><b>Telegram</b>${p.telegram_chat_id ? "" : `<span class="d">Open the Desk from the CC bot once first</span>`}</span><input type="checkbox" class="switch" id="n-tg" ${p.telegram_chat_id ? (p.tg_mute ? "" : "checked") : "disabled"}></label>
     </div>
-    <div class="card" style="max-width:560px;margin-top:16px"><h2>Report a bug</h2>
-      <label class="field"><span>Type</span><select id="tk-kind" class="as-seg"><option value="bug">Bug</option><option value="idea">Idea</option></select></label>
-      <label class="field"><span>Details</span><textarea id="tk-body" maxlength="2000" placeholder="Describe it…"></textarea></label>
+    <a class="card cta-card" href="#help" style="max-width:560px"><div class="t">Help</div><span class="icon-btn sm">${ICON.arrow}</span></a>
+    <div class="card" style="max-width:560px;margin-top:16px" id="tk-card"><h2>Report a bug</h2>
+      <label class="field"><span>Type</span><select id="tk-kind" class="as-seg"><option value="bug">Bug</option><option value="idea"${draft ? " selected" : ""}>Idea</option></select></label>
+      <label class="field"><span>Details</span><textarea id="tk-body" maxlength="2000" placeholder="Describe it…">${esc(draft || "")}</textarea></label>
       <div class="err" id="tk-err"></div>
       <button class="btn primary" id="tk-send">Send</button>
     </div>
     ${p.gets_tickets ? `<div class="card" style="max-width:560px;margin-top:16px"><h2>Open tickets</h2><div id="tk-list"><div class="spinner"></div></div></div>` : ""}`;
+  if (draft) { $("#tk-card").scrollIntoView({ block: "center" }); $("#tk-body").focus(); }
   if (canPush()) pushSub().then(s => { $("#n-app").checked = !!s; });
   $("#n-app").onchange = async (e) => { e.target.checked = await setPush(e.target.checked); };
   $("#n-tg").onchange = async (e) => {
