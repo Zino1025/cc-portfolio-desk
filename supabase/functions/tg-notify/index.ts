@@ -1,5 +1,6 @@
 // tg-notify: sends Telegram messages for new feedback/messages, review requests, bug/idea tickets (new -> ticket admins, done -> the reporter),
 // market updates, and Signals (new signal + analyst updates -> Signals/Both members, Signals Admins and admins, incl. the poster as a receipt).
+// "fill-check" (cron, every 5 min): Waiting signals whose limit/zone price was reached get an "entry" update (-> Active + ping).
 // "tp-check" (hourly cron): exit-plan step pings for members who opted in + CC group membership re-check.
 // Called by a database trigger with {table, id}. It re-reads the row and marks it
 // notified, so calling it again never sends duplicates. Requests without the x-notify-secret header are refused.
@@ -118,7 +119,7 @@ Deno.serve(async (req) => {
     if (req.method !== "POST") return new Response("ok");
     if (!(await authorized(req.headers.get("x-notify-secret") ?? ""))) return new Response("forbidden", { status: 403 });
     const { table, id } = await req.json();
-    if (!TOKEN || (!id && table !== "price-check" && table !== "tp-check")) return Response.json({ skipped: true });
+    if (!TOKEN || (!id && !["price-check", "tp-check", "fill-check"].includes(table))) return Response.json({ skipped: true });
 
     if (table === "messages") {
       // Claim the message (only once).
@@ -234,6 +235,25 @@ Deno.serve(async (req) => {
       for (const c of hits) last[c.id] = new Date().toISOString();
       await db.from("app_settings").upsert({ key: "drop_alerts", value: last, updated_at: new Date().toISOString() });
       return Response.json({ ok: true, hits: hits.length });
+    }
+    if (table === "fill-check") {
+      // Lowest MEXC price since the signal was posted (5m candles); CoinGecko price if MEXC doesn't list it.
+      const { data: sigs } = await db.from("signals").select("id, symbol, coin_id, entry_low, entry_high, created_at").eq("status", "waiting");
+      let filled = 0;
+      for (const s of sigs ?? []) {
+        const since = new Date(s.created_at).getTime() - 300000;
+        const r = await fetch(`https://api.mexc.com/api/v3/klines?symbol=${s.symbol}USDT&interval=5m&limit=3`);
+        const rows = r.ok ? await r.json() : [];
+        let low = Math.min(...(Array.isArray(rows) ? rows : []).filter((k: any[]) => k[0] >= since).map((k: any[]) => Number(k[3])));
+        if (!Number.isFinite(low) && s.coin_id) {
+          const g = await fetch(`https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&ids=${s.coin_id}`);
+          low = Number((g.ok ? await g.json() : {})[s.coin_id]?.usd);
+        }
+        if (!(low > 0) || low > Number(s.entry_high ?? s.entry_low)) continue;
+        await db.from("signal_updates").insert({ signal_id: s.id, kind: "entry" });   // triggers set Active and ping members
+        filled++;
+      }
+      return Response.json({ ok: true, filled });
     }
     if (table === "tp-check") {
       // 1) Members who opted in: ping when a coin reaches one of their exit-plan steps (each step once).
