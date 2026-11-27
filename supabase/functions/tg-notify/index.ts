@@ -1,7 +1,8 @@
 // tg-notify: sends Telegram messages for new feedback/messages, review requests, bug/idea tickets (new -> ticket admins, done -> the reporter),
 // market updates, and Signals (new signal + analyst updates -> Signals/Both members, Signals Admins and admins, incl. the poster as a receipt).
 // "fill-check" (cron, every 5 min): Waiting signals whose limit/zone price was reached get an "entry" update (-> Active + ping).
-// "tp-check" (hourly cron): exit-plan step pings for members who opted in + CC group membership re-check.
+// "sell-check" (cron, every 5 min): exit-plan step pings + 5x spike pings for members with Sell pings on.
+// "tp-check" (hourly cron): CC group membership re-check.
 // Called by a database trigger with {table, id}. It re-reads the row and marks it
 // notified, so calling it again never sends duplicates. Requests without the x-notify-secret header are refused.
 // Every ping also goes out as an app notification (Web Push) to the member's installed Desk; members can mute Telegram (profiles.tg_mute).
@@ -121,7 +122,7 @@ Deno.serve(async (req) => {
     if (req.method !== "POST") return new Response("ok");
     if (!(await authorized(req.headers.get("x-notify-secret") ?? ""))) return new Response("forbidden", { status: 403 });
     const { table, id } = await req.json();
-    if (!TOKEN || (!id && !["price-check", "tp-check", "fill-check"].includes(table))) return Response.json({ skipped: true });
+    if (!TOKEN || (!id && !["price-check", "tp-check", "fill-check", "sell-check"].includes(table))) return Response.json({ skipped: true });
 
     if (table === "messages") {
       // Claim the message (only once).
@@ -257,31 +258,52 @@ Deno.serve(async (req) => {
       }
       return Response.json({ ok: true, filled });
     }
-    if (table === "tp-check") {
-      // 1) Members who opted in: ping when a coin reaches one of their exit-plan steps (each step once).
-      const { data: ps } = await db.from("profiles").select("id, telegram_chat_id, exit_plan, tp_pinged").eq("tp_alerts", true).not("telegram_chat_id", "is", null).not("exit_plan", "is", null);
-      const ids = [...new Set((ps ?? []).flatMap((p) => Object.keys(p.exit_plan?.coins ?? {})))];
-      let pings = 0;
-      if (ids.length) {
-        const r = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}`);
-        const mk: Record<string, any> = Object.fromEntries((r.ok ? await r.json() : []).map((c: any) => [c.id, c]));
-        for (const p of ps ?? []) {
-          const done = p.tp_pinged ?? {}, lines: string[] = [];
-          for (const [id, cp] of Object.entries<any>(p.exit_plan.coins ?? {})) {
-            const c = mk[id]; if (!c) continue;
-            (cp.steps ?? []).forEach((st: any, i: number) => {
-              const at = Number(st.at), k = `${id}:${i}:${at}`;
-              if (!(at > 0) || c.current_price < at || done[k]) return;
-              done[k] = new Date().toISOString();
-              lines.push(`• <b>${esc(String(c.symbol).toUpperCase())}</b> is at ${fp(c.current_price)}. Step ${i + 1}: sell ${Number(st.pct)}% at ${fp(at)}`);
-            });
-          }
-          if (!lines.length) continue;
-          await db.from("profiles").update({ tp_pinged: done }).eq("id", p.id);
-          if (await send(p.telegram_chat_id, `🎯 <b>Your exit plan says sell</b>\n\n${lines.join("\n")}\n\nStick to the plan.`, "exit")) pings++;
-        }
+    if (table === "sell-check") {
+      // "hi" = highest MEXC price in the last 10 min (5m candles), so a spike between checks still counts.
+      const { data: ps } = await db.from("profiles").select("id, telegram_chat_id, exit_plan, tp_pinged").eq("tp_alerts", true).not("telegram_chat_id", "is", null);
+      const { data: held } = await db.rpc("held_coins");
+      const holds = new Set((held ?? []).map((h: any) => `${h.user_id}:${h.coin_id}`));
+      const ids = [...new Set([...(ps ?? []).flatMap((p) => Object.keys(p.exit_plan?.coins ?? {})), ...(held ?? []).map((h: any) => h.coin_id)])];
+      if (!ids.length || !ps?.length) return Response.json({ ok: true, pings: 0 });
+      const r = await fetch(`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids.join(",")}&price_change_percentage=24h&per_page=250`);
+      const mk: Record<string, any> = Object.fromEntries((r.ok ? await r.json() : []).map((c: any) => [c.id, c]));
+      for (const c of Object.values<any>(mk)) {
+        const k = await fetch(`https://api.mexc.com/api/v3/klines?symbol=${String(c.symbol).toUpperCase()}USDT&interval=5m&limit=2`);
+        const rows = k.ok ? await k.json() : [];
+        c.hi = Math.max(c.current_price, ...(Array.isArray(rows) ? rows : []).map((x: any[]) => Number(x[2])).filter((h) => h < c.current_price * 2));   // guard: a different coin with the same MEXC ticker
+        const ago = c.current_price / (1 + (c.price_change_percentage_24h ?? 0) / 100);
+        c.spike = ago > 0 ? c.hi / ago : 0;   // x vs 24h ago
       }
-      // 2) Re-check CC group membership, so people who left lose access.
+      const { data: seen } = await db.from("app_settings").select("value").eq("key", "spike_alerts").maybeSingle();
+      const spiked: Record<string, string> = seen?.value ?? {};
+      const fresh = Object.values<any>(mk).filter((c) => c.spike >= 5 && (!spiked[c.id] || Date.now() - new Date(spiked[c.id]).getTime() > 24 * 3600 * 1000));
+      let pings = 0;
+      for (const p of ps) {
+        const done = p.tp_pinged ?? {}, lines: string[] = [];
+        for (const [id, cp] of Object.entries<any>(p.exit_plan?.coins ?? {})) {
+          const c = mk[id]; if (!c) continue;
+          (cp.steps ?? []).forEach((st: any, i: number) => {
+            const at = Number(st.at), k = `${id}:${i}:${at}`;
+            if (!(at > 0) || c.hi < at || done[k]) return;
+            done[k] = new Date().toISOString();
+            lines.push(`• <b>${esc(String(c.symbol).toUpperCase())}</b> hit ${fp(at)}${c.current_price < at ? ` (now ${fp(c.current_price)})` : ""}. Step ${i + 1}: sell ${Number(st.pct)}%`);
+          });
+        }
+        const sp = fresh.filter((c) => holds.has(`${p.id}:${c.id}`))
+          .map((c) => `🚀 <b>${esc(String(c.symbol).toUpperCase())}</b> is up ${c.spike.toFixed(1)}x in 24h (high ${fp(c.hi)}, now ${fp(c.current_price)}). Consider taking profit.`);
+        if (!lines.length && !sp.length) continue;
+        if (lines.length) await db.from("profiles").update({ tp_pinged: done }).eq("id", p.id);
+        const text = [lines.length ? `🎯 <b>Your exit plan says sell</b>\n\n${lines.join("\n")}\n\nStick to the plan.` : "", ...sp].filter(Boolean).join("\n\n");
+        if (await send(p.telegram_chat_id, text, "exit")) pings++;
+      }
+      if (fresh.length) {
+        for (const c of fresh) spiked[c.id] = new Date().toISOString();
+        await db.from("app_settings").upsert({ key: "spike_alerts", value: spiked, updated_at: new Date().toISOString() });
+      }
+      return Response.json({ ok: true, pings, spikes: fresh.length });
+    }
+    if (table === "tp-check") {
+      // Re-check CC group membership, so people who left lose access.
       const { data: grp } = await db.from("app_settings").select("value").eq("key", "cc_group").maybeSingle();
       let changed = 0;
       if (grp?.value?.id) {
@@ -294,7 +316,7 @@ Deno.serve(async (req) => {
           await new Promise((res) => setTimeout(res, 40));
         }
       }
-      return Response.json({ ok: true, pings, changed });
+      return Response.json({ ok: true, changed });
     }
     return Response.json({ skipped: "unknown table" });
   } catch (e) {

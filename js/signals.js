@@ -25,6 +25,11 @@ async function viewSignals(v) {
   $("#sig-new") && ($("#sig-new").onclick = () => sigPostModal(v));
   v.querySelectorAll("[data-sig-up]").forEach(b => b.onclick = () => sigUpdateModal(sigs.find(s => s.id === b.dataset.sigUp), v));
   v.querySelectorAll("[data-sig-edit]").forEach(b => b.onclick = () => sigPostModal(v, sigs.find(s => s.id === b.dataset.sigEdit)));
+  // Admins only (RLS): removes a mistaken signal for everyone, silently (no ping).
+  v.querySelectorAll("[data-sig-del]").forEach(b => b.onclick = () => { const s = sigs.find(x => x.id === b.dataset.sigDel);
+    confirmModal(`Delete $${s.symbol}?`, "Members won't see it anymore. This can't be undone.", async () => {
+      try { await api.deleteSignal(s.id); toast("Signal deleted"); viewSignals(v); } catch (e) { toast(e.message, "error"); }
+    }, { yes: "Delete" }); });
 }
 
 function sigCard(s) {
@@ -43,7 +48,7 @@ function sigCard(s) {
       ${row("Sell plan", split ? split.map((p, i) => `${p}% at TP${i + 1}`).join(" · ") : "TBD")}</div>
     ${s.note ? `<p class="sig-note">${esc(s.note)}</p>` : ""}${ATT.html(s.attachments)}
     ${ups.length ? `<div class="sig-ups">${ups.map(u => `<div class="sig-up"><b>${u.kind === "tp" ? `TP${u.tp_n} hit` : u.kind === "close" ? `Closed: ${SIG_OUT[u.outcome][0]}` : u.kind === "edit" ? "Edited" : SIG_UP[u.kind]}</b> <span class="muted">· ${ago(u.created_at)}${u.author_name ? ` · ${esc(u.author_name)}` : ""}</span>${u.body ? `<p>${esc(u.body)}</p>` : ""}</div>`).join("")}</div>` : ""}
-    ${canPostSignals() && s.status !== "closed" ? `<div class="btn-row" style="margin-top:14px"><button class="btn" data-sig-edit="${esc(s.id)}">Edit</button><button class="btn" data-sig-up="${esc(s.id)}">Post update</button></div>` : ""}
+    ${(canPostSignals() && s.status !== "closed") || isAdmin() ? `<div class="btn-row" style="margin-top:14px">${canPostSignals() && s.status !== "closed" ? `<button class="btn" data-sig-edit="${esc(s.id)}">Edit</button><button class="btn" data-sig-up="${esc(s.id)}">Post update</button>` : ""}${isAdmin() ? `<button class="btn danger" data-sig-del="${esc(s.id)}">Delete</button>` : ""}</div>` : ""}
   </div>`;
 }
 

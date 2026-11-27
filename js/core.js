@@ -481,6 +481,7 @@ const api = (() => {
     async postSignal(sig, tps) { return ok(await sb.rpc("post_signal", { sig, tps })); },
     async editSignal(sid, sig, tps, body) { ok(await sb.rpc("edit_signal", { sid, sig, tps, body })); },
     async addSignalUpdate(u) { ok(await sb.from("signal_updates").insert(u)); },
+    async deleteSignal(id) { if (!ok(await sb.from("signals").delete().eq("id", id).select("id"))?.length) throw new Error("Couldn't delete this signal"); },
     async splitRules() { return ok(await sb.from("split_rules").select("*")); },
     async groupHoldings() { return ok(await sb.rpc("group_holdings")) || []; },
     async removeMember(id) {
