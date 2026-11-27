@@ -2,7 +2,7 @@
 // market updates, and Signals (new signal + analyst updates -> Signals/Both members, Signals Admins and admins, incl. the poster as a receipt).
 // "fill-check" (cron, every 5 min): Waiting signals whose limit/zone price was reached get an "entry" update (-> Active + ping).
 // "sell-check" (cron, every 5 min): exit-plan step pings + 5x spike pings for members with Sell pings on.
-// "tp-check" (hourly cron): CC group membership re-check.
+// "tp-check" (hourly cron): CC group membership re-check + digest of sign-ups waiting for approval.
 // Called by a database trigger with {table, id}. It re-reads the row and marks it
 // notified, so calling it again never sends duplicates. Requests without the x-notify-secret header are refused.
 // Every ping also goes out as an app notification (Web Push) to the member's installed Desk; members can mute Telegram (profiles.tg_mute).
@@ -326,7 +326,16 @@ Deno.serve(async (req) => {
           await new Promise((res) => setTimeout(res, 1000));
         }
       }
-      return Response.json({ ok: true, changed });
+      // New sign-ups still waiting (not in the group, not approved): one digest to admins, each person once.
+      const { data: wait } = await db.from("profiles").select("id, display_name, telegram_handle").eq("role", "member").eq("approved", false)
+        .eq("signals_admin", false).eq("tier", "elite").or("in_group.is.null,in_group.eq.false").is("pending_pinged_at", null)
+        .lt("created_at", new Date(Date.now() - 600000).toISOString());
+      if (wait?.length) {
+        const text = `🕓 <b>${wait.length === 1 ? "1 person is" : `${wait.length} people are`} waiting for approval</b>\n\n${wait.slice(0, 20).map((p) => `• ${esc(nameOf(p))}`).join("\n")}${wait.length > 20 ? "\n…" : ""}\n\nApprove them in their member page.`;
+        for (const a of await admins()) await send(a.telegram_chat_id, text, "members");
+        await db.from("profiles").update({ pending_pinged_at: new Date().toISOString() }).in("id", wait.map((p) => p.id));
+      }
+      return Response.json({ ok: true, changed, waiting: wait?.length ?? 0 });
     }
     return Response.json({ skipped: "unknown table" });
   } catch (e) {

@@ -506,6 +506,8 @@ const S = {
 };
 const isAdmin = () => S.me?.role === "admin";
 const canPostSignals = () => isAdmin() || !!S.me?.signals_admin;
+// Server rule (has_access in supabase/approval.sql): in the CC group, approved by an admin, or on a Signals plan.
+const hasAccess = (p = S.me) => p?.role === "admin" || !!p?.signals_admin || !!p?.approved || p?.in_group === true || ["signals", "both"].includes(p?.tier);
 const signalsOnly = () => S.me?.tier === "signals" && !canPostSignals();   // Signals tab + Elite upsell, no Elite screens, no CC group gate
 const seesSignals = () => canPostSignals() || ["signals", "both"].includes(S.me?.tier);
 

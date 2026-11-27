@@ -94,8 +94,8 @@ async function boot() {
     if (s && recFlag()) { recFlag(false); await api.signOut(); return renderAuth("signin", "Password reset wasn't finished. Tap Forgot password to get a new link."); }
     if (!s) return renderAuth();
     await loadMe(s.user);
-    const gated = () => !isAdmin() && !signalsOnly() && S.me.in_group === false;
-    if (gated()) return renderGate();
+    const gated = () => !hasAccess();
+    if (gated()) { await tgLink(); if (gated()) return renderGate(); await loadMe(s.user); }   // first open from Telegram: check the CC group before showing the wait screen
     // Members always open on their portfolio, whatever page they were on last time.
     if (!isAdmin() && location.hash !== "#overview") history.replaceState(null, "", location.pathname + location.search + "#overview");
     render();
@@ -127,7 +127,9 @@ async function tgLink() {
   } catch (e) {}
 }
 function renderGate() {
-  $("#app").innerHTML = `<div class="auth-wrap"><div class="card" style="max-width:440px"><h2>${esc(CONFIG.GROUP_NAME)} members only</h2><p class="secondary">This Telegram account isn't in the ${esc(CONFIG.GROUP_NAME)} group. Join it, then open the Desk again.</p><button class="btn primary" onclick="location.reload()">I've joined</button></div></div>`;
+  const out = S.me.in_group === false;   // checked and not in the group (vs. not checked yet)
+  $("#app").innerHTML = `<div class="auth-wrap"><div class="card" style="max-width:440px"><h2>Waiting for approval</h2><p class="secondary">${out ? `This Telegram account isn't in the ${esc(CONFIG.GROUP_NAME)} group. Join it, or wait for an admin to approve you.` : `Open the Desk from the ${esc(CONFIG.GROUP_NAME)} bot in Telegram to get in right away, or wait for an admin to approve you.`}</p><div class="row" style="justify-content:flex-end"><button class="btn" id="g-out" style="flex:none">Sign out</button><button class="btn primary" style="flex:none" onclick="location.reload()">Check again</button></div></div></div>`;
+  $("#g-out").onclick = async () => { await api.signOut(); location.reload(); };
 }
 /* ===================== MOBILE KEYBOARD ===================== */
 // "Done"/Enter closes the keyboard (and commits the value) on every input; tapping outside does too.
